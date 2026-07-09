@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import type { ContentType, DashboardLayoutItem, FolderEntry, ThemeSettings } from "../types";
+import type { AppSettings, CollectionSettings, ContentType, DashboardLayoutItem, FolderEntry, ThemeSettings } from "../types";
 import type { Language } from "./i18n";
 
 export interface NativeContentSelection {
@@ -24,6 +24,8 @@ export interface PersistedAppState {
   theme: ThemeSettings;
   language: Language;
   dashboardLayouts: DashboardLayoutItem[];
+  collectionSettings?: Record<string, CollectionSettings>;
+  appSettings?: AppSettings;
 }
 
 export interface NativeReaderProgress {

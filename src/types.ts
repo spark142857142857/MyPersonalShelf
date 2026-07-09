@@ -2,6 +2,8 @@ export type ContentType = "document" | "video" | "audio" | "image" | "link" | "f
 export type ContentSource = "path" | "url" | "note" | "upload";
 export type DashboardCardSize = "standard" | "wide" | "tall";
 export type ReaderOpenMode = "embedded" | "window";
+export type CollectionIcon = "book" | "play" | "music" | "link" | "folder" | "tag" | "grid";
+export type SearchEnterBehavior = "select" | "open";
 
 export interface ContentItem {
   id: string;
@@ -49,6 +51,16 @@ export interface DashboardLayoutItem {
   order: number;
   size: DashboardCardSize;
   hidden: boolean;
+}
+
+export interface CollectionSettings {
+  color: string;
+  icon: CollectionIcon;
+}
+
+export interface AppSettings {
+  resetSearchOnNavigation: boolean;
+  searchEnterBehavior: SearchEnterBehavior;
 }
 
 export interface ThemeSettings {

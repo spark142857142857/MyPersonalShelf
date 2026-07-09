@@ -1,9 +1,14 @@
 import {
+  ArrowDown,
+  ArrowUp,
   BookOpen,
   Download,
+  Eye,
+  EyeOff,
   FilePlus2,
   FolderOpen,
   Grid3X3,
+  HelpCircle,
   Library,
   Link,
   Music2,
@@ -38,16 +43,20 @@ import {
 } from "./lib/native";
 import { contentItems as seedItems } from "./lib/sampleData";
 import type {
+  AppSettings,
   ContentItem,
+  CollectionIcon,
+  CollectionSettings,
   ContentSource,
   ContentType,
   DashboardCardSize,
   DashboardLayoutItem,
   ReaderOpenMode,
+  SearchEnterBehavior,
   ThemeSettings,
 } from "./types";
 
-type View = "dashboard" | "library" | "collections" | "customize" | "reader";
+type View = "dashboard" | "library" | "collections" | "customize" | "settings" | "guide" | "reader";
 type AddMode = "manual" | "upload";
 
 interface DraftItem {
@@ -66,6 +75,14 @@ const itemStorageKey = "mypersonalshelf.items.v1";
 const themeStorageKey = "mypersonalshelf.theme.v1";
 const languageStorageKey = "mypersonalshelf.language.v1";
 const dashboardStorageKey = "mypersonalshelf.dashboard.v1";
+const collectionSettingsStorageKey = "mypersonalshelf.collectionSettings.v1";
+const appSettingsStorageKey = "mypersonalshelf.appSettings.v1";
+const collectionIconOptions: CollectionIcon[] = ["grid", "book", "play", "music", "link", "folder", "tag"];
+
+const defaultAppSettings: AppSettings = {
+  resetSearchOnNavigation: true,
+  searchEnterBehavior: "select",
+};
 
 const defaultTheme: ThemeSettings = {
   background: "#edf0f4",
@@ -101,11 +118,23 @@ const typeIcons: Record<ContentType, React.ReactNode> = {
   folder: <FolderOpen size={18} />,
 };
 
+const collectionIcons: Record<CollectionIcon, React.ReactNode> = {
+  book: <BookOpen size={18} />,
+  play: <Play size={18} />,
+  music: <Music2 size={18} />,
+  link: <Link size={18} />,
+  folder: <FolderOpen size={18} />,
+  tag: <Tags size={18} />,
+  grid: <Grid3X3 size={18} />,
+};
+
 const navItems: Array<{ id: View; label: MessageKey; icon: React.ReactNode }> = [
   { id: "dashboard", label: "navDashboard", icon: <Grid3X3 size={18} /> },
   { id: "library", label: "navLibrary", icon: <Library size={18} /> },
   { id: "collections", label: "navCollections", icon: <Tags size={18} /> },
   { id: "customize", label: "navCustomize", icon: <Paintbrush size={18} /> },
+  { id: "settings", label: "navSettings", icon: <Settings2 size={18} /> },
+  { id: "guide", label: "navGuide", icon: <HelpCircle size={18} /> },
 ];
 
 const contentTypes: ContentType[] = ["document", "video", "audio", "image", "link", "folder"];
@@ -438,14 +467,14 @@ function getDocumentPreviewText(text: string) {
 function loadItems(): ContentItem[] {
   const raw = window.localStorage.getItem(itemStorageKey);
   if (!raw) {
-    return seedItems.map(normalizeItem);
+    return [];
   }
 
   try {
     const parsed = JSON.parse(raw) as ContentItem[];
-    return (parsed.length > 0 ? parsed : seedItems).map(normalizeItem);
+    return parsed.map(normalizeItem);
   } catch {
-    return seedItems.map(normalizeItem);
+    return [];
   }
 }
 
@@ -496,6 +525,88 @@ function loadDashboardLayouts(): DashboardLayoutItem[] {
   } catch {
     return [];
   }
+}
+
+function loadAppSettings(): AppSettings {
+  const raw = window.localStorage.getItem(appSettingsStorageKey);
+  if (!raw) {
+    return defaultAppSettings;
+  }
+
+  try {
+    return normalizeAppSettings(JSON.parse(raw) as Partial<AppSettings>);
+  } catch {
+    return defaultAppSettings;
+  }
+}
+
+function normalizeAppSettings(settings: Partial<AppSettings> = {}): AppSettings {
+  return {
+    ...defaultAppSettings,
+    ...settings,
+    searchEnterBehavior: settings.searchEnterBehavior === "open" ? "open" : "select",
+    resetSearchOnNavigation: settings.resetSearchOnNavigation ?? defaultAppSettings.resetSearchOnNavigation,
+  };
+}
+
+function loadCollectionSettings(): Record<string, CollectionSettings> {
+  const raw = window.localStorage.getItem(collectionSettingsStorageKey);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return normalizeCollectionSettings(JSON.parse(raw) as Record<string, CollectionSettings>);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeCollectionSettings(settings: Record<string, CollectionSettings> = {}) {
+  return Object.entries(settings).reduce<Record<string, CollectionSettings>>((normalized, [collection, setting]) => {
+    const name = collection.trim();
+    if (!name) {
+      return normalized;
+    }
+
+    normalized[name] = {
+      color: setting?.color || "#263238",
+      icon: collectionIconOptions.includes(setting?.icon) ? setting.icon : "grid",
+    };
+    return normalized;
+  }, {});
+}
+
+function defaultCollectionIcon(collection: string): CollectionIcon {
+  const value = collection.toLowerCase();
+  if (/novel|reading|read|소설|읽/.test(value)) return "book";
+  if (/lecture|video|강의|영상/.test(value)) return "play";
+  if (/music|audio|음악/.test(value)) return "music";
+  if (/link|reference|링크|참고/.test(value)) return "link";
+  if (/folder|폴더/.test(value)) return "folder";
+  return "grid";
+}
+
+function getCollectionSettings(
+  collection: string,
+  settings: Record<string, CollectionSettings>,
+  items: ContentItem[],
+): CollectionSettings {
+  return settings[collection] ?? {
+    color: items.find((item) => item.collection === collection)?.accent ?? "#263238",
+    icon: defaultCollectionIcon(collection),
+  };
+}
+
+function parseTagInput(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((tag) => tag.trim().replace(/^#/, ""))
+        .filter(Boolean),
+    ),
+  );
 }
 
 function normalizeDashboardLayouts(items: ContentItem[], layouts: DashboardLayoutItem[]) {
@@ -623,6 +734,8 @@ function App() {
   const [items, setItems] = useState<ContentItem[]>(loadItems);
   const [theme, setTheme] = useState<ThemeSettings>(loadTheme);
   const [language, setLanguage] = useState<Language>(loadLanguage);
+  const [appSettings, setAppSettings] = useState<AppSettings>(loadAppSettings);
+  const [collectionSettings, setCollectionSettings] = useState<Record<string, CollectionSettings>>(loadCollectionSettings);
   const [dashboardLayouts, setDashboardLayouts] = useState<DashboardLayoutItem[]>(() =>
     normalizeDashboardLayouts(loadItems(), loadDashboardLayouts()),
   );
@@ -703,7 +816,9 @@ function App() {
         setItems(nextItems);
         setTheme({ ...defaultTheme, ...state.theme });
         setLanguage(state.language === "ko" ? "ko" : "en");
+        setAppSettings(normalizeAppSettings(state.appSettings));
         setDashboardLayouts(normalizeDashboardLayouts(nextItems, state.dashboardLayouts ?? []));
+        setCollectionSettings(normalizeCollectionSettings(state.collectionSettings ?? {}));
         setSelectedItemId(readerItemIdFromUrl && nextItems.some((item) => item.id === readerItemIdFromUrl) ? readerItemIdFromUrl : nextItems[0]?.id ?? "");
         if (readerItemIdFromUrl) {
           setActiveView("reader");
@@ -741,17 +856,21 @@ function App() {
     window.localStorage.setItem(itemStorageKey, JSON.stringify(serializableItems));
     window.localStorage.setItem(themeStorageKey, JSON.stringify(theme));
     window.localStorage.setItem(languageStorageKey, language);
+    window.localStorage.setItem(appSettingsStorageKey, JSON.stringify(appSettings));
     window.localStorage.setItem(dashboardStorageKey, JSON.stringify(normalizedLayouts));
+    window.localStorage.setItem(collectionSettingsStorageKey, JSON.stringify(collectionSettings));
 
     saveNativeAppState({
       items: serializableItems,
       theme,
       language,
+      appSettings,
       dashboardLayouts: normalizedLayouts,
+      collectionSettings,
     }).catch(() => {
       // Browser preview cannot persist to SQLite; localStorage has already been updated.
     });
-  }, [dashboardLayouts, items, language, storageReady, theme]);
+  }, [appSettings, collectionSettings, dashboardLayouts, items, language, storageReady, theme]);
 
   useEffect(() => {
     const activeUrls = new Set(items.map((item) => item.objectUrl).filter((url): url is string => Boolean(url)));
@@ -838,6 +957,15 @@ function App() {
       return groups;
     }, {});
   }, [items]);
+  const groupedTags = useMemo(() => {
+    return items.reduce<Record<string, ContentItem[]>>((groups, item) => {
+      item.tags.forEach((tag) => {
+        groups[tag] = [...(groups[tag] ?? []), item];
+      });
+      return groups;
+    }, {});
+  }, [items]);
+  const collectionNames = useMemo(() => Object.keys(groupedCollections).sort((left, right) => left.localeCompare(right)), [groupedCollections]);
 
   const shellStyle = {
     "--app-bg": theme.background,
@@ -961,6 +1089,59 @@ function App() {
     window.addEventListener("keydown", handleOpenShortcut);
     return () => window.removeEventListener("keydown", handleOpenShortcut);
   }, [isAddOpen, selectedItem, theme.readerOpenMode, t]);
+
+  function filterByCollection(collection: string) {
+    setQuery(`collection:${collection}`);
+    setActiveType("all");
+    navigateToView("library");
+    setNotice(`${getCollectionLabel(collection, t)} ${t("collectionFiltered")}`);
+  }
+
+  function filterByTag(tag: string) {
+    setQuery(`tag:${tag}`);
+    setActiveType("all");
+    navigateToView("library");
+    setNotice(`#${getTagLabel(tag, t)} ${t("tagFiltered")}`);
+  }
+
+  function updateCollectionSettings(collection: string, patch: Partial<CollectionSettings>) {
+    setCollectionSettings((current) => ({
+      ...current,
+      [collection]: {
+        ...getCollectionSettings(collection, current, items),
+        ...patch,
+      },
+    }));
+  }
+
+  function renameCollection(previousName: string, nextName: string) {
+    const normalizedName = nextName.trim();
+    if (!normalizedName || normalizedName === previousName) {
+      return;
+    }
+
+    setItems((current) =>
+      current.map((item) =>
+        item.collection === previousName ? { ...item, collection: normalizedName, updatedAt: new Date().toISOString() } : item,
+      ),
+    );
+    setCollectionSettings((current) => {
+      const next = { ...current };
+      const previousSettings = getCollectionSettings(previousName, current, items);
+      delete next[previousName];
+      next[normalizedName] = previousSettings;
+      return next;
+    });
+    setNotice(`${getCollectionLabel(previousName, t)} -> ${normalizedName}`);
+  }
+
+  function navigatePrimaryView(nextView: View) {
+    if (appSettings.resetSearchOnNavigation) {
+      setQuery("");
+      setActiveType("all");
+    }
+    navigateToView(nextView);
+  }
 
   function addManualItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1167,6 +1348,8 @@ function App() {
             theme,
             language,
             dashboardLayouts: normalizedDashboardLayouts,
+            collectionSettings,
+            appSettings,
           },
           null,
           2,
@@ -1208,7 +1391,7 @@ function App() {
   return (
     <div className={`appShell ${theme.compactCards ? "compact" : ""}`} style={shellStyle}>
       <aside className="sidebar">
-        <button className="brand brandButton" type="button" onClick={() => navigateToView("dashboard")}>
+        <button className="brand brandButton" type="button" onClick={() => navigatePrimaryView("dashboard")}>
           <div className="brandMark">S</div>
           <div>
             <strong>{appConfig.displayName}</strong>
@@ -1222,7 +1405,7 @@ function App() {
               className={`navItem ${activeView === item.id ? "active" : ""}`}
               type="button"
               key={item.id}
-              onClick={() => navigateToView(item.id)}
+              onClick={() => navigatePrimaryView(item.id)}
             >
               {item.icon}
               {t(item.label)}
@@ -1253,7 +1436,7 @@ function App() {
                 if (event.key === "Enter" && filteredItems[0]) {
                   event.preventDefault();
                   event.stopPropagation();
-                  if (event.ctrlKey || event.metaKey) {
+                  if (event.ctrlKey || event.metaKey || appSettings.searchEnterBehavior === "open") {
                     void openItem(filteredItems[0]);
                   } else {
                     selectItem(filteredItems[0]);
@@ -1263,21 +1446,11 @@ function App() {
             />
           </div>
           <div className="actions">
-            <label className="topbarSelect">
-              <span>{t("language")}</span>
-              <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
-                {languageOptions.map((option) => (
-                  <option value={option.value} key={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button className="iconButton" type="button" aria-label={t("exportData")} onClick={exportData}>
               <Download size={18} />
             </button>
-            <button className="iconButton" type="button" aria-label={t("openCustomize")} onClick={() => navigateToView("customize")}>
-              <Settings2 size={18} />
+            <button className="iconButton" type="button" aria-label={t("openCustomize")} onClick={() => navigatePrimaryView("customize")}>
+              <Paintbrush size={18} />
             </button>
             <button className="primaryButton" type="button" onClick={() => setIsAddOpen(true)}>
               <FilePlus2 size={18} />
@@ -1298,26 +1471,53 @@ function App() {
                 <h1>{t("heroTitle")}</h1>
               </div>
               <div className="heroStats" aria-label={t("featureSummary")}>
-                <button type="button" onClick={() => navigateToView("library")}>{items.length} {t("items")}</button>
-                <button type="button" onClick={() => navigateToView("library")}>{favoriteItems.length} {t("pinned")}</button>
-                <button type="button" onClick={() => navigateToView("collections")}>{Object.keys(groupedCollections).length} {t("groups")}</button>
-                <button type="button" onClick={() => navigateToView("customize")}>{t("custom")}</button>
+                <button type="button" onClick={() => navigatePrimaryView("library")}>{items.length} {t("items")}</button>
+                <button type="button" onClick={() => navigatePrimaryView("library")}>{favoriteItems.length} {t("pinned")}</button>
+                <button type="button" onClick={() => navigatePrimaryView("collections")}>{Object.keys(groupedCollections).length} {t("groups")}</button>
+                <button type="button" onClick={() => navigatePrimaryView("customize")}>{t("custom")}</button>
               </div>
             </section>
 
             <section className="dashboardGrid" aria-label={t("dashboardFavorites")}>
-              {visibleDashboardCards.map(({ item, layout }) => (
-                <ShelfCard
-                  item={item}
-                  key={item.id}
-                  t={t}
-                  selected={selectedItemId === item.id}
-                  variant={layout.size}
-                  onSelect={() => selectItem(item)}
-                  onOpen={() => void openItem(item)}
-                  onToggleFavorite={() => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}
-                />
-              ))}
+              {visibleDashboardCards.length === 0 ? (
+                <div className="emptyDashboardPanel">
+                  <div className="guideIllustration compactGuideIllustration">
+                    <div className="guideShelfCard"><BookOpen size={18} /> txt/md</div>
+                    <div className="guideShelfCard"><Play size={18} /> mp4</div>
+                    <div className="guideShelfCard"><Link size={18} /> link</div>
+                    <div className="guideShelfCard"><FolderOpen size={18} /> folder</div>
+                  </div>
+                  <div>
+                    <span className="eyebrow">{t("emptyDashboardEyebrow")}</span>
+                    <h2>{t("emptyDashboardTitle")}</h2>
+                    <p>{t("emptyDashboardText")}</p>
+                    <div className="emptyDashboardActions">
+                      <button className="primaryButton" type="button" onClick={() => setIsAddOpen(true)}>
+                        <FilePlus2 size={17} />
+                        {t("addContent")}
+                      </button>
+                      <button type="button" onClick={() => navigatePrimaryView("guide")}>
+                        <HelpCircle size={17} />
+                        {t("openGuide")}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                visibleDashboardCards.map(({ item, layout }) => (
+                  <ShelfCard
+                    item={item}
+                    key={item.id}
+                    t={t}
+                    selected={selectedItemId === item.id}
+                    variant={layout.size}
+                    onSelect={() => selectItem(item)}
+                    onOpen={() => void openItem(item)}
+                    onFilterTag={filterByTag}
+                    onToggleFavorite={() => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}
+                  />
+                ))
+              )}
             </section>
 
             <section className="dashboardActivityGrid" aria-label={t("recentlyOpened")}>
@@ -1430,29 +1630,42 @@ function App() {
                   ))}
                 </div>
                 <div className="itemList">
-                  {filteredItems.map((item) => (
-                    <button
-                      className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
-                      type="button"
-                      key={item.id}
-                      onClick={() => selectItem(item)}
-                      onDoubleClick={() => void openItem(item)}
-                      onKeyDown={(event) => {
-                        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                          event.preventDefault();
-                          void openItem(item);
-                        }
-                      }}
-                    >
-                      <span className="listIcon" style={{ color: item.accent }}>
-                        {typeIcons[item.type]}
-                      </span>
-                      <span>
-                        <strong>{getItemTitle(item, t)}</strong>
-                        <small>{getCollectionLabel(item.collection, t)} / {item.location}</small>
-                      </span>
-                    </button>
-                  ))}
+                  {filteredItems.length === 0 ? (
+                    <div className="emptyListPanel">
+                      <strong>{query ? t("noSearchResults") : t("emptyLibraryTitle")}</strong>
+                      <p>{query ? t("noSearchResultsText") : t("emptyLibraryText")}</p>
+                      {!query && (
+                        <button type="button" onClick={() => setIsAddOpen(true)}>
+                          <FilePlus2 size={16} />
+                          {t("addContent")}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <button
+                        className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
+                        type="button"
+                        key={item.id}
+                        onClick={() => selectItem(item)}
+                        onDoubleClick={() => void openItem(item)}
+                        onKeyDown={(event) => {
+                          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                            event.preventDefault();
+                            void openItem(item);
+                          }
+                        }}
+                      >
+                        <span className="listIcon" style={{ color: item.accent }}>
+                          {typeIcons[item.type]}
+                        </span>
+                        <span>
+                          <strong>{getItemTitle(item, t)}</strong>
+                          <small>{getCollectionLabel(item.collection, t)} / {item.location}</small>
+                        </span>
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -1461,9 +1674,12 @@ function App() {
                 item={selectedItem}
                 theme={theme}
                 t={t}
+                collectionNames={collectionNames}
                 onPatch={updateSelectedItem}
                 onDelete={deleteSelectedItem}
                 onOpenItem={() => void openItem(selectedItem)}
+                onFilterCollection={filterByCollection}
+                onFilterTag={filterByTag}
               />
             )}
           </section>
@@ -1488,23 +1704,71 @@ function App() {
                 <span>{t("clickCollection")}</span>
               </div>
               <div className="collectionGrid">
-                {Object.entries(groupedCollections).map(([collection, collectionItems]) => (
-                  <button
-                    className="collectionCard"
-                    type="button"
-                    key={collection}
-                    onClick={() => {
-                      setQuery(collection);
-                      setActiveType("all");
-                      navigateToView("library");
-                      setNotice(`${getCollectionLabel(collection, t)} ${t("collectionFiltered")}`);
-                    }}
-                  >
-                    <strong>{getCollectionLabel(collection, t)}</strong>
-                    <span>{collectionItems.length} {collectionItems.length === 1 ? t("itemSingular") : t("itemPlural")}</span>
-                    <small>{collectionItems.map((item) => getTypeLabel(item.type, t)).join(", ")}</small>
-                  </button>
-                ))}
+                {collectionNames.map((collection) => {
+                  const collectionItems = groupedCollections[collection] ?? [];
+                  const settings = getCollectionSettings(collection, collectionSettings, items);
+                  return (
+                    <article className="collectionCard collectionEditorCard" key={collection} style={{ borderColor: settings.color }}>
+                      <button className="collectionOpenButton" type="button" onClick={() => filterByCollection(collection)}>
+                        <span className="collectionIcon" style={{ color: settings.color }}>
+                          {collectionIcons[settings.icon]}
+                        </span>
+                        <strong>{getCollectionLabel(collection, t)}</strong>
+                        <span>{collectionItems.length} {collectionItems.length === 1 ? t("itemSingular") : t("itemPlural")}</span>
+                        <small>{collectionItems.map((item) => getTypeLabel(item.type, t)).join(", ")}</small>
+                      </button>
+                      <div className="collectionEditGrid">
+                        <label>
+                          {t("collectionName")}
+                          <input
+                            defaultValue={collection}
+                            onBlur={(event) => renameCollection(collection, event.currentTarget.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.currentTarget.blur();
+                              }
+                            }}
+                          />
+                        </label>
+                        <label>
+                          {t("collectionColor")}
+                          <input
+                            type="color"
+                            value={settings.color}
+                            onChange={(event) => updateCollectionSettings(collection, { color: event.target.value })}
+                          />
+                        </label>
+                        <label>
+                          {t("collectionIcon")}
+                          <select value={settings.icon} onChange={(event) => updateCollectionSettings(collection, { icon: event.target.value as CollectionIcon })}>
+                            {collectionIconOptions.map((icon) => (
+                              <option value={icon} key={icon}>
+                                {t(`collectionIcon${icon[0].toUpperCase()}${icon.slice(1)}` as MessageKey)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+            <section className="libraryPanel">
+              <div className="sectionTitle">
+                <h2>{t("tagOverview")}</h2>
+                <span>{Object.keys(groupedTags).length} {t("tags")}</span>
+              </div>
+              <div className="tagCloud">
+                {Object.entries(groupedTags)
+                  .sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0]))
+                  .map(([tag, tagItems]) => (
+                    <button type="button" key={tag} onClick={() => filterByTag(tag)}>
+                      <strong>#{getTagLabel(tag, t)}</strong>
+                      <span>{tagItems.length} {tagItems.length === 1 ? t("itemSingular") : t("itemPlural")}</span>
+                    </button>
+                  ))}
+                {Object.keys(groupedTags).length === 0 && <p className="emptyText">{t("noTags")}</p>}
               </div>
             </section>
           </>
@@ -1513,12 +1777,10 @@ function App() {
         {activeView === "customize" && (
           <CustomizePanel
             theme={theme}
-            language={language}
             items={items}
             dashboardLayouts={normalizedDashboardLayouts}
             t={t}
             onChange={setTheme}
-            onLanguageChange={setLanguage}
             onMoveDashboardCard={moveDashboardCard}
             onCycleDashboardCardSize={cycleDashboardCardSize}
             onToggleDashboardCardHidden={toggleDashboardCardHidden}
@@ -1527,6 +1789,25 @@ function App() {
               setNotice(t("themeReset"));
             }}
           />
+        )}
+
+        {activeView === "settings" && (
+          <SettingsPanel
+            appSettings={appSettings}
+            theme={theme}
+            language={language}
+            itemCount={items.length}
+            collectionCount={collectionNames.length}
+            t={t}
+            onAppSettingsChange={setAppSettings}
+            onThemeChange={setTheme}
+            onLanguageChange={setLanguage}
+            onExportData={exportData}
+          />
+        )}
+
+        {activeView === "guide" && (
+          <GuidePanel t={t} onAddContent={() => setIsAddOpen(true)} onOpenCustomize={() => navigatePrimaryView("customize")} />
         )}
       </main>
 
@@ -1563,6 +1844,7 @@ function ShelfCard({
   variant,
   onSelect,
   onOpen,
+  onFilterTag,
   onToggleFavorite,
 }: {
   item: ContentItem;
@@ -1571,6 +1853,7 @@ function ShelfCard({
   variant: "standard" | "wide" | "tall";
   onSelect: () => void;
   onOpen: () => void;
+  onFilterTag: (tag: string) => void;
   onToggleFavorite: () => void;
 }) {
   function handleCardKeyDown(event: React.KeyboardEvent<HTMLElement>) {
@@ -1611,7 +1894,17 @@ function ShelfCard({
         </div>
         <div className="tagRow">
           {item.tags.map((tag) => (
-            <span key={tag}>#{getTagLabel(tag, t)}</span>
+            <button
+              type="button"
+              key={tag}
+              onClick={(event) => {
+                event.stopPropagation();
+                onFilterTag(tag);
+              }}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              #{getTagLabel(tag, t)}
+            </button>
           ))}
         </div>
       </div>
@@ -1635,16 +1928,22 @@ function DetailPanel({
   item,
   theme,
   t,
+  collectionNames,
   onPatch,
   onDelete,
   onOpenItem,
+  onFilterCollection,
+  onFilterTag,
 }: {
   item: ContentItem;
   theme: ThemeSettings;
   t: (key: MessageKey) => string;
+  collectionNames: string[];
   onPatch: (patch: Partial<ContentItem>) => void;
   onDelete: () => void;
   onOpenItem?: () => void;
+  onFilterCollection: (collection: string) => void;
+  onFilterTag: (tag: string) => void;
 }) {
   const safeExternalUrl = item.type === "link" ? getSafeExternalUrl(item.location) : null;
 
@@ -1709,6 +2008,40 @@ function DetailPanel({
           placeholder={t("notesPlaceholder")}
         />
       </label>
+
+      <div className="organizeEditor">
+        <label className="fieldBlock">
+          {t("collection")}
+          <input
+            list="collection-options"
+            value={item.collection}
+            onChange={(event) => onPatch({ collection: event.target.value.trim() || "Inbox" })}
+          />
+        </label>
+        <datalist id="collection-options">
+          {collectionNames.map((collection) => (
+            <option value={collection} key={collection} />
+          ))}
+        </datalist>
+        <label className="fieldBlock">
+          {t("tagsComma")}
+          <input
+            value={item.tags.join(", ")}
+            onChange={(event) => onPatch({ tags: parseTagInput(event.target.value) })}
+          />
+        </label>
+      </div>
+
+      <div className="quickFilterRow">
+        <button type="button" onClick={() => onFilterCollection(item.collection)}>
+          {t("filterCollection")}
+        </button>
+        {item.tags.map((tag) => (
+          <button type="button" key={tag} onClick={() => onFilterTag(tag)}>
+            #{getTagLabel(tag, t)}
+          </button>
+        ))}
+      </div>
 
       <div className="metaGrid">
         <span>{t("collection")}</span>
@@ -2357,30 +2690,28 @@ function AddContentModal({
 
 function CustomizePanel({
   theme,
-  language,
   items,
   dashboardLayouts,
   t,
   onChange,
-  onLanguageChange,
   onMoveDashboardCard,
   onCycleDashboardCardSize,
   onToggleDashboardCardHidden,
   onReset,
 }: {
   theme: ThemeSettings;
-  language: Language;
   items: ContentItem[];
   dashboardLayouts: DashboardLayoutItem[];
   t: (key: MessageKey) => string;
   onChange: (theme: ThemeSettings) => void;
-  onLanguageChange: (language: Language) => void;
   onMoveDashboardCard: (itemId: string, direction: -1 | 1) => void;
   onCycleDashboardCardSize: (itemId: string) => void;
   onToggleDashboardCardHidden: (itemId: string) => void;
   onReset: () => void;
 }) {
   const previewItem = items.find((item) => item.isFavorite) ?? items[0];
+  const visibleLayoutCount = dashboardLayouts.filter((layout) => !layout.hidden).length;
+  const hiddenLayoutCount = dashboardLayouts.length - visibleLayoutCount;
 
   return (
     <section className="customizeWorkspace">
@@ -2399,16 +2730,6 @@ function CustomizePanel({
               <h2>{t("identityAndMood")}</h2>
               <span>{t("savedLocalStorage")}</span>
             </div>
-            <label className="controlRow">
-              <span>{t("language")}</span>
-              <select value={language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
-                {languageOptions.map((option) => (
-                  <option value={option.value} key={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
             <div className="colorControlGrid">
               <ColorControl label={t("background")} value={theme.background} onChange={(value) => onChange({ ...theme, background: value })} />
               <ColorControl label={t("surface")} value={theme.surface} onChange={(value) => onChange({ ...theme, surface: value })} />
@@ -2421,18 +2742,6 @@ function CustomizePanel({
             <div className="groupHeading">
               <h2>{t("readingComfort")}</h2>
               <span>{t("readerPreview")}</span>
-            </div>
-            <div className="segmentedControl" aria-label={t("readerOpenMode")}>
-              {(["window", "embedded"] as ReaderOpenMode[]).map((mode) => (
-                <button
-                  className={theme.readerOpenMode === mode ? "active" : ""}
-                  type="button"
-                  key={mode}
-                  onClick={() => onChange({ ...theme, readerOpenMode: mode })}
-                >
-                  {mode === "window" ? t("readerOpenWindow") : t("readerOpenEmbedded")}
-                </button>
-              ))}
             </div>
             <label className="rangeControl">
               <span>{t("readerWidth")}</span>
@@ -2480,8 +2789,9 @@ function CustomizePanel({
           <section className="settingsGroup">
             <div className="groupHeading">
               <h2>{t("homeLayout")}</h2>
-              <span>{dashboardLayouts.length} {t("items")}</span>
+              <span>{visibleLayoutCount} {t("layoutVisible")} / {hiddenLayoutCount} {t("layoutHidden")}</span>
             </div>
+            <p className="groupDescription">{t("homeLayoutHint")}</p>
             <label className="toggleRow">
               <input
                 type="checkbox"
@@ -2499,25 +2809,40 @@ function CustomizePanel({
 
                 return (
                   <div className={`layoutItem ${layout.hidden ? "muted" : ""}`} key={layout.itemId}>
-                    <span>
-                      <strong>{getItemTitle(item, t)}</strong>
-                      <small>{getSizeLabel(layout.size, t)} / {layout.hidden ? t("hideCard") : getCollectionLabel(item.collection, t)}</small>
-                    </span>
+                    <div className={`layoutMiniCard ${layout.size}`} style={{ borderColor: item.accent }}>
+                      <span className="layoutOrder">{index + 1}</span>
+                      <span className="layoutMiniIcon" style={{ color: item.accent }}>
+                        {typeIcons[item.type]}
+                      </span>
+                      <span className="layoutMiniText">
+                        <strong>{getItemTitle(item, t)}</strong>
+                        <small>{getCollectionLabel(item.collection, t)}</small>
+                      </span>
+                      <span className="layoutBadges">
+                        <b>{getSizeLabel(layout.size, t)}</b>
+                        <b>{layout.hidden ? t("layoutHidden") : t("layoutVisible")}</b>
+                      </span>
+                    </div>
                     <div className="layoutActions">
-                      <button type="button" disabled={index === 0} onClick={() => onMoveDashboardCard(layout.itemId, -1)}>
+                      <button type="button" disabled={index === 0} onClick={() => onMoveDashboardCard(layout.itemId, -1)} title={t("moveUp")}>
+                        <ArrowUp size={15} />
                         {t("moveUp")}
                       </button>
                       <button
                         type="button"
                         disabled={index === dashboardLayouts.length - 1}
                         onClick={() => onMoveDashboardCard(layout.itemId, 1)}
+                        title={t("moveDown")}
                       >
+                        <ArrowDown size={15} />
                         {t("moveDown")}
                       </button>
-                      <button type="button" onClick={() => onCycleDashboardCardSize(layout.itemId)}>
+                      <button type="button" onClick={() => onCycleDashboardCardSize(layout.itemId)} title={t("changeSize")}>
+                        <Grid3X3 size={15} />
                         {t("changeSize")}
                       </button>
-                      <button type="button" onClick={() => onToggleDashboardCardHidden(layout.itemId)}>
+                      <button type="button" onClick={() => onToggleDashboardCardHidden(layout.itemId)} title={layout.hidden ? t("showCard") : t("hideCard")}>
+                        {layout.hidden ? <Eye size={15} /> : <EyeOff size={15} />}
                         {layout.hidden ? t("showCard") : t("hideCard")}
                       </button>
                     </div>
@@ -2567,6 +2892,203 @@ function CustomizePanel({
         </aside>
       </div>
     </section>
+  );
+}
+
+function SettingsPanel({
+  appSettings,
+  theme,
+  language,
+  itemCount,
+  collectionCount,
+  t,
+  onAppSettingsChange,
+  onThemeChange,
+  onLanguageChange,
+  onExportData,
+}: {
+  appSettings: AppSettings;
+  theme: ThemeSettings;
+  language: Language;
+  itemCount: number;
+  collectionCount: number;
+  t: (key: MessageKey) => string;
+  onAppSettingsChange: (settings: AppSettings) => void;
+  onThemeChange: (theme: ThemeSettings) => void;
+  onLanguageChange: (language: Language) => void;
+  onExportData: () => void;
+}) {
+  return (
+    <section className="settingsWorkspace">
+      <div className="customizeHeader">
+        <div>
+          <span className="eyebrow">{t("settingsEyebrow")}</span>
+          <h1>{t("settingsTitle")}</h1>
+        </div>
+      </div>
+
+      <div className="settingsPageGrid">
+        <section className="settingsGroup">
+          <div className="groupHeading">
+            <h2>{t("settingsGeneral")}</h2>
+            <span>{t("savedLocalStorage")}</span>
+          </div>
+          <label className="controlRow">
+            <span>{t("language")}</span>
+            <select value={language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
+              {languageOptions.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+
+        <section className="settingsGroup">
+          <div className="groupHeading">
+            <h2>{t("settingsOpening")}</h2>
+            <span>{t("readerOpenMode")}</span>
+          </div>
+          <div className="segmentedControl" aria-label={t("readerOpenMode")}>
+            {(["window", "embedded"] as ReaderOpenMode[]).map((mode) => (
+              <button
+                className={theme.readerOpenMode === mode ? "active" : ""}
+                type="button"
+                key={mode}
+                onClick={() => onThemeChange({ ...theme, readerOpenMode: mode })}
+              >
+                {mode === "window" ? t("readerOpenWindow") : t("readerOpenEmbedded")}
+              </button>
+            ))}
+          </div>
+          <p className="groupDescription">{t("readerOpenModeHint")}</p>
+        </section>
+
+        <section className="settingsGroup">
+          <div className="groupHeading">
+            <h2>{t("settingsSearch")}</h2>
+            <span>{t("searchContent")}</span>
+          </div>
+          <label className="toggleRow">
+            <input
+              type="checkbox"
+              checked={appSettings.resetSearchOnNavigation}
+              onChange={(event) => onAppSettingsChange({ ...appSettings, resetSearchOnNavigation: event.target.checked })}
+            />
+            <span>{t("resetSearchOnNavigation")}</span>
+          </label>
+          <label className="controlRow">
+            <span>{t("searchEnterBehavior")}</span>
+            <select
+              value={appSettings.searchEnterBehavior}
+              onChange={(event) =>
+                onAppSettingsChange({ ...appSettings, searchEnterBehavior: event.target.value as SearchEnterBehavior })
+              }
+            >
+              <option value="select">{t("searchEnterSelect")}</option>
+              <option value="open">{t("searchEnterOpen")}</option>
+            </select>
+          </label>
+        </section>
+
+        <section className="settingsGroup">
+          <div className="groupHeading">
+            <h2>{t("settingsData")}</h2>
+            <span>{itemCount} {t("items")} / {collectionCount} {t("groups")}</span>
+          </div>
+          <p className="groupDescription">{t("settingsDataHint")}</p>
+          <button className="settingsActionButton" type="button" onClick={onExportData}>
+            <Download size={16} />
+            {t("exportData")}
+          </button>
+        </section>
+
+        <section className="settingsGroup">
+          <div className="groupHeading">
+            <h2>{t("settingsAbout")}</h2>
+            <span>MyPersonalShelf</span>
+          </div>
+          <div className="settingsInfoList">
+            <span>{t("settingsStorage")}</span>
+            <strong>{t("settingsStorageValue")}</strong>
+            <span>{t("settingsAppMode")}</span>
+            <strong>{t("settingsAppModeValue")}</strong>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function GuidePanel({
+  t,
+  onAddContent,
+  onOpenCustomize,
+}: {
+  t: (key: MessageKey) => string;
+  onAddContent: () => void;
+  onOpenCustomize: () => void;
+}) {
+  return (
+    <section className="guideWorkspace">
+      <div className="customizeHeader guideHero">
+        <div>
+          <span className="eyebrow">{t("guideEyebrow")}</span>
+          <h1>{t("guideTitle")}</h1>
+        </div>
+        <div className="guideHeroActions">
+          <button type="button" onClick={onAddContent}>
+            <FilePlus2 size={17} />
+            {t("addContent")}
+          </button>
+          <button type="button" onClick={onOpenCustomize}>
+            <Paintbrush size={17} />
+            {t("navCustomize")}
+          </button>
+        </div>
+      </div>
+
+      <section className="guideIntroPanel">
+        <div className="guideIllustration">
+          <div className="guideShelfCard"><BookOpen size={20} /> {t("guideVisualDocument")}</div>
+          <div className="guideShelfCard"><Play size={20} /> {t("guideVisualMedia")}</div>
+          <div className="guideShelfCard"><Link size={20} /> {t("guideVisualLink")}</div>
+          <div className="guideShelfCard"><Tags size={20} /> {t("guideVisualTags")}</div>
+        </div>
+        <div>
+          <h2>{t("guideWhatTitle")}</h2>
+          <p>{t("guideWhatText")}</p>
+        </div>
+      </section>
+
+      <section className="guideGrid">
+        <GuideCard icon={<FilePlus2 size={20} />} title={t("guideAddTitle")} text={t("guideAddText")} />
+        <GuideCard icon={<Library size={20} />} title={t("guideLibraryTitle")} text={t("guideLibraryText")} />
+        <GuideCard icon={<MousePointerHint />} title={t("guideOpenTitle")} text={t("guideOpenText")} />
+        <GuideCard icon={<Tags size={20} />} title={t("guideOrganizeTitle")} text={t("guideOrganizeText")} />
+        <GuideCard icon={<Paintbrush size={20} />} title={t("guideCustomizeTitle")} text={t("guideCustomizeText")} />
+        <GuideCard icon={<Settings2 size={20} />} title={t("guideSettingsTitle")} text={t("guideSettingsText")} />
+      </section>
+    </section>
+  );
+}
+
+function GuideCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return (
+    <article className="guideCard">
+      <span>{icon}</span>
+      <h2>{title}</h2>
+      <p>{text}</p>
+    </article>
+  );
+}
+
+function MousePointerHint() {
+  return (
+    <span className="mousePointerHint" aria-hidden="true">
+      <span />
+    </span>
   );
 }
 
