@@ -1,6 +1,7 @@
 export type ContentType = "document" | "video" | "audio" | "image" | "link" | "folder";
 export type ContentSource = "path" | "url" | "note" | "upload";
 export type DashboardCardSize = "standard" | "wide" | "tall";
+export type ReaderOpenMode = "embedded" | "window";
 
 export interface ContentItem {
   id: string;
@@ -22,6 +23,7 @@ export interface ContentItem {
   openCount: number;
   lastOpenedAt?: string;
   readerProgress?: number;
+  readerScrollTop?: number;
   mediaPosition?: number;
   createdAt: string;
   updatedAt: string;
@@ -57,5 +59,7 @@ export interface ThemeSettings {
   accent: string;
   readerWidth: number;
   lineHeight: number;
+  readerFontSize: number;
+  readerOpenMode: ReaderOpenMode;
   compactCards: boolean;
 }

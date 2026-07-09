@@ -21,7 +21,21 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { appConfig } from "./lib/appConfig";
 import { getMessage, languageOptions, type Language, type MessageKey } from "./lib/i18n";
-import { loadNativeAppState, nativeAssetUrl, saveNativeAppState, selectNativeFile, selectNativeFolder } from "./lib/native";
+import {
+  loadNativeMediaProgress,
+  loadNativeReaderProgress,
+  loadNativeAppState,
+  nativeAssetUrl,
+  openNativeFolder,
+  openNativeReaderWindow,
+  openNativeUrl,
+  readNativeTextFile,
+  saveNativeAppState,
+  saveNativeMediaProgress,
+  saveNativeReaderProgress,
+  selectNativeFile,
+  selectNativeFolder,
+} from "./lib/native";
 import { contentItems as seedItems } from "./lib/sampleData";
 import type {
   ContentItem,
@@ -29,10 +43,11 @@ import type {
   ContentType,
   DashboardCardSize,
   DashboardLayoutItem,
+  ReaderOpenMode,
   ThemeSettings,
 } from "./types";
 
-type View = "dashboard" | "library" | "collections" | "customize";
+type View = "dashboard" | "library" | "collections" | "customize" | "reader";
 type AddMode = "manual" | "upload";
 
 interface DraftItem {
@@ -60,6 +75,8 @@ const defaultTheme: ThemeSettings = {
   accent: "#263238",
   readerWidth: 680,
   lineHeight: 1.8,
+  readerFontSize: 15,
+  readerOpenMode: "window",
   compactCards: false,
 };
 
@@ -211,6 +228,213 @@ function getItemTextContent(item: ContentItem, t: (key: MessageKey) => string) {
   return item.textContent ? translateKnown(item.textContent, seedTextContentLabelKeys, t) : "";
 }
 
+function isMarkdownItem(item: ContentItem) {
+  const target = `${item.fileName ?? ""} ${item.location ?? ""} ${item.title ?? ""}`.toLowerCase();
+  return /\.(md|markdown)(\s|$|\?)/.test(target);
+}
+
+function isMarkdownBlockStart(line: string) {
+  const trimmed = line.trim();
+  return (
+    /^#{1,6}\s+/.test(trimmed) ||
+    /^-{3,}$/.test(trimmed) ||
+    /^>{1}\s?/.test(trimmed) ||
+    /^[-*+]\s+/.test(trimmed) ||
+    /^\d+\.\s+/.test(trimmed) ||
+    /^```/.test(trimmed)
+  );
+}
+
+function renderInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|~~[^~]+~~|\[[^\]]+\]\([^)]+\)|\[\[[^\]]+\]\])/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text))) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    const key = `${keyPrefix}-${match.index}`;
+
+    if (token.startsWith("`")) {
+      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("**") || token.startsWith("__")) {
+      nodes.push(<strong key={key}>{renderInlineMarkdown(token.slice(2, -2), `${key}-strong`)}</strong>);
+    } else if (token.startsWith("*") || token.startsWith("_")) {
+      nodes.push(<em key={key}>{renderInlineMarkdown(token.slice(1, -1), `${key}-em`)}</em>);
+    } else if (token.startsWith("~~")) {
+      nodes.push(<del key={key}>{renderInlineMarkdown(token.slice(2, -2), `${key}-del`)}</del>);
+    } else if (token.startsWith("[[")) {
+      nodes.push(<span className="markdownWikiLink" key={key}>{token.slice(2, -2)}</span>);
+    } else {
+      const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch) {
+        nodes.push(
+          <a key={key} href={linkMatch[2]} target="_blank" rel="noreferrer">
+            {renderInlineMarkdown(linkMatch[1], `${key}-link`)}
+          </a>,
+        );
+      } else {
+        nodes.push(token);
+      }
+    }
+
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes;
+}
+
+function renderMarkdownBlocks(text: string) {
+  const blocks: React.ReactNode[] = [];
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith("```")) {
+      const language = trimmed.slice(3).trim();
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      index += index < lines.length ? 1 : 0;
+      blocks.push(
+        <pre className="markdownCodeBlock" key={`code-${index}`}>
+          {language && <span>{language}</span>}
+          <code>{codeLines.join("\n")}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = Math.min(headingMatch[1].length, 4);
+      const HeadingTag = `h${level}` as keyof JSX.IntrinsicElements;
+      blocks.push(<HeadingTag key={`heading-${index}`}>{renderInlineMarkdown(headingMatch[2], `heading-${index}`)}</HeadingTag>);
+      index += 1;
+      continue;
+    }
+
+    if (/^-{3,}$/.test(trimmed)) {
+      blocks.push(<hr key={`hr-${index}`} />);
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith(">")) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && lines[index].trim().startsWith(">")) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push(<blockquote key={`quote-${index}`}>{renderMarkdownBlocks(quoteLines.join("\n"))}</blockquote>);
+      continue;
+    }
+
+    if (/^[-*+]\s+/.test(trimmed)) {
+      const items: React.ReactNode[] = [];
+      while (index < lines.length && /^[-*+]\s+/.test(lines[index].trim())) {
+        const itemText = lines[index].trim().replace(/^[-*+]\s+/, "");
+        const taskMatch = itemText.match(/^\[( |x|X)\]\s+(.+)$/);
+        items.push(
+          <li className={taskMatch ? "markdownTaskItem" : undefined} key={`ul-${index}`}>
+            {taskMatch && <input type="checkbox" checked={taskMatch[1].toLowerCase() === "x"} readOnly />}
+            {renderInlineMarkdown(taskMatch ? taskMatch[2] : itemText, `ul-${index}`)}
+          </li>,
+        );
+        index += 1;
+      }
+      blocks.push(<ul key={`ul-list-${index}`}>{items}</ul>);
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items: React.ReactNode[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        const itemText = lines[index].trim().replace(/^\d+\.\s+/, "");
+        items.push(<li key={`ol-${index}`}>{renderInlineMarkdown(itemText, `ol-${index}`)}</li>);
+        index += 1;
+      }
+      blocks.push(<ol key={`ol-list-${index}`}>{items}</ol>);
+      continue;
+    }
+
+    const paragraphLines = [trimmed];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines[index])) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push(<p key={`p-${index}`}>{renderInlineMarkdown(paragraphLines.join(" "), `p-${index}`)}</p>);
+  }
+
+  return blocks;
+}
+
+function DocumentTextView({
+  item,
+  text,
+  fallbackText,
+  variant = "full",
+}: {
+  item: ContentItem;
+  text: string;
+  fallbackText: string;
+  variant?: "full" | "preview";
+}) {
+  if (!text) {
+    return <div className="readerEmptyText">{fallbackText}</div>;
+  }
+
+  if (variant === "preview") {
+    return <div className="documentPreviewExcerpt">{getDocumentPreviewText(text)}</div>;
+  }
+
+  if (isMarkdownItem(item)) {
+    return <div className="markdownDocument">{renderMarkdownBlocks(text)}</div>;
+  }
+
+  return <div className="readerText">{text}</div>;
+}
+
+function getDocumentPreviewText(text: string) {
+  const cleaned = text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/[`*_~]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (cleaned.length <= 420) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, 420).trim()}...`;
+}
+
 function loadItems(): ContentItem[] {
   const raw = window.localStorage.getItem(itemStorageKey);
   if (!raw) {
@@ -236,6 +460,7 @@ function normalizeItem(item: ContentItem): ContentItem {
     isFavorite: Boolean(item.isFavorite),
     openCount: item.openCount ?? 0,
     readerProgress: item.readerProgress ?? 0,
+    readerScrollTop: item.readerScrollTop ?? 0,
     mediaPosition: item.mediaPosition ?? 0,
     createdAt: item.createdAt ?? now,
     updatedAt: item.updatedAt ?? now,
@@ -292,17 +517,49 @@ function getTypeFromFile(file: File): ContentType {
   return "document";
 }
 
+function canPreviewMediaItem(item: ContentItem, kind: "video" | "audio") {
+  if (item.source === "upload") {
+    return true;
+  }
+
+  const target = `${item.fileName ?? ""} ${item.location}`.toLowerCase();
+  const extensions = kind === "video" ? ["mp4", "webm", "m4v"] : ["mp3", "wav", "ogg", "m4a"];
+  return extensions.some((extension) => new RegExp(`\\.${extension}(?:$|[?#])`).test(target));
+}
+
+function isViewerContent(item: ContentItem) {
+  return item.type === "document" || item.type === "video" || item.type === "audio" || item.type === "image";
+}
+
+function canOpenSeparateViewerWindow(item: ContentItem) {
+  return item.type === "document" || ((item.type === "video" || item.type === "audio" || item.type === "image") && item.source === "path");
+}
+
 function createId() {
   return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getSafeExternalUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
-  } catch {
+  const trimmed = value.trim();
+  if (!trimmed) {
     return null;
   }
+
+  const hasScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed);
+  const candidates = hasScheme ? [trimmed] : [trimmed, `https://${trimmed}`];
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch {
+      // Try the normalized candidate next.
+    }
+  }
+
+  return null;
 }
 
 function parseSearchQuery(query: string) {
@@ -357,15 +614,20 @@ function matchesContentType(item: ContentItem, value: string, t: (key: MessageKe
   return matchesLocalizedText([item.type, getTypeLabel(item.type, t)], value);
 }
 
+function getReaderItemIdFromUrl() {
+  return new URLSearchParams(window.location.search).get("reader");
+}
+
 function App() {
+  const readerItemIdFromUrl = getReaderItemIdFromUrl();
   const [items, setItems] = useState<ContentItem[]>(loadItems);
   const [theme, setTheme] = useState<ThemeSettings>(loadTheme);
   const [language, setLanguage] = useState<Language>(loadLanguage);
   const [dashboardLayouts, setDashboardLayouts] = useState<DashboardLayoutItem[]>(() =>
     normalizeDashboardLayouts(loadItems(), loadDashboardLayouts()),
   );
-  const [activeView, setActiveView] = useState<View>("dashboard");
-  const [selectedItemId, setSelectedItemId] = useState(items[0]?.id ?? "");
+  const [activeView, setActiveView] = useState<View>(readerItemIdFromUrl ? "reader" : "dashboard");
+  const [selectedItemId, setSelectedItemId] = useState(readerItemIdFromUrl ?? items[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<ContentType | "all">("all");
   const [notice, setNotice] = useState("");
@@ -377,6 +639,51 @@ function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const t = useCallback((key: MessageKey) => getMessage(language, key), [language]);
+
+  const navigateToView = useCallback((nextView: View, itemId = selectedItemId) => {
+    const currentState = window.history.state as { view?: View; selectedItemId?: string } | null;
+    if (currentState?.view !== nextView || currentState?.selectedItemId !== itemId) {
+      window.history.pushState({ view: nextView, selectedItemId: itemId }, "");
+    }
+    setSelectedItemId(itemId);
+    setActiveView(nextView);
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    window.history.replaceState({ view: activeView, selectedItemId }, "");
+  }, []);
+
+  useEffect(() => {
+    function handlePopState(event: PopStateEvent) {
+      const state = event.state as { view?: View; selectedItemId?: string } | null;
+      if (state?.view) {
+        setActiveView(state.view);
+      }
+      if (state?.selectedItemId) {
+        setSelectedItemId(state.selectedItemId);
+      }
+    }
+
+    function handleMouseNavigation(event: MouseEvent) {
+      if (event.button === 3) {
+        event.preventDefault();
+        window.history.back();
+      }
+      if (event.button === 4) {
+        event.preventDefault();
+        window.history.forward();
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("mouseup", handleMouseNavigation);
+    window.addEventListener("auxclick", handleMouseNavigation);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("mouseup", handleMouseNavigation);
+      window.removeEventListener("auxclick", handleMouseNavigation);
+    };
+  }, []);
 
   useEffect(() => {
     if (!notice) {
@@ -397,7 +704,10 @@ function App() {
         setTheme({ ...defaultTheme, ...state.theme });
         setLanguage(state.language === "ko" ? "ko" : "en");
         setDashboardLayouts(normalizeDashboardLayouts(nextItems, state.dashboardLayouts ?? []));
-        setSelectedItemId(nextItems[0]?.id ?? "");
+        setSelectedItemId(readerItemIdFromUrl && nextItems.some((item) => item.id === readerItemIdFromUrl) ? readerItemIdFromUrl : nextItems[0]?.id ?? "");
+        if (readerItemIdFromUrl) {
+          setActiveView("reader");
+        }
       })
       .catch(() => {
         // Browser preview cannot call Tauri commands; localStorage remains the fallback.
@@ -464,13 +774,13 @@ function App() {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         searchInputRef.current?.focus();
-        setActiveView("library");
+        navigateToView("library");
       }
     }
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, []);
+  }, [navigateToView]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0];
   const favoriteItems = items.filter((item) => item.isFavorite);
@@ -484,6 +794,14 @@ function App() {
     .filter((entry): entry is { layout: DashboardLayoutItem; item: ContentItem } => Boolean(entry.item))
     .filter((entry) => entry.item.isFavorite || favoriteItems.length === 0)
     .slice(0, 8);
+  const frequentItems = [...items]
+    .filter((item) => item.openCount > 0 || item.lastOpenedAt)
+    .sort((left, right) => {
+      const openDifference = right.openCount - left.openCount;
+      if (openDifference !== 0) return openDifference;
+      return (right.lastOpenedAt ?? "").localeCompare(left.lastOpenedAt ?? "");
+    })
+    .slice(0, 5);
   const recentItems = [...items]
     .filter((item) => item.lastOpenedAt)
     .sort((left, right) => (right.lastOpenedAt ?? "").localeCompare(left.lastOpenedAt ?? ""))
@@ -529,9 +847,25 @@ function App() {
     "--app-accent": theme.accent,
     "--reader-width": `${theme.readerWidth}px`,
     "--reader-line-height": theme.lineHeight,
+    "--reader-font-size": `${theme.readerFontSize}px`,
   } as React.CSSProperties;
 
-  function selectItem(item: ContentItem, nextView: View = "library") {
+  useEffect(() => {
+    if (activeView !== "reader" || !selectedItem || selectedItem.type !== "document" || selectedItem.source !== "path" || selectedItem.textContent) {
+      return;
+    }
+
+    readNativeTextFile(selectedItem.location)
+      .then((textContent) => updateItem(setItems, selectedItem.id, { textContent }))
+      .catch((error) => setNotice(`${t("documentReadFailed")} ${String(error)}`));
+  }, [activeView, selectedItem, t]);
+
+  async function selectItem(item: ContentItem, nextView?: View) {
+    navigateToView(nextView ?? "library", item.id);
+    setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+  }
+
+  function markItemOpened(item: ContentItem) {
     const openedAt = new Date().toISOString();
     setItems((current) =>
       current.map((currentItem) =>
@@ -545,10 +879,88 @@ function App() {
           : currentItem,
       ),
     );
-    setSelectedItemId(item.id);
-    setActiveView(nextView);
-    setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
   }
+
+  async function openItem(item: ContentItem) {
+    if (item.type === "link") {
+      const safeExternalUrl = getSafeExternalUrl(item.location);
+      if (!safeExternalUrl) {
+        navigateToView("library", item.id);
+        setNotice(t("invalidLink"));
+        return;
+      }
+
+      setSelectedItemId(item.id);
+      markItemOpened(item);
+      openNativeUrl(safeExternalUrl).catch(() => {
+        window.open(safeExternalUrl, "_blank", "noopener,noreferrer");
+      });
+      setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+      return;
+    }
+
+    if (item.type === "folder" && item.source === "path") {
+      setSelectedItemId(item.id);
+      markItemOpened(item);
+      openNativeFolder(item.location).catch(() => {
+        setNotice(t("nativeUnavailable"));
+      });
+      setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+      return;
+    }
+
+    if (!isViewerContent(item)) {
+      selectItem(item);
+      return;
+    }
+
+    markItemOpened(item);
+    if (canOpenSeparateViewerWindow(item) && theme.readerOpenMode === "window" && !readerItemIdFromUrl) {
+      setSelectedItemId(item.id);
+      try {
+        await openNativeReaderWindow(item.id, getItemTitle(item, t));
+        setNotice(`${getItemTitle(item, t)} ${t("readerWindowOpened")}`);
+        return;
+      } catch (error) {
+        setNotice(`${t("readerWindowFailed")} ${String(error)}`);
+      }
+    }
+
+    navigateToView("reader", item.id);
+    setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+
+    if (item.type === "document" && item.source === "path" && !item.textContent) {
+      try {
+        const textContent = await readNativeTextFile(item.location);
+        updateItem(setItems, item.id, { textContent });
+      } catch (error) {
+        setNotice(`${t("documentReadFailed")} ${String(error)}`);
+      }
+    }
+  }
+
+  useEffect(() => {
+    function handleOpenShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter" || !selectedItem || isAddOpen) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target !== searchInputRef.current &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      void openItem(selectedItem);
+    }
+
+    window.addEventListener("keydown", handleOpenShortcut);
+    return () => window.removeEventListener("keydown", handleOpenShortcut);
+  }, [isAddOpen, selectedItem, theme.readerOpenMode, t]);
 
   function addManualItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -574,10 +986,9 @@ function App() {
     };
 
     setItems((current) => [nextItem, ...current]);
-    setSelectedItemId(nextItem.id);
     setDraft(initialDraft);
     setIsAddOpen(false);
-    setActiveView("library");
+    navigateToView("library", nextItem.id);
     setNotice(`${nextItem.title} ${t("addedToShelf")}`);
   }
 
@@ -607,8 +1018,7 @@ function App() {
         const textContent = typeof reader.result === "string" ? reader.result : "";
         const nextItem = { ...baseItem, textContent };
         setItems((current) => [nextItem, ...current]);
-        setSelectedItemId(nextItem.id);
-        setActiveView("library");
+        navigateToView("library", nextItem.id);
         setIsAddOpen(false);
         setNotice(`${nextItem.title} ${t("importedReadable")}`);
       };
@@ -618,8 +1028,7 @@ function App() {
 
     const nextItem = { ...baseItem, objectUrl: URL.createObjectURL(file) };
     setItems((current) => [nextItem, ...current]);
-    setSelectedItemId(nextItem.id);
-    setActiveView("library");
+    navigateToView("library", nextItem.id);
     setIsAddOpen(false);
     setNotice(`${nextItem.title} ${t("importedPreview")}`);
   }
@@ -653,8 +1062,7 @@ function App() {
       };
 
       setItems((current) => [nextItem, ...current]);
-      setSelectedItemId(nextItem.id);
-      setActiveView("library");
+      navigateToView("library", nextItem.id);
       setIsAddOpen(false);
       setNotice(`${nextItem.title} ${t("nativeFileAdded")}`);
     } catch {
@@ -688,8 +1096,7 @@ function App() {
       };
 
       setItems((current) => [nextItem, ...current]);
-      setSelectedItemId(nextItem.id);
-      setActiveView("library");
+      navigateToView("library", nextItem.id);
       setIsAddOpen(false);
       setNotice(`${nextItem.title} ${t("nativeFolderAdded")}`);
     } catch {
@@ -746,7 +1153,7 @@ function App() {
     if (!selectedItem) return;
     const nextItems = items.filter((item) => item.id !== selectedItem.id);
     setItems(nextItems);
-    setSelectedItemId(nextItems[0]?.id ?? "");
+    navigateToView("library", nextItems[0]?.id ?? "");
     setNotice(`${selectedItem.title} ${t("removed")}`);
   }
 
@@ -775,10 +1182,33 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  if (activeView === "reader" && selectedItem) {
+    return (
+      <div className="readerShell" style={shellStyle}>
+        {selectedItem.type === "document" ? (
+          <ReaderView
+            item={selectedItem}
+            theme={theme}
+            t={t}
+            onBack={() => navigateToView("library", selectedItem.id)}
+            onPatch={updateSelectedItem}
+          />
+        ) : (
+          <MediaViewerView
+            item={selectedItem}
+            t={t}
+            onBack={() => navigateToView("library", selectedItem.id)}
+            onPatch={updateSelectedItem}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`appShell ${theme.compactCards ? "compact" : ""}`} style={shellStyle}>
       <aside className="sidebar">
-        <button className="brand brandButton" type="button" onClick={() => setActiveView("dashboard")}>
+        <button className="brand brandButton" type="button" onClick={() => navigateToView("dashboard")}>
           <div className="brandMark">S</div>
           <div>
             <strong>{appConfig.displayName}</strong>
@@ -792,7 +1222,7 @@ function App() {
               className={`navItem ${activeView === item.id ? "active" : ""}`}
               type="button"
               key={item.id}
-              onClick={() => setActiveView(item.id)}
+              onClick={() => navigateToView(item.id)}
             >
               {item.icon}
               {t(item.label)}
@@ -817,12 +1247,17 @@ function App() {
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
-                setActiveView("library");
+                navigateToView("library");
               }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && filteredItems[0]) {
                   event.preventDefault();
-                  selectItem(filteredItems[0]);
+                  event.stopPropagation();
+                  if (event.ctrlKey || event.metaKey) {
+                    void openItem(filteredItems[0]);
+                  } else {
+                    selectItem(filteredItems[0]);
+                  }
                 }
               }}
             />
@@ -841,7 +1276,7 @@ function App() {
             <button className="iconButton" type="button" aria-label={t("exportData")} onClick={exportData}>
               <Download size={18} />
             </button>
-            <button className="iconButton" type="button" aria-label={t("openCustomize")} onClick={() => setActiveView("customize")}>
+            <button className="iconButton" type="button" aria-label={t("openCustomize")} onClick={() => navigateToView("customize")}>
               <Settings2 size={18} />
             </button>
             <button className="primaryButton" type="button" onClick={() => setIsAddOpen(true)}>
@@ -863,10 +1298,10 @@ function App() {
                 <h1>{t("heroTitle")}</h1>
               </div>
               <div className="heroStats" aria-label={t("featureSummary")}>
-                <button type="button" onClick={() => setActiveView("library")}>{items.length} {t("items")}</button>
-                <button type="button" onClick={() => setActiveView("library")}>{favoriteItems.length} {t("pinned")}</button>
-                <button type="button" onClick={() => setActiveView("collections")}>{Object.keys(groupedCollections).length} {t("groups")}</button>
-                <button type="button" onClick={() => setActiveView("customize")}>{t("custom")}</button>
+                <button type="button" onClick={() => navigateToView("library")}>{items.length} {t("items")}</button>
+                <button type="button" onClick={() => navigateToView("library")}>{favoriteItems.length} {t("pinned")}</button>
+                <button type="button" onClick={() => navigateToView("collections")}>{Object.keys(groupedCollections).length} {t("groups")}</button>
+                <button type="button" onClick={() => navigateToView("customize")}>{t("custom")}</button>
               </div>
             </section>
 
@@ -879,32 +1314,83 @@ function App() {
                   selected={selectedItemId === item.id}
                   variant={layout.size}
                   onSelect={() => selectItem(item)}
+                  onOpen={() => void openItem(item)}
                   onToggleFavorite={() => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}
                 />
               ))}
             </section>
 
-            <section className="libraryPanel">
-              <div className="sectionTitle">
-                <h2>{t("recentlyOpened")}</h2>
-                <span>{recentItems.length} {t("items")}</span>
+            <section className="dashboardActivityGrid" aria-label={t("recentlyOpened")}>
+              <div className="libraryPanel">
+                <div className="sectionTitle">
+                  <h2>{t("recentlyOpened")}</h2>
+                  <span>{recentItems.length} {t("items")}</span>
+                </div>
+                <div className="itemList">
+                  {recentItems.length === 0 ? (
+                    <p className="emptyText">{t("noRecentItems")}</p>
+                  ) : (
+                    recentItems.map((item) => (
+                      <button
+                        className="listItem"
+                        type="button"
+                        key={item.id}
+                        onClick={() => selectItem(item)}
+                        onDoubleClick={() => void openItem(item)}
+                        onKeyDown={(event) => {
+                          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                            event.preventDefault();
+                            void openItem(item);
+                          }
+                        }}
+                      >
+                        <span className="listIcon" style={{ color: item.accent }}>
+                          {typeIcons[item.type]}
+                        </span>
+                        <span>
+                          <strong>{getItemTitle(item, t)}</strong>
+                          <small>{item.location}</small>
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="itemList">
-                {recentItems.length === 0 ? (
-                  <p className="emptyText">{t("noRecentItems")}</p>
-                ) : (
-                  recentItems.map((item) => (
-                    <button className="listItem" type="button" key={item.id} onClick={() => selectItem(item)}>
-                      <span className="listIcon" style={{ color: item.accent }}>
-                        {typeIcons[item.type]}
-                      </span>
-                      <span>
-                        <strong>{getItemTitle(item, t)}</strong>
-                        <small>{item.openCount} {t("opens")} / {item.location}</small>
-                      </span>
-                    </button>
-                  ))
-                )}
+
+              <div className="libraryPanel">
+                <div className="sectionTitle">
+                  <h2>{t("frequentlyOpened")}</h2>
+                  <span>{frequentItems.length} {t("items")}</span>
+                </div>
+                <div className="itemList">
+                  {frequentItems.length === 0 ? (
+                    <p className="emptyText">{t("noFrequentItems")}</p>
+                  ) : (
+                    frequentItems.map((item) => (
+                      <button
+                        className="listItem"
+                        type="button"
+                        key={item.id}
+                        onClick={() => selectItem(item)}
+                        onDoubleClick={() => void openItem(item)}
+                        onKeyDown={(event) => {
+                          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                            event.preventDefault();
+                            void openItem(item);
+                          }
+                        }}
+                      >
+                        <span className="listIcon" style={{ color: item.accent }}>
+                          {typeIcons[item.type]}
+                        </span>
+                        <span>
+                          <strong>{getItemTitle(item, t)}</strong>
+                          <small>{item.openCount} {t("opens")} / {item.location}</small>
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
             </section>
           </>
@@ -949,7 +1435,14 @@ function App() {
                       className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
                       type="button"
                       key={item.id}
-                      onClick={() => selectItem(item, "library")}
+                      onClick={() => selectItem(item)}
+                      onDoubleClick={() => void openItem(item)}
+                      onKeyDown={(event) => {
+                        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                          event.preventDefault();
+                          void openItem(item);
+                        }
+                      }}
                     >
                       <span className="listIcon" style={{ color: item.accent }}>
                         {typeIcons[item.type]}
@@ -964,17 +1457,18 @@ function App() {
               </div>
 
               {selectedItem && (
-                <DetailPanel
-                  item={selectedItem}
-                  theme={theme}
-                  t={t}
-                  onPatch={updateSelectedItem}
-                  onDelete={deleteSelectedItem}
-                />
-              )}
-            </section>
-          </>
-        )}
+              <DetailPanel
+                item={selectedItem}
+                theme={theme}
+                t={t}
+                onPatch={updateSelectedItem}
+                onDelete={deleteSelectedItem}
+                onOpenItem={() => void openItem(selectedItem)}
+              />
+            )}
+          </section>
+        </>
+      )}
 
         {activeView === "collections" && (
           <>
@@ -1002,7 +1496,7 @@ function App() {
                     onClick={() => {
                       setQuery(collection);
                       setActiveType("all");
-                      setActiveView("library");
+                      navigateToView("library");
                       setNotice(`${getCollectionLabel(collection, t)} ${t("collectionFiltered")}`);
                     }}
                   >
@@ -1068,6 +1562,7 @@ function ShelfCard({
   selected,
   variant,
   onSelect,
+  onOpen,
   onToggleFavorite,
 }: {
   item: ContentItem;
@@ -1075,11 +1570,32 @@ function ShelfCard({
   selected: boolean;
   variant: "standard" | "wide" | "tall";
   onSelect: () => void;
+  onOpen: () => void;
   onToggleFavorite: () => void;
 }) {
+  function handleCardKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      onOpen();
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  }
+
   return (
-    <article className={`contentCard ${variant} ${selected ? "selected" : ""}`}>
-      <button className="cardHitArea" type="button" onClick={onSelect}>
+    <article
+      className={`contentCard ${variant} ${selected ? "selected" : ""}`}
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onDoubleClick={onOpen}
+      onKeyDown={handleCardKeyDown}
+    >
+      <div className="cardHitArea">
         <div className="cardHeader">
           <div className="typeBadge" style={{ color: item.accent }}>
             {typeIcons[item.type]}
@@ -1098,8 +1614,17 @@ function ShelfCard({
             <span key={tag}>#{getTagLabel(tag, t)}</span>
           ))}
         </div>
-      </button>
-      <button className="favoriteButton" type="button" onClick={onToggleFavorite} aria-label="Toggle favorite">
+      </div>
+      <button
+        className="favoriteButton"
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleFavorite();
+        }}
+        onDoubleClick={(event) => event.stopPropagation()}
+        aria-label="Toggle favorite"
+      >
         <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
       </button>
     </article>
@@ -1112,12 +1637,14 @@ function DetailPanel({
   t,
   onPatch,
   onDelete,
+  onOpenItem,
 }: {
   item: ContentItem;
   theme: ThemeSettings;
   t: (key: MessageKey) => string;
   onPatch: (patch: Partial<ContentItem>) => void;
   onDelete: () => void;
+  onOpenItem?: () => void;
 }) {
   const safeExternalUrl = item.type === "link" ? getSafeExternalUrl(item.location) : null;
 
@@ -1132,19 +1659,27 @@ function DetailPanel({
           <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
           {item.isFavorite ? t("pinnedState") : t("pin")}
         </button>
+        {isViewerContent(item) && onOpenItem && (
+          <button type="button" onClick={onOpenItem}>
+            {item.type === "document" ? <BookOpen size={16} /> : typeIcons[item.type]}
+            {item.type === "document" ? t("openReader") : t("open")}
+          </button>
+        )}
         {item.type === "link" && (
           <button
             type="button"
             disabled={!safeExternalUrl}
             title={safeExternalUrl ? t("open") : t("invalidLink")}
-            onClick={() => {
-              if (safeExternalUrl) {
-                window.open(safeExternalUrl, "_blank", "noopener,noreferrer");
-              }
-            }}
+            onClick={onOpenItem}
           >
             <Link size={16} />
             {safeExternalUrl ? t("open") : t("invalidLink")}
+          </button>
+        )}
+        {item.type === "folder" && item.source === "path" && (
+          <button type="button" onClick={onOpenItem}>
+            <FolderOpen size={16} />
+            {t("openFolder")}
           </button>
         )}
         <button className="dangerButton" type="button" onClick={onDelete}>
@@ -1155,7 +1690,12 @@ function DetailPanel({
 
       <div
         className="readerPreview"
-        style={{ borderColor: item.accent, maxWidth: theme.readerWidth, lineHeight: theme.lineHeight }}
+        style={{
+          borderColor: item.accent,
+          fontSize: theme.readerFontSize,
+          maxWidth: theme.readerWidth,
+          lineHeight: theme.lineHeight,
+        }}
       >
         <strong>{getItemTitle(item, t)}</strong>
         <PreviewBody item={item} t={t} onPatch={onPatch} />
@@ -1182,6 +1722,382 @@ function DetailPanel({
   );
 }
 
+function ReaderView({
+  item,
+  theme,
+  t,
+  onBack,
+  onPatch,
+}: {
+  item: ContentItem;
+  theme: ThemeSettings;
+  t: (key: MessageKey) => string;
+  onBack: () => void;
+  onPatch: (patch: Partial<ContentItem>) => void;
+}) {
+  const documentText = getItemTextContent(item, t) || "";
+  const fallbackText = item.summary ? getItemSummary(item, t) : t("documentEmpty");
+  const onPatchRef = useRef(onPatch);
+  const lastSavedProgressRef = useRef(item.readerProgress ?? 0);
+  const lastSavedScrollTopRef = useRef(0);
+  const canAutoSaveProgressRef = useRef(false);
+  const resumePromptVisibleRef = useRef(false);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [savedProgress, setSavedProgress] = useState(item.readerProgress ?? 0);
+  const [savedScrollTop, setSavedScrollTop] = useState(0);
+  const hasReadableText = Boolean(documentText);
+  const progressLabel = savedScrollTop > 0 && savedProgress < 1 ? "<1" : String(Math.round(savedProgress));
+
+  useEffect(() => {
+    onPatchRef.current = onPatch;
+  }, [onPatch]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fallbackProgress = item.readerProgress ?? 0;
+    const fallbackScrollTop = item.readerScrollTop ?? 0;
+    canAutoSaveProgressRef.current = false;
+    resumePromptVisibleRef.current = false;
+    lastSavedProgressRef.current = fallbackProgress;
+    lastSavedScrollTopRef.current = fallbackScrollTop;
+    setSavedProgress(fallbackProgress);
+    setSavedScrollTop(fallbackScrollTop);
+    setShowResumePrompt(false);
+    window.scrollTo({ top: 0 });
+
+    if (!hasReadableText) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const autoSaveFallback = window.setTimeout(() => {
+      if (!resumePromptVisibleRef.current) {
+        canAutoSaveProgressRef.current = true;
+      }
+    }, 800);
+
+    loadNativeReaderProgress(item.id)
+      .catch(() => ({ progress: fallbackProgress, scrollTop: fallbackScrollTop }))
+      .then((loadedPosition) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const loadedScrollTop =
+          loadedPosition && typeof loadedPosition === "object"
+            ? loadedPosition.scrollTop ?? (loadedPosition as { scroll_top?: number }).scroll_top ?? 0
+            : 0;
+        const nextProgress = typeof loadedPosition === "number" ? loadedPosition : loadedPosition?.progress ?? fallbackProgress;
+        const nextScrollTop = typeof loadedPosition === "number" ? fallbackScrollTop : loadedScrollTop;
+        lastSavedProgressRef.current = nextProgress;
+        lastSavedScrollTopRef.current = nextScrollTop;
+        setSavedProgress(nextProgress);
+        setSavedScrollTop(nextScrollTop);
+        onPatchRef.current({ readerProgress: nextProgress, readerScrollTop: nextScrollTop });
+
+        if (hasReadableText && nextScrollTop > 400) {
+          resumePromptVisibleRef.current = true;
+          setShowResumePrompt(true);
+          canAutoSaveProgressRef.current = false;
+          return;
+        }
+
+        canAutoSaveProgressRef.current = true;
+      });
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(autoSaveFallback);
+    };
+  }, [hasReadableText, item.id]);
+
+  useEffect(() => {
+    if (!hasReadableText || canAutoSaveProgressRef.current || resumePromptVisibleRef.current) {
+      return;
+    }
+
+    const nextScrollTop = item.readerScrollTop ?? 0;
+    if (nextScrollTop <= 400) {
+      return;
+    }
+
+    const nextProgress = item.readerProgress ?? 0;
+    lastSavedProgressRef.current = nextProgress;
+    lastSavedScrollTopRef.current = nextScrollTop;
+    setSavedProgress(nextProgress);
+    setSavedScrollTop(nextScrollTop);
+    resumePromptVisibleRef.current = true;
+    setShowResumePrompt(true);
+  }, [hasReadableText, item.id, item.readerProgress, item.readerScrollTop]);
+
+  useEffect(() => {
+    let frame = 0;
+    let interval = 0;
+
+    function getScrollPosition() {
+      const scrollingElement = document.scrollingElement ?? document.documentElement;
+      const scrollTop = window.scrollY || scrollingElement.scrollTop || document.body.scrollTop || 0;
+      const scrollableHeight = scrollingElement.scrollHeight - window.innerHeight;
+      if (scrollableHeight <= 0) {
+        return null;
+      }
+
+      return {
+        progress: Math.min(100, Math.max(0, (scrollTop / scrollableHeight) * 100)),
+        scrollTop,
+      };
+    }
+
+    function saveScrollProgress() {
+      if (!canAutoSaveProgressRef.current || resumePromptVisibleRef.current) {
+        return;
+      }
+
+      const nextPosition = getScrollPosition();
+      if (nextPosition === null) {
+        return;
+      }
+
+      const roundedProgress = Math.round(nextPosition.progress * 10) / 10;
+      const roundedScrollTop = Math.round(nextPosition.scrollTop);
+      if (
+        Math.abs(roundedProgress - lastSavedProgressRef.current) < 1 &&
+        Math.abs(roundedScrollTop - lastSavedScrollTopRef.current) < 300 &&
+        roundedProgress < 99.5
+      ) {
+        return;
+      }
+
+      lastSavedProgressRef.current = roundedProgress;
+      lastSavedScrollTopRef.current = roundedScrollTop;
+      setSavedProgress(roundedProgress);
+      setSavedScrollTop(roundedScrollTop);
+      onPatchRef.current({ readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
+      saveNativeReaderProgress(item.id, roundedProgress, roundedScrollTop).catch(() => {
+        // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
+      });
+    }
+
+    function handleScroll() {
+      if (!frame) {
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          saveScrollProgress();
+        });
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    interval = window.setInterval(saveScrollProgress, 900);
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+      if (interval) {
+        window.clearInterval(interval);
+      }
+      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("scroll", handleScroll, { capture: true });
+    };
+  }, [item.id]);
+
+  function scrollToPosition(nextScrollTop: number) {
+    const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo({
+      top: Math.min(Math.max(0, nextScrollTop), Math.max(0, scrollableHeight)),
+      behavior: "smooth",
+    });
+  }
+
+  function resumeReading() {
+    resumePromptVisibleRef.current = false;
+    setShowResumePrompt(false);
+    canAutoSaveProgressRef.current = true;
+    window.requestAnimationFrame(() => scrollToPosition(savedScrollTop));
+  }
+
+  function restartReading() {
+    resumePromptVisibleRef.current = false;
+    setShowResumePrompt(false);
+    canAutoSaveProgressRef.current = true;
+    lastSavedProgressRef.current = 0;
+    lastSavedScrollTopRef.current = 0;
+    setSavedProgress(0);
+    setSavedScrollTop(0);
+    onPatch({ readerProgress: 0, readerScrollTop: 0 });
+    saveNativeReaderProgress(item.id, 0, 0).catch(() => {
+      // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  return (
+    <section className="readerPage">
+      <div className="readerPageHeader">
+        <div>
+          <span className="eyebrow">{getCollectionLabel(item.collection, t)}</span>
+          <h1>{getItemTitle(item, t)}</h1>
+          <p>{t("readerAutoSave")} - {progressLabel}%</p>
+        </div>
+        <button type="button" onClick={onBack}>{t("backToLibrary")}</button>
+      </div>
+      {showResumePrompt && (
+        <div className="resumePrompt" role="dialog" aria-label={t("resumeReadingTitle")}>
+          <div>
+            <strong>{t("resumeReadingTitle")}</strong>
+            <p>{t("resumeReadingText").replace("{progress}", progressLabel)}</p>
+          </div>
+          <div className="resumeActions">
+            <button type="button" onClick={resumeReading}>{t("resumeYes")}</button>
+            <button type="button" onClick={restartReading}>{t("resumeNo")}</button>
+          </div>
+        </div>
+      )}
+      <article
+        className="readerPageBody"
+        style={{
+          borderColor: item.accent,
+          fontSize: theme.readerFontSize,
+          lineHeight: theme.lineHeight,
+          maxWidth: theme.readerWidth,
+        }}
+      >
+        <DocumentTextView item={item} text={documentText} fallbackText={fallbackText} />
+      </article>
+    </section>
+  );
+}
+
+function MediaViewerView({
+  item,
+  t,
+  onBack,
+  onPatch,
+}: {
+  item: ContentItem;
+  t: (key: MessageKey) => string;
+  onBack: () => void;
+  onPatch: (patch: Partial<ContentItem>) => void;
+}) {
+  const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.location) : undefined);
+  const canPreviewVideo = item.type === "video" && previewUrl && canPreviewMediaItem(item, "video");
+  const canPreviewAudio = item.type === "audio" && previewUrl && canPreviewMediaItem(item, "audio");
+  const canPreviewImage = item.type === "image" && previewUrl;
+  const mediaElementRef = useRef<HTMLMediaElement | null>(null);
+  const lastSavedMediaPositionRef = useRef(item.mediaPosition ?? 0);
+  const [savedMediaPosition, setSavedMediaPosition] = useState(item.mediaPosition ?? 0);
+
+  useEffect(() => {
+    const fallbackPosition = item.mediaPosition ?? 0;
+    lastSavedMediaPositionRef.current = fallbackPosition;
+    setSavedMediaPosition(fallbackPosition);
+
+    if (item.type !== "video" && item.type !== "audio") {
+      return;
+    }
+
+    let isMounted = true;
+    loadNativeMediaProgress(item.id)
+      .then((progress) => {
+        if (!isMounted || !progress) {
+          return;
+        }
+
+        const nextPosition = progress.position ?? fallbackPosition;
+        lastSavedMediaPositionRef.current = nextPosition;
+        setSavedMediaPosition(nextPosition);
+        onPatch({ mediaPosition: nextPosition });
+        const media = mediaElementRef.current;
+        if (media && nextPosition > 0) {
+          const duration = media.duration;
+          if (!Number.isFinite(duration) || nextPosition < duration - 2) {
+            media.currentTime = nextPosition;
+          }
+        }
+      })
+      .catch(() => {
+        // Browser preview cannot call Tauri commands; item state remains the fallback.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [item.id, item.type]);
+
+  function attachMediaElement(node: HTMLMediaElement | null) {
+    mediaElementRef.current = node;
+  }
+
+  function restoreMediaPosition(event: React.SyntheticEvent<HTMLMediaElement>) {
+    const position = savedMediaPosition;
+    const duration = event.currentTarget.duration;
+    if (position > 0 && (!Number.isFinite(duration) || position < duration - 2)) {
+      event.currentTarget.currentTime = position;
+    }
+  }
+
+  function saveMediaPosition(nextPosition: number, minimumDelta = 3) {
+    if (Math.abs(nextPosition - lastSavedMediaPositionRef.current) >= minimumDelta) {
+      lastSavedMediaPositionRef.current = nextPosition;
+      setSavedMediaPosition(nextPosition);
+      onPatch({ mediaPosition: nextPosition });
+      saveNativeMediaProgress(item.id, nextPosition).catch(() => {
+        // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
+      });
+    }
+  }
+
+  return (
+    <section className="readerPage">
+      <div className="readerPageHeader">
+        <div>
+          <span className="eyebrow">{getTypeLabel(item.type, t)}</span>
+          <h1>{getItemTitle(item, t)}</h1>
+          {(item.type === "video" || item.type === "audio") && (
+            <p>{t("mediaResume")}: {Math.round(savedMediaPosition)}s</p>
+          )}
+        </div>
+        <button type="button" onClick={onBack}>{t("backToLibrary")}</button>
+      </div>
+
+      <article className="readerPageBody mediaViewerBody" style={{ borderColor: item.accent }}>
+        {canPreviewVideo && (
+          <video
+            src={previewUrl}
+            controls
+            autoPlay
+            ref={attachMediaElement}
+            onLoadedMetadata={restoreMediaPosition}
+            onPause={(event) => saveMediaPosition(event.currentTarget.currentTime, 0)}
+            onTimeUpdate={(event) => saveMediaPosition(event.currentTarget.currentTime)}
+          />
+        )}
+        {canPreviewAudio && (
+          <audio
+            src={previewUrl}
+            controls
+            autoPlay
+            ref={attachMediaElement}
+            onLoadedMetadata={restoreMediaPosition}
+            onPause={(event) => saveMediaPosition(event.currentTarget.currentTime, 0)}
+            onTimeUpdate={(event) => saveMediaPosition(event.currentTarget.currentTime)}
+          />
+        )}
+        {canPreviewImage && <img src={previewUrl} alt={getItemTitle(item, t)} />}
+        {!canPreviewVideo && !canPreviewAudio && !canPreviewImage && (
+          <div className="readerEmptyText">
+            {item.type === "video" && t("videoPathSaved")}
+            {item.type === "audio" && t("audioPathSaved")}
+            {item.type === "image" && t("imagePathSaved")}
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
 function PreviewBody({
   item,
   t,
@@ -1192,40 +2108,76 @@ function PreviewBody({
   onPatch: (patch: Partial<ContentItem>) => void;
 }) {
   const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.location) : undefined);
+  const nativeMediaPositionRef = useRef(item.mediaPosition ?? 0);
+  const [nativeMediaPosition, setNativeMediaPosition] = useState(item.mediaPosition ?? 0);
+
+  useEffect(() => {
+    const fallbackPosition = item.mediaPosition ?? 0;
+    nativeMediaPositionRef.current = fallbackPosition;
+    setNativeMediaPosition(fallbackPosition);
+
+    if (item.type !== "video" && item.type !== "audio") {
+      return;
+    }
+
+    let isMounted = true;
+    loadNativeMediaProgress(item.id)
+      .then((progress) => {
+        if (!isMounted || !progress) {
+          return;
+        }
+
+        const nextPosition = progress.position ?? fallbackPosition;
+        nativeMediaPositionRef.current = nextPosition;
+        setNativeMediaPosition(nextPosition);
+        onPatch({ mediaPosition: nextPosition });
+      })
+      .catch(() => {
+        // Browser preview cannot call Tauri commands; item state remains the fallback.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [item.id, item.type]);
+
+  function savePreviewMediaPosition(nextPosition: number, minimumDelta = 5) {
+    if (Math.abs(nextPosition - nativeMediaPositionRef.current) < minimumDelta) {
+      return;
+    }
+
+    nativeMediaPositionRef.current = nextPosition;
+    setNativeMediaPosition(nextPosition);
+    onPatch({ mediaPosition: nextPosition });
+    saveNativeMediaProgress(item.id, nextPosition).catch(() => {
+      // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
+    });
+  }
 
   if (item.type === "document") {
+    const documentText = getItemTextContent(item, t);
+    const fallbackText = item.summary ? getItemSummary(item, t) : t("documentEmpty");
+
     return (
       <div>
-        <p>{getItemTextContent(item, t) || (item.summary ? getItemSummary(item, t) : t("documentEmpty"))}</p>
-        <label className="progressControl">
-          {t("readingProgress")}: {Math.round(item.readerProgress ?? 0)}%
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={item.readerProgress ?? 0}
-            onChange={(event) => onPatch({ readerProgress: Number(event.target.value) })}
-          />
-        </label>
+        <DocumentTextView item={item} text={documentText} fallbackText={fallbackText} variant="preview" />
+        <p className="readerProgressNote">{t("readerAutoSave")} - {Math.round(item.readerProgress ?? 0)}%</p>
       </div>
     );
   }
 
   if (item.type === "video") {
-    return previewUrl ? (
+    return previewUrl && canPreviewMediaItem(item, "video") ? (
       <video
         src={previewUrl}
         controls
         onLoadedMetadata={(event) => {
-          event.currentTarget.currentTime = item.mediaPosition ?? 0;
+          event.currentTarget.currentTime = nativeMediaPosition;
         }}
         onTimeUpdate={(event) => {
-          const nextPosition = event.currentTarget.currentTime;
-          if (Math.abs(nextPosition - (item.mediaPosition ?? 0)) >= 5) {
-            onPatch({ mediaPosition: nextPosition });
-          }
+          savePreviewMediaPosition(event.currentTarget.currentTime);
         }}
-        onPause={(event) => onPatch({ mediaPosition: event.currentTarget.currentTime })}
+        onPause={(event) => savePreviewMediaPosition(event.currentTarget.currentTime, 0)}
       />
     ) : (
       <p>{t("videoPathSaved")}</p>
@@ -1233,23 +2185,20 @@ function PreviewBody({
   }
 
   if (item.type === "audio") {
-    return previewUrl ? (
+    return previewUrl && canPreviewMediaItem(item, "audio") ? (
       <div>
         <audio
           src={previewUrl}
           controls
           onLoadedMetadata={(event) => {
-            event.currentTarget.currentTime = item.mediaPosition ?? 0;
+            event.currentTarget.currentTime = nativeMediaPosition;
           }}
           onTimeUpdate={(event) => {
-            const nextPosition = event.currentTarget.currentTime;
-            if (Math.abs(nextPosition - (item.mediaPosition ?? 0)) >= 5) {
-              onPatch({ mediaPosition: nextPosition });
-            }
+            savePreviewMediaPosition(event.currentTarget.currentTime);
           }}
-          onPause={(event) => onPatch({ mediaPosition: event.currentTarget.currentTime })}
+          onPause={(event) => savePreviewMediaPosition(event.currentTarget.currentTime, 0)}
         />
-        <p>{t("mediaResume")}: {Math.round(item.mediaPosition ?? 0)}s</p>
+        <p>{t("mediaResume")}: {Math.round(nativeMediaPosition)}s</p>
       </div>
     ) : (
       <p>{t("audioPathSaved")}</p>
@@ -1473,6 +2422,18 @@ function CustomizePanel({
               <h2>{t("readingComfort")}</h2>
               <span>{t("readerPreview")}</span>
             </div>
+            <div className="segmentedControl" aria-label={t("readerOpenMode")}>
+              {(["window", "embedded"] as ReaderOpenMode[]).map((mode) => (
+                <button
+                  className={theme.readerOpenMode === mode ? "active" : ""}
+                  type="button"
+                  key={mode}
+                  onClick={() => onChange({ ...theme, readerOpenMode: mode })}
+                >
+                  {mode === "window" ? t("readerOpenWindow") : t("readerOpenEmbedded")}
+                </button>
+              ))}
+            </div>
             <label className="rangeControl">
               <span>{t("readerWidth")}</span>
               <strong>{theme.readerWidth}px</strong>
@@ -1496,7 +2457,21 @@ function CustomizePanel({
                 onChange={(event) => onChange({ ...theme, lineHeight: Number(event.target.value) })}
               />
             </label>
-            <div className="readerSample" style={{ maxWidth: theme.readerWidth, lineHeight: theme.lineHeight }}>
+            <label className="rangeControl">
+              <span>{t("readerFontSize")}</span>
+              <strong>{theme.readerFontSize}px</strong>
+              <input
+                type="range"
+                min="13"
+                max="22"
+                value={theme.readerFontSize}
+                onChange={(event) => onChange({ ...theme, readerFontSize: Number(event.target.value) })}
+              />
+            </label>
+            <div
+              className="readerSample"
+              style={{ fontSize: theme.readerFontSize, maxWidth: theme.readerWidth, lineHeight: theme.lineHeight }}
+            >
               <strong>{t("readerSampleTitle")}</strong>
               <p>{t("readerSampleText")}</p>
             </div>
@@ -1580,7 +2555,10 @@ function CustomizePanel({
                   <p>{getItemSummary(previewItem, t)}</p>
                 </div>
               )}
-              <div className="previewReader" style={{ maxWidth: theme.readerWidth / 2, lineHeight: theme.lineHeight }}>
+              <div
+                className="previewReader"
+                style={{ fontSize: theme.readerFontSize, maxWidth: theme.readerWidth / 2, lineHeight: theme.lineHeight }}
+              >
                 <strong>{t("readerSampleTitle")}</strong>
                 <p>{t("readerSampleText")}</p>
               </div>
