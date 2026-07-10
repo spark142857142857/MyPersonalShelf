@@ -2,7 +2,7 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #1d2430;
-  background: #e9edf1;
+  background: #f4f6f5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -13,7 +13,7 @@
 }
 
 body {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   margin: 0;
 }
@@ -27,25 +27,51 @@ button {
   cursor: pointer;
 }
 
+.loadingShell {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.loadingShell strong {
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.loadingShell span {
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.storageErrorShell button {
+  min-height: 38px;
+  margin-top: 8px;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--app-accent);
+}
+
 .appShell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
   min-height: 100vh;
   color: var(--app-text);
-  background:
-    linear-gradient(135deg, rgba(41, 98, 91, 0.18), transparent 35%),
-    linear-gradient(315deg, rgba(177, 82, 54, 0.16), transparent 38%),
-    var(--app-bg);
+  background: color-mix(in srgb, var(--app-bg) 82%, #f7f9f8);
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 28px 22px;
-  border-right: 1px solid rgba(55, 64, 78, 0.12);
-  background: color-mix(in srgb, var(--app-surface) 84%, transparent);
-  backdrop-filter: blur(18px);
+  gap: 24px;
+  padding: 24px 18px;
+  border-right: 1px solid rgba(31, 41, 37, 0.09);
+  background: var(--app-surface);
 }
 
 .brand {
@@ -68,10 +94,11 @@ button {
   width: 42px;
   height: 42px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 7px;
   color: white;
   background: var(--app-accent);
   font-weight: 800;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--app-accent) 22%, transparent);
 }
 
 .brand strong,
@@ -81,6 +108,7 @@ button {
 
 .brand strong {
   font-size: 15px;
+  letter-spacing: 0;
 }
 
 .brand span {
@@ -93,7 +121,7 @@ button {
 
 .navList {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .navItem,
@@ -112,26 +140,34 @@ button {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 11px 12px;
+  min-height: 42px;
+  padding: 10px 12px;
   border-radius: 8px;
-  color: #536070;
+  color: var(--app-muted);
   background: transparent;
+  font-size: 14px;
+  font-weight: 650;
   text-align: left;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 
-.navItem.active,
 .navItem:hover {
   color: var(--app-text);
-  background: var(--app-surface);
-  box-shadow: 0 8px 24px rgba(39, 48, 60, 0.08);
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
+}
+
+.navItem.active {
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+  box-shadow: inset 3px 0 0 var(--app-accent);
 }
 
 .sidebarPanel {
   margin-top: auto;
-  padding: 16px;
-  border: 1px solid rgba(55, 64, 78, 0.1);
+  padding: 14px;
+  border: 1px solid rgba(31, 41, 37, 0.09);
   border-radius: 8px;
-  background: var(--app-surface);
+  background: color-mix(in srgb, var(--app-accent) 4%, var(--app-surface));
 }
 
 .panelLabel,
@@ -154,9 +190,9 @@ button {
 .workspace {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   min-width: 0;
-  padding: 28px;
+  padding: 24px 28px 36px;
 }
 
 .topbar {
@@ -164,6 +200,7 @@ button {
   gap: 14px;
   align-items: center;
   justify-content: space-between;
+  min-height: 46px;
 }
 
 .searchBox {
@@ -171,12 +208,20 @@ button {
   flex: 1;
   align-items: center;
   gap: 10px;
-  max-width: 620px;
-  padding: 12px 14px;
-  border: 1px solid rgba(55, 64, 78, 0.12);
+  max-width: 680px;
+  min-height: 46px;
+  padding: 11px 14px;
+  border: 1px solid rgba(31, 41, 37, 0.11);
   border-radius: 8px;
-  color: #687282;
-  background: color-mix(in srgb, var(--app-surface) 82%, transparent);
+  color: var(--app-muted);
+  background: var(--app-surface);
+  box-shadow: 0 2px 8px rgba(31, 41, 37, 0.035);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.searchBox:focus-within {
+  border-color: color-mix(in srgb, var(--app-accent) 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 10%, transparent);
 }
 
 .searchBox input {
@@ -219,6 +264,7 @@ button {
   justify-content: center;
   min-height: 44px;
   border-radius: 8px;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
 .primaryButton {
@@ -226,61 +272,156 @@ button {
   padding: 0 16px;
   color: #fff;
   background: var(--app-accent);
+  font-weight: 750;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--app-accent) 20%, transparent);
 }
 
 .iconButton {
   width: 44px;
   color: var(--app-accent);
   background: var(--app-surface);
+  box-shadow: inset 0 0 0 1px rgba(31, 41, 37, 0.09);
+}
+
+.primaryButton:hover,
+.iconButton:hover {
+  transform: translateY(-1px);
+}
+
+.primaryButton:hover {
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--app-accent) 26%, transparent);
+}
+
+.iconButton:hover {
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
 }
 
 .heroBand {
-  display: flex;
-  gap: 22px;
-  align-items: end;
-  justify-content: space-between;
-  padding: 28px;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(440px, 1.1fr);
+  gap: 28px;
+  align-items: center;
+  padding: 24px 26px;
+  border: 1px solid rgba(31, 41, 37, 0.09);
   border-radius: 8px;
-  color: #f7fafc;
+  color: var(--app-text);
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 92%, #111), rgba(36, 79, 89, 0.92)),
-    var(--app-accent);
+    linear-gradient(100deg, color-mix(in srgb, var(--app-accent) 7%, var(--app-surface)), var(--app-surface) 52%);
+  box-shadow: 0 4px 18px rgba(31, 41, 37, 0.045);
 }
 
 .heroBand h1 {
-  max-width: 780px;
-  margin: 8px 0 0;
-  font-size: clamp(27px, 3.6vw, 44px);
-  line-height: 1.08;
+  margin: 7px 0 0;
+  font-size: 30px;
+  line-height: 1.15;
   letter-spacing: 0;
+}
+
+.heroCopy p {
+  max-width: 520px;
+  margin: 9px 0 0;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .heroStats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(86px, 1fr));
-  gap: 8px;
-  min-width: 192px;
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
+  gap: 10px;
+  min-width: 0;
 }
 
 .heroStats button {
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 66px;
+  padding: 10px;
+  border: 1px solid rgba(31, 41, 37, 0.08);
   border-radius: 8px;
-  color: #f7fafc;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 13px;
-  text-align: center;
+  color: var(--app-text);
+  background: var(--app-surface);
+  text-align: left;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .heroStats button:hover {
-  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-accent) 24%, transparent);
+  box-shadow: 0 7px 16px rgba(31, 41, 37, 0.07);
+}
+
+.heroStats button > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.heroStats strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 18px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heroStatIcon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 7px;
+  color: #2772b8;
+  background: #eaf4fc;
+}
+
+.heroStats button:nth-child(2) .heroStatIcon {
+  color: #a8680c;
+  background: #fff4dc;
+}
+
+.heroStats button:nth-child(3) .heroStatIcon {
+  color: #8d4d75;
+  background: #f8edf4;
+}
+
+.heroStats button:nth-child(4) .heroStatIcon {
+  color: #2c7465;
+  background: #e8f5f0;
+}
+
+.dashboardSectionHeading {
+  display: flex;
+  gap: 20px;
+  align-items: end;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 0 2px;
+}
+
+.dashboardSectionHeading h2 {
+  margin: 4px 0 0;
+  color: var(--app-text);
+  font-size: 21px;
+}
+
+.dashboardSectionHeading p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 12px;
 }
 
 .dashboardGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
   grid-auto-rows: minmax(220px, auto);
-  gap: 16px;
+  gap: 14px;
 }
 
 .dashboardActivityGrid {
@@ -298,8 +439,8 @@ button {
   padding: 24px;
   border: 1px solid rgba(55, 64, 78, 0.1);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 84%, transparent);
-  box-shadow: 0 18px 50px rgba(49, 57, 70, 0.08);
+  background: var(--app-surface);
+  box-shadow: 0 4px 18px rgba(31, 41, 37, 0.045);
 }
 
 .emptyDashboardPanel h2 {
@@ -365,19 +506,19 @@ button {
 .contentCard,
 .libraryPanel,
 .readerPanel {
-  border: 1px solid rgba(55, 64, 78, 0.1);
+  border: 1px solid rgba(31, 41, 37, 0.09);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 86%, transparent);
-  box-shadow: 0 18px 50px rgba(49, 57, 70, 0.08);
+  background: var(--app-surface);
+  box-shadow: 0 3px 14px rgba(31, 41, 37, 0.045);
 }
 
 .contentCard {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  padding: 18px;
+  padding: 17px;
   color: inherit;
   cursor: pointer;
   text-align: left;
@@ -391,12 +532,14 @@ button {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
+  width: 100%;
   padding: 0;
   border: 0;
   color: inherit;
   background: transparent;
+  cursor: pointer;
   text-align: left;
 }
 
@@ -410,8 +553,8 @@ button {
   place-items: center;
   border: 0;
   border-radius: 8px;
-  color: #b7791f;
-  background: rgba(255, 255, 255, 0.78);
+  color: #a8680c;
+  background: color-mix(in srgb, var(--app-surface) 86%, #fff4dc);
 }
 
 .compact .dashboardGrid {
@@ -424,12 +567,23 @@ button {
 
 .contentCard:hover,
 .contentCard.selected,
-.contentCard:focus-visible {
-  transform: translateY(-2px);
-  border-color: rgba(38, 50, 56, 0.26);
-  outline: 2px solid color-mix(in srgb, var(--app-accent) 32%, transparent);
+.contentCard:focus-within {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-accent) 30%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 16%, transparent);
+  outline-offset: 1px;
+  box-shadow: 0 8px 22px rgba(31, 41, 37, 0.08);
+}
+
+.contentCard:focus-within {
+  outline: 3px solid var(--app-accent);
   outline-offset: 2px;
-  box-shadow: 0 22px 56px rgba(49, 57, 70, 0.13);
+}
+
+.cardHitArea:focus-visible,
+.favoriteButton:focus-visible,
+.tagRow button:focus-visible {
+  outline: 0;
 }
 
 .contentCard.wide {
@@ -463,24 +617,33 @@ button {
 }
 
 .contentCard h2 {
-  font-size: 20px;
-  line-height: 1.3;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .contentCard p {
+  display: -webkit-box;
+  overflow: hidden;
   margin: 0;
   color: var(--app-muted);
+  font-size: 13px;
   line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .itemPreview {
   display: grid;
   gap: 6px;
   margin-top: auto;
-  padding: 14px;
-  border-left: 3px solid;
+  padding: 11px 12px;
+  border-left: 2px solid;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 72%, #eef2f6);
+  background: color-mix(in srgb, var(--app-surface) 82%, #edf2f0);
 }
 
 .itemPreview strong,
@@ -506,12 +669,12 @@ button {
 }
 
 .tagRow button {
-  padding: 5px 8px;
+  padding: 4px 8px;
   border: 0;
   border-radius: 999px;
   color: var(--app-text);
-  background: #eef2f6;
-  font-size: 12px;
+  background: color-mix(in srgb, var(--app-surface) 72%, #e7ece9);
+  font-size: 11px;
 }
 
 .tagRow button:hover {
@@ -532,8 +695,8 @@ button {
   padding: 20px 22px;
   border: 1px solid rgba(55, 64, 78, 0.1);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 76%, transparent);
-  box-shadow: 0 18px 50px rgba(49, 57, 70, 0.06);
+  background: var(--app-surface);
+  box-shadow: 0 3px 14px rgba(31, 41, 37, 0.04);
 }
 
 .pageIntro h1,
@@ -565,6 +728,28 @@ button {
 .libraryPanel,
 .readerPanel {
   padding: 20px;
+}
+
+.activityPanel {
+  min-height: 190px;
+}
+
+.activityPanel .sectionTitle h2 {
+  font-size: 18px;
+}
+
+.activityPanel .itemList {
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.activityPanel .listItem {
+  padding: 8px;
+  background: transparent;
+}
+
+.activityPanel .listItem:hover {
+  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
 }
 
 .customizeWorkspace {
@@ -906,14 +1091,14 @@ button {
   padding: 10px;
   border-radius: 8px;
   color: inherit;
-  background: color-mix(in srgb, var(--app-surface) 76%, #eef2f6);
+  background: color-mix(in srgb, var(--app-surface) 78%, #edf2f0);
   text-align: left;
 }
 
 .listItem:hover,
 .listItem.selected {
-  background: color-mix(in srgb, var(--app-surface) 62%, #dce8ef);
-  outline: 1px solid rgba(38, 50, 56, 0.14);
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
+  outline: 1px solid color-mix(in srgb, var(--app-accent) 18%, transparent);
 }
 
 .listIcon {
@@ -1300,17 +1485,18 @@ button {
 }
 
 .statusStrip {
-  padding: 10px 12px;
-  border: 1px solid rgba(38, 50, 56, 0.1);
-  border-radius: 8px;
+  min-height: 34px;
+  padding: 8px 12px;
+  border: 1px solid rgba(31, 41, 37, 0.07);
+  border-radius: 7px;
   color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-surface) 72%, transparent);
-  font-size: 13px;
+  background: color-mix(in srgb, var(--app-surface) 78%, transparent);
+  font-size: 12px;
 }
 
 .statusStrip span {
   margin-left: 10px;
-  color: color-mix(in srgb, var(--app-muted) 76%, transparent);
+  color: color-mix(in srgb, var(--app-muted) 64%, transparent);
 }
 
 .collectionGrid {
@@ -1906,6 +2092,10 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .heroBand {
+    grid-template-columns: 1fr;
+  }
+
   .dashboardActivityGrid {
     grid-template-columns: 1fr;
   }
@@ -1987,7 +2177,6 @@ button {
   }
 
   .topbar,
-  .heroBand,
   .pageIntro,
   .customizeHeader,
   .readerPageHeader {
@@ -2037,6 +2226,21 @@ button {
 
   .dashboardGrid {
     grid-template-columns: 1fr;
+  }
+
+  .heroBand {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .heroStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboardSectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .guideGrid,

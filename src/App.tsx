@@ -19,18 +19,22 @@ import {
   Star,
   Tags,
   Trash2,
-  Upload,
-  X,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { appConfig } from "./lib/appConfig";
 import { getMessage, languageOptions, type Language, type MessageKey } from "./lib/i18n";
+import { AddContentModal, type AddMode, type DraftItem } from "./components/AddContentModal";
+import { DocumentTextView } from "./components/DocumentTextView";
 import {
+  closeCurrentNativeWindow,
+  destroyCurrentNativeWindow,
+  isNativeRuntime,
   loadNativeMediaProgress,
   loadNativeReaderProgress,
   loadNativeAppState,
   nativeAssetUrl,
+  onNativeCloseRequested,
   openNativeFolder,
   openNativeReaderWindow,
   openNativeUrl,
@@ -41,6 +45,9 @@ import {
   selectNativeFile,
   selectNativeFolder,
 } from "./lib/native";
+import { getSafeExternalUrl } from "./lib/urlSafety";
+import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
+import { browserItemStorageKey, prepareItemsForPersistence, saveBrowserItemProgress } from "./lib/persistence";
 import { contentItems as seedItems } from "./lib/sampleData";
 import type {
   AppSettings,
@@ -57,26 +64,13 @@ import type {
 } from "./types";
 
 type View = "dashboard" | "library" | "collections" | "customize" | "settings" | "guide" | "reader";
-type AddMode = "manual" | "upload";
-
-interface DraftItem {
-  title: string;
-  type: ContentType;
-  source: ContentSource;
-  location: string;
-  collection: string;
-  tags: string;
-  accent: string;
-  summary: string;
-  textContent: string;
-}
-
-const itemStorageKey = "mypersonalshelf.items.v1";
 const themeStorageKey = "mypersonalshelf.theme.v1";
 const languageStorageKey = "mypersonalshelf.language.v1";
 const dashboardStorageKey = "mypersonalshelf.dashboard.v1";
 const collectionSettingsStorageKey = "mypersonalshelf.collectionSettings.v1";
 const appSettingsStorageKey = "mypersonalshelf.appSettings.v1";
+const maxUploadDocumentBytes = 10 * 1024 * 1024;
+const maxManualTextBytes = 1024 * 1024;
 const collectionIconOptions: CollectionIcon[] = ["grid", "book", "play", "music", "link", "folder", "tag"];
 
 const defaultAppSettings: AppSettings = {
@@ -85,11 +79,11 @@ const defaultAppSettings: AppSettings = {
 };
 
 const defaultTheme: ThemeSettings = {
-  background: "#edf0f4",
+  background: "#f3f6f4",
   surface: "#ffffff",
-  text: "#1d2430",
-  muted: "#667085",
-  accent: "#263238",
+  text: "#202622",
+  muted: "#68736c",
+  accent: "#2d6f62",
   readerWidth: 680,
   lineHeight: 1.8,
   readerFontSize: 15,
@@ -198,10 +192,15 @@ const tagLabelKeys: Record<string, MessageKey> = {
 };
 
 const seedTitleLabelKeys: Record<string, MessageKey> = {
+  "Untitled shelf item": "untitledItem",
   "Novel reading archive": "seedNovelTitle",
   "React lecture materials": "seedLectureTitle",
   "Focus music folder": "seedMusicTitle",
   "Saved reference links": "seedLinksTitle",
+};
+
+const locationLabelKeys: Record<string, MessageKey> = {
+  "No location yet": "noLocation",
 };
 
 const seedSummaryLabelKeys: Record<string, MessageKey> = {
@@ -253,219 +252,16 @@ function getItemSummary(item: ContentItem, t: (key: MessageKey) => string) {
   return item.summary ? translateKnown(item.summary, seedSummaryLabelKeys, t) : t("noSummary");
 }
 
+function getItemLocation(item: ContentItem, t: (key: MessageKey) => string) {
+  return translateKnown(item.location, locationLabelKeys, t);
+}
+
 function getItemTextContent(item: ContentItem, t: (key: MessageKey) => string) {
   return item.textContent ? translateKnown(item.textContent, seedTextContentLabelKeys, t) : "";
 }
 
-function isMarkdownItem(item: ContentItem) {
-  const target = `${item.fileName ?? ""} ${item.location ?? ""} ${item.title ?? ""}`.toLowerCase();
-  return /\.(md|markdown)(\s|$|\?)/.test(target);
-}
-
-function isMarkdownBlockStart(line: string) {
-  const trimmed = line.trim();
-  return (
-    /^#{1,6}\s+/.test(trimmed) ||
-    /^-{3,}$/.test(trimmed) ||
-    /^>{1}\s?/.test(trimmed) ||
-    /^[-*+]\s+/.test(trimmed) ||
-    /^\d+\.\s+/.test(trimmed) ||
-    /^```/.test(trimmed)
-  );
-}
-
-function renderInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
-  const nodes: React.ReactNode[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|~~[^~]+~~|\[[^\]]+\]\([^)]+\)|\[\[[^\]]+\]\])/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(text))) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-
-    const token = match[0];
-    const key = `${keyPrefix}-${match.index}`;
-
-    if (token.startsWith("`")) {
-      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
-    } else if (token.startsWith("**") || token.startsWith("__")) {
-      nodes.push(<strong key={key}>{renderInlineMarkdown(token.slice(2, -2), `${key}-strong`)}</strong>);
-    } else if (token.startsWith("*") || token.startsWith("_")) {
-      nodes.push(<em key={key}>{renderInlineMarkdown(token.slice(1, -1), `${key}-em`)}</em>);
-    } else if (token.startsWith("~~")) {
-      nodes.push(<del key={key}>{renderInlineMarkdown(token.slice(2, -2), `${key}-del`)}</del>);
-    } else if (token.startsWith("[[")) {
-      nodes.push(<span className="markdownWikiLink" key={key}>{token.slice(2, -2)}</span>);
-    } else {
-      const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-      if (linkMatch) {
-        nodes.push(
-          <a key={key} href={linkMatch[2]} target="_blank" rel="noreferrer">
-            {renderInlineMarkdown(linkMatch[1], `${key}-link`)}
-          </a>,
-        );
-      } else {
-        nodes.push(token);
-      }
-    }
-
-    lastIndex = match.index + token.length;
-  }
-
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-
-  return nodes;
-}
-
-function renderMarkdownBlocks(text: string) {
-  const blocks: React.ReactNode[] = [];
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      index += 1;
-      continue;
-    }
-
-    if (trimmed.startsWith("```")) {
-      const language = trimmed.slice(3).trim();
-      const codeLines: string[] = [];
-      index += 1;
-      while (index < lines.length && !lines[index].trim().startsWith("```")) {
-        codeLines.push(lines[index]);
-        index += 1;
-      }
-      index += index < lines.length ? 1 : 0;
-      blocks.push(
-        <pre className="markdownCodeBlock" key={`code-${index}`}>
-          {language && <span>{language}</span>}
-          <code>{codeLines.join("\n")}</code>
-        </pre>,
-      );
-      continue;
-    }
-
-    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-      const level = Math.min(headingMatch[1].length, 4);
-      const HeadingTag = `h${level}` as keyof JSX.IntrinsicElements;
-      blocks.push(<HeadingTag key={`heading-${index}`}>{renderInlineMarkdown(headingMatch[2], `heading-${index}`)}</HeadingTag>);
-      index += 1;
-      continue;
-    }
-
-    if (/^-{3,}$/.test(trimmed)) {
-      blocks.push(<hr key={`hr-${index}`} />);
-      index += 1;
-      continue;
-    }
-
-    if (trimmed.startsWith(">")) {
-      const quoteLines: string[] = [];
-      while (index < lines.length && lines[index].trim().startsWith(">")) {
-        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
-        index += 1;
-      }
-      blocks.push(<blockquote key={`quote-${index}`}>{renderMarkdownBlocks(quoteLines.join("\n"))}</blockquote>);
-      continue;
-    }
-
-    if (/^[-*+]\s+/.test(trimmed)) {
-      const items: React.ReactNode[] = [];
-      while (index < lines.length && /^[-*+]\s+/.test(lines[index].trim())) {
-        const itemText = lines[index].trim().replace(/^[-*+]\s+/, "");
-        const taskMatch = itemText.match(/^\[( |x|X)\]\s+(.+)$/);
-        items.push(
-          <li className={taskMatch ? "markdownTaskItem" : undefined} key={`ul-${index}`}>
-            {taskMatch && <input type="checkbox" checked={taskMatch[1].toLowerCase() === "x"} readOnly />}
-            {renderInlineMarkdown(taskMatch ? taskMatch[2] : itemText, `ul-${index}`)}
-          </li>,
-        );
-        index += 1;
-      }
-      blocks.push(<ul key={`ul-list-${index}`}>{items}</ul>);
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(trimmed)) {
-      const items: React.ReactNode[] = [];
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
-        const itemText = lines[index].trim().replace(/^\d+\.\s+/, "");
-        items.push(<li key={`ol-${index}`}>{renderInlineMarkdown(itemText, `ol-${index}`)}</li>);
-        index += 1;
-      }
-      blocks.push(<ol key={`ol-list-${index}`}>{items}</ol>);
-      continue;
-    }
-
-    const paragraphLines = [trimmed];
-    index += 1;
-    while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines[index])) {
-      paragraphLines.push(lines[index].trim());
-      index += 1;
-    }
-    blocks.push(<p key={`p-${index}`}>{renderInlineMarkdown(paragraphLines.join(" "), `p-${index}`)}</p>);
-  }
-
-  return blocks;
-}
-
-function DocumentTextView({
-  item,
-  text,
-  fallbackText,
-  variant = "full",
-}: {
-  item: ContentItem;
-  text: string;
-  fallbackText: string;
-  variant?: "full" | "preview";
-}) {
-  if (!text) {
-    return <div className="readerEmptyText">{fallbackText}</div>;
-  }
-
-  if (variant === "preview") {
-    return <div className="documentPreviewExcerpt">{getDocumentPreviewText(text)}</div>;
-  }
-
-  if (isMarkdownItem(item)) {
-    return <div className="markdownDocument">{renderMarkdownBlocks(text)}</div>;
-  }
-
-  return <div className="readerText">{text}</div>;
-}
-
-function getDocumentPreviewText(text: string) {
-  const cleaned = text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^>\s?/gm, "")
-    .replace(/^[-*+]\s+/gm, "")
-    .replace(/^\d+\.\s+/gm, "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\[\[([^\]]+)\]\]/g, "$1")
-    .replace(/[`*_~]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  if (cleaned.length <= 420) {
-    return cleaned;
-  }
-
-  return `${cleaned.slice(0, 420).trim()}...`;
-}
-
 function loadItems(): ContentItem[] {
-  const raw = window.localStorage.getItem(itemStorageKey);
+  const raw = window.localStorage.getItem(browserItemStorageKey);
   if (!raw) {
     return [];
   }
@@ -643,60 +439,12 @@ function isViewerContent(item: ContentItem) {
 }
 
 function canOpenSeparateViewerWindow(item: ContentItem) {
+  if (item.source === "upload") return false;
   return item.type === "document" || ((item.type === "video" || item.type === "audio" || item.type === "image") && item.source === "path");
 }
 
 function createId() {
   return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getSafeExternalUrl(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const hasScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed);
-  const candidates = hasScheme ? [trimmed] : [trimmed, `https://${trimmed}`];
-
-  for (const candidate of candidates) {
-    try {
-      const url = new URL(candidate);
-      if (url.protocol === "http:" || url.protocol === "https:") {
-        return url.toString();
-      }
-    } catch {
-      // Try the normalized candidate next.
-    }
-  }
-
-  return null;
-}
-
-function parseSearchQuery(query: string) {
-  const trimmed = query.trim();
-  const separatorIndex = trimmed.indexOf(":");
-  if (separatorIndex <= 0) {
-    return { command: "text", value: trimmed.toLowerCase() };
-  }
-
-  const rawCommand = trimmed.slice(0, separatorIndex).toLowerCase();
-  const commandAliases: Record<string, string> = {
-    "명령": "text",
-    "검색": "text",
-    "태그": "tag",
-    "종류": "type",
-    "타입": "type",
-    "컬렉션": "collection",
-    "모음": "collection",
-    "열기": "open",
-    "재생": "play",
-  };
-
-  return {
-    command: commandAliases[rawCommand] ?? rawCommand,
-    value: trimmed.slice(separatorIndex + 1).trim().toLowerCase(),
-  };
 }
 
 function itemSearchText(item: ContentItem, t: (key: MessageKey) => string) {
@@ -710,6 +458,7 @@ function itemSearchText(item: ContentItem, t: (key: MessageKey) => string) {
     item.collection,
     getCollectionLabel(item.collection, t),
     item.location,
+    getItemLocation(item, t),
     item.summary ?? "",
     getItemSummary(item, t),
     ...item.tags,
@@ -731,13 +480,16 @@ function getReaderItemIdFromUrl() {
 
 function App() {
   const readerItemIdFromUrl = getReaderItemIdFromUrl();
-  const [items, setItems] = useState<ContentItem[]>(loadItems);
-  const [theme, setTheme] = useState<ThemeSettings>(loadTheme);
-  const [language, setLanguage] = useState<Language>(loadLanguage);
-  const [appSettings, setAppSettings] = useState<AppSettings>(loadAppSettings);
-  const [collectionSettings, setCollectionSettings] = useState<Record<string, CollectionSettings>>(loadCollectionSettings);
+  const nativeRuntime = isNativeRuntime();
+  const [items, setItems] = useState<ContentItem[]>(() => (nativeRuntime ? [] : loadItems()));
+  const [theme, setTheme] = useState<ThemeSettings>(() => (nativeRuntime ? defaultTheme : loadTheme()));
+  const [language, setLanguage] = useState<Language>(() => (nativeRuntime ? "en" : loadLanguage()));
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => (nativeRuntime ? defaultAppSettings : loadAppSettings()));
+  const [collectionSettings, setCollectionSettings] = useState<Record<string, CollectionSettings>>(() =>
+    nativeRuntime ? {} : loadCollectionSettings(),
+  );
   const [dashboardLayouts, setDashboardLayouts] = useState<DashboardLayoutItem[]>(() =>
-    normalizeDashboardLayouts(loadItems(), loadDashboardLayouts()),
+    nativeRuntime ? [] : normalizeDashboardLayouts(loadItems(), loadDashboardLayouts()),
   );
   const [activeView, setActiveView] = useState<View>(readerItemIdFromUrl ? "reader" : "dashboard");
   const [selectedItemId, setSelectedItemId] = useState(readerItemIdFromUrl ?? items[0]?.id ?? "");
@@ -748,8 +500,12 @@ function App() {
   const [addMode, setAddMode] = useState<AddMode>("manual");
   const [draft, setDraft] = useState<DraftItem>(initialDraft);
   const [storageReady, setStorageReady] = useState(false);
+  const [storageLoadFailed, setStorageLoadFailed] = useState(false);
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const latestAppStateRef = useRef({ items, theme, language, appSettings, dashboardLayouts, collectionSettings });
+  latestAppStateRef.current = { items, theme, language, appSettings, dashboardLayouts, collectionSettings };
 
   const t = useCallback((key: MessageKey) => getMessage(language, key), [language]);
 
@@ -790,11 +546,9 @@ function App() {
 
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("mouseup", handleMouseNavigation);
-    window.addEventListener("auxclick", handleMouseNavigation);
     return () => {
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("mouseup", handleMouseNavigation);
-      window.removeEventListener("auxclick", handleMouseNavigation);
     };
   }, []);
 
@@ -805,6 +559,11 @@ function App() {
   }, [notice, t]);
 
   useEffect(() => {
+    if (!nativeRuntime) {
+      setStorageReady(true);
+      return;
+    }
+
     let isMounted = true;
     loadNativeAppState()
       .then((state) => {
@@ -825,7 +584,9 @@ function App() {
         }
       })
       .catch(() => {
-        // Browser preview cannot call Tauri commands; localStorage remains the fallback.
+        if (isMounted) {
+          setStorageLoadFailed(true);
+        }
       })
       .finally(() => {
         if (isMounted) {
@@ -836,41 +597,99 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [nativeRuntime, readerItemIdFromUrl]);
 
   useEffect(() => {
     setNotice(t("readyNotice"));
   }, [language, t]);
 
   useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  useEffect(() => {
     setDashboardLayouts((current) => normalizeDashboardLayouts(items, current));
   }, [items]);
 
   useEffect(() => {
-    if (!storageReady) {
+    if (!storageReady || storageLoadFailed || readerItemIdFromUrl) {
       return;
     }
 
-    const serializableItems = items.map(({ objectUrl, ...item }) => item);
+    const serializableItems = prepareItemsForPersistence(items);
     const normalizedLayouts = normalizeDashboardLayouts(items, dashboardLayouts);
-    window.localStorage.setItem(itemStorageKey, JSON.stringify(serializableItems));
-    window.localStorage.setItem(themeStorageKey, JSON.stringify(theme));
-    window.localStorage.setItem(languageStorageKey, language);
-    window.localStorage.setItem(appSettingsStorageKey, JSON.stringify(appSettings));
-    window.localStorage.setItem(dashboardStorageKey, JSON.stringify(normalizedLayouts));
-    window.localStorage.setItem(collectionSettingsStorageKey, JSON.stringify(collectionSettings));
-
-    saveNativeAppState({
+    const state = {
       items: serializableItems,
       theme,
       language,
       appSettings,
       dashboardLayouts: normalizedLayouts,
       collectionSettings,
-    }).catch(() => {
-      // Browser preview cannot persist to SQLite; localStorage has already been updated.
+    };
+
+    if (!nativeRuntime) {
+      try {
+        window.localStorage.setItem(browserItemStorageKey, JSON.stringify(serializableItems));
+        window.localStorage.setItem(themeStorageKey, JSON.stringify(theme));
+        window.localStorage.setItem(languageStorageKey, language);
+        window.localStorage.setItem(appSettingsStorageKey, JSON.stringify(appSettings));
+        window.localStorage.setItem(dashboardStorageKey, JSON.stringify(normalizedLayouts));
+        window.localStorage.setItem(collectionSettingsStorageKey, JSON.stringify(collectionSettings));
+      } catch {
+        setNotice(t("browserStorageFailed"));
+      }
+      return;
+    }
+
+    nativeSaveQueueRef.current = nativeSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveNativeAppState(state))
+      .catch(() => {
+        setNotice(t("nativeStorageFailed"));
+      });
+  }, [appSettings, collectionSettings, dashboardLayouts, items, language, nativeRuntime, readerItemIdFromUrl, storageLoadFailed, storageReady, t, theme]);
+
+  useEffect(() => {
+    if (!nativeRuntime || readerItemIdFromUrl || !storageReady || storageLoadFailed) {
+      return;
+    }
+
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    let closing = false;
+
+    void onNativeCloseRequested(async (event) => {
+      if (closing) return;
+      closing = true;
+      event.preventDefault();
+
+      const latest = latestAppStateRef.current;
+      const state = {
+        items: prepareItemsForPersistence(latest.items),
+        theme: latest.theme,
+        language: latest.language,
+        appSettings: latest.appSettings,
+        dashboardLayouts: normalizeDashboardLayouts(latest.items, latest.dashboardLayouts),
+        collectionSettings: latest.collectionSettings,
+      };
+      nativeSaveQueueRef.current = nativeSaveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveNativeAppState(state));
+      await nativeSaveQueueRef.current.catch(() => undefined);
+      await destroyCurrentNativeWindow();
+    }).then((dispose) => {
+      if (disposed) {
+        dispose();
+      } else {
+        unlisten = dispose;
+      }
     });
-  }, [appSettings, collectionSettings, dashboardLayouts, items, language, storageReady, theme]);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [nativeRuntime, readerItemIdFromUrl, storageLoadFailed, storageReady]);
 
   useEffect(() => {
     const activeUrls = new Set(items.map((item) => item.objectUrl).filter((url): url is string => Boolean(url)));
@@ -890,7 +709,7 @@ function App() {
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      if (isSearchFocusShortcut(event, isAddOpen)) {
         event.preventDefault();
         searchInputRef.current?.focus();
         navigateToView("library");
@@ -899,7 +718,7 @@ function App() {
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [navigateToView]);
+  }, [isAddOpen, navigateToView]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0];
   const favoriteItems = items.filter((item) => item.isFavorite);
@@ -1116,8 +935,11 @@ function App() {
 
   function renameCollection(previousName: string, nextName: string) {
     const normalizedName = nextName.trim();
-    if (!normalizedName || normalizedName === previousName) {
-      return;
+    if (!normalizedName) return false;
+    if (normalizedName === previousName) return true;
+    if (items.some((item) => item.collection === normalizedName)) {
+      setNotice(t("collectionNameExists"));
+      return false;
     }
 
     setItems((current) =>
@@ -1133,6 +955,7 @@ function App() {
       return next;
     });
     setNotice(`${getCollectionLabel(previousName, t)} -> ${normalizedName}`);
+    return true;
   }
 
   function navigatePrimaryView(nextView: View) {
@@ -1145,10 +968,23 @@ function App() {
 
   function addManualItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!draft.title.trim()) {
+      setNotice(t("titleRequired"));
+      return;
+    }
+    if (draft.source !== "note" && !draft.location.trim()) {
+      setNotice(t("locationRequired"));
+      return;
+    }
+    if (new Blob([draft.textContent]).size > maxManualTextBytes) {
+      setNotice(t("manualTextTooLarge"));
+      return;
+    }
+
     const now = new Date().toISOString();
     const nextItem: ContentItem = {
       id: createId(),
-      title: draft.title.trim() || "Untitled shelf item",
+      title: draft.title.trim(),
       type: draft.type,
       source: draft.source,
       location: draft.location.trim() || "No location yet",
@@ -1174,6 +1010,11 @@ function App() {
   }
 
   function importFile(file: File) {
+    if (getTypeFromFile(file) === "document" && file.size > maxUploadDocumentBytes) {
+      setNotice(t("uploadDocumentTooLarge"));
+      return;
+    }
+
     const now = new Date().toISOString();
     const type = getTypeFromFile(file);
     const baseItem: ContentItem = {
@@ -1332,6 +1173,7 @@ function App() {
 
   function deleteSelectedItem() {
     if (!selectedItem) return;
+    if (!window.confirm(t("deleteConfirm"))) return;
     const nextItems = items.filter((item) => item.id !== selectedItem.id);
     setItems(nextItems);
     navigateToView("library", nextItems[0]?.id ?? "");
@@ -1339,7 +1181,7 @@ function App() {
   }
 
   function exportData() {
-    const serializableItems = items.map(({ objectUrl, ...item }) => item);
+    const serializableItems = prepareItemsForPersistence(items);
     const blob = new Blob(
       [
         JSON.stringify(
@@ -1365,7 +1207,36 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  if (!storageReady) {
+    return (
+      <div className="loadingShell" style={shellStyle}>
+        <div className="brandMark">S</div>
+        <strong>{appConfig.displayName}</strong>
+        <span>{t("loadingShelf")}</span>
+      </div>
+    );
+  }
+
+  if (storageLoadFailed) {
+    return (
+      <div className="loadingShell storageErrorShell" style={shellStyle}>
+        <div className="brandMark">S</div>
+        <strong>{t("storageLoadFailed")}</strong>
+        <span>{t("storageLoadFailedHint")}</span>
+        <button type="button" onClick={() => window.location.reload()}>{t("retry")}</button>
+      </div>
+    );
+  }
+
   if (activeView === "reader" && selectedItem) {
+    const leaveReader = () => {
+      if (readerItemIdFromUrl && nativeRuntime) {
+        void closeCurrentNativeWindow();
+        return;
+      }
+      navigateToView("library", selectedItem.id);
+    };
+
     return (
       <div className="readerShell" style={shellStyle}>
         {selectedItem.type === "document" ? (
@@ -1373,14 +1244,14 @@ function App() {
             item={selectedItem}
             theme={theme}
             t={t}
-            onBack={() => navigateToView("library", selectedItem.id)}
+            onBack={leaveReader}
             onPatch={updateSelectedItem}
           />
         ) : (
           <MediaViewerView
             item={selectedItem}
             t={t}
-            onBack={() => navigateToView("library", selectedItem.id)}
+            onBack={leaveReader}
             onPatch={updateSelectedItem}
           />
         )}
@@ -1399,7 +1270,7 @@ function App() {
           </div>
         </button>
 
-        <nav className="navList" aria-label="Primary navigation">
+        <nav className="navList" aria-label={t("primaryNavigation")}>
           {navItems.map((item) => (
             <button
               className={`navItem ${activeView === item.id ? "active" : ""}`}
@@ -1466,17 +1337,38 @@ function App() {
         {activeView === "dashboard" && (
           <>
             <section className="heroBand">
-              <div>
+              <div className="heroCopy">
                 <span className="eyebrow">{t("heroEyebrow")}</span>
-                <h1>{t("heroTitle")}</h1>
+                <h1>{t("dashboardTitle")}</h1>
+                <p>{t("heroTitle")}</p>
               </div>
               <div className="heroStats" aria-label={t("featureSummary")}>
-                <button type="button" onClick={() => navigatePrimaryView("library")}>{items.length} {t("items")}</button>
-                <button type="button" onClick={() => navigatePrimaryView("library")}>{favoriteItems.length} {t("pinned")}</button>
-                <button type="button" onClick={() => navigatePrimaryView("collections")}>{Object.keys(groupedCollections).length} {t("groups")}</button>
-                <button type="button" onClick={() => navigatePrimaryView("customize")}>{t("custom")}</button>
+                <button type="button" onClick={() => navigatePrimaryView("library")}>
+                  <span className="heroStatIcon"><Library size={18} /></span>
+                  <span><strong>{items.length}</strong>{t("items")}</span>
+                </button>
+                <button type="button" onClick={() => navigatePrimaryView("library")}>
+                  <span className="heroStatIcon"><Star size={18} /></span>
+                  <span><strong>{favoriteItems.length}</strong>{t("pinned")}</span>
+                </button>
+                <button type="button" onClick={() => navigatePrimaryView("collections")}>
+                  <span className="heroStatIcon"><Tags size={18} /></span>
+                  <span><strong>{Object.keys(groupedCollections).length}</strong>{t("groups")}</span>
+                </button>
+                <button type="button" onClick={() => navigatePrimaryView("customize")}>
+                  <span className="heroStatIcon"><Paintbrush size={18} /></span>
+                  <span><strong>{t("dashboardStyle")}</strong>{t("custom")}</span>
+                </button>
               </div>
             </section>
+
+            <div className="dashboardSectionHeading">
+              <div>
+                <span className="eyebrow">{t("dashboardFavorites")}</span>
+                <h2>{t("dashboardPinnedTitle")}</h2>
+              </div>
+              <p>{t("dashboardPinnedHint")}</p>
+            </div>
 
             <section className="dashboardGrid" aria-label={t("dashboardFavorites")}>
               {visibleDashboardCards.length === 0 ? (
@@ -1521,7 +1413,7 @@ function App() {
             </section>
 
             <section className="dashboardActivityGrid" aria-label={t("recentlyOpened")}>
-              <div className="libraryPanel">
+              <div className="libraryPanel activityPanel">
                 <div className="sectionTitle">
                   <h2>{t("recentlyOpened")}</h2>
                   <span>{recentItems.length} {t("items")}</span>
@@ -1549,7 +1441,7 @@ function App() {
                         </span>
                         <span>
                           <strong>{getItemTitle(item, t)}</strong>
-                          <small>{item.location}</small>
+                          <small>{getItemLocation(item, t)}</small>
                         </span>
                       </button>
                     ))
@@ -1557,7 +1449,7 @@ function App() {
                 </div>
               </div>
 
-              <div className="libraryPanel">
+              <div className="libraryPanel activityPanel">
                 <div className="sectionTitle">
                   <h2>{t("frequentlyOpened")}</h2>
                   <span>{frequentItems.length} {t("items")}</span>
@@ -1585,7 +1477,7 @@ function App() {
                         </span>
                         <span>
                           <strong>{getItemTitle(item, t)}</strong>
-                          <small>{item.openCount} {t("opens")} / {item.location}</small>
+                          <small>{item.openCount} {t("opens")} / {getItemLocation(item, t)}</small>
                         </span>
                       </button>
                     ))
@@ -1661,7 +1553,7 @@ function App() {
                         </span>
                         <span>
                           <strong>{getItemTitle(item, t)}</strong>
-                          <small>{getCollectionLabel(item.collection, t)} / {item.location}</small>
+                          <small>{getCollectionLabel(item.collection, t)} / {getItemLocation(item, t)}</small>
                         </span>
                       </button>
                     ))
@@ -1722,7 +1614,11 @@ function App() {
                           {t("collectionName")}
                           <input
                             defaultValue={collection}
-                            onBlur={(event) => renameCollection(collection, event.currentTarget.value)}
+                            onBlur={(event) => {
+                              if (!renameCollection(collection, event.currentTarget.value)) {
+                                event.currentTarget.value = collection;
+                              }
+                            }}
                             onKeyDown={(event) => {
                               if (event.key === "Enter") {
                                 event.currentTarget.blur();
@@ -1816,6 +1712,7 @@ function App() {
           mode={addMode}
           draft={draft}
           t={t}
+          getTypeLabel={(type) => getTypeLabel(type, t)}
           onModeChange={setAddMode}
           onDraftChange={setDraft}
           onSubmit={addManualItem}
@@ -1870,15 +1767,15 @@ function ShelfCard({
   }
 
   return (
-    <article
-      className={`contentCard ${variant} ${selected ? "selected" : ""}`}
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onDoubleClick={onOpen}
-      onKeyDown={handleCardKeyDown}
-    >
-      <div className="cardHitArea">
+    <article className={`contentCard ${variant} ${selected ? "selected" : ""}`}>
+      <button
+        className="cardHitArea"
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        onDoubleClick={onOpen}
+        onKeyDown={handleCardKeyDown}
+      >
         <div className="cardHeader">
           <div className="typeBadge" style={{ color: item.accent }}>
             {typeIcons[item.type]}
@@ -1890,23 +1787,15 @@ function ShelfCard({
         <p>{getItemSummary(item, t)}</p>
         <div className="itemPreview" style={{ borderColor: item.accent }}>
           <strong>{getSourceLabel(item.source, t)}</strong>
-          <span>{item.location}</span>
+          <span>{getItemLocation(item, t)}</span>
         </div>
-        <div className="tagRow">
-          {item.tags.map((tag) => (
-            <button
-              type="button"
-              key={tag}
-              onClick={(event) => {
-                event.stopPropagation();
-                onFilterTag(tag);
-              }}
-              onDoubleClick={(event) => event.stopPropagation()}
-            >
-              #{getTagLabel(tag, t)}
-            </button>
-          ))}
-        </div>
+      </button>
+      <div className="tagRow">
+        {item.tags.map((tag) => (
+          <button type="button" key={tag} onClick={() => onFilterTag(tag)}>
+            #{getTagLabel(tag, t)}
+          </button>
+        ))}
       </div>
       <button
         className="favoriteButton"
@@ -1916,7 +1805,7 @@ function ShelfCard({
           onToggleFavorite();
         }}
         onDoubleClick={(event) => event.stopPropagation()}
-        aria-label="Toggle favorite"
+      aria-label={item.isFavorite ? t("unpin") : t("pin")}
       >
         <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
       </button>
@@ -1946,6 +1835,29 @@ function DetailPanel({
   onFilterTag: (tag: string) => void;
 }) {
   const safeExternalUrl = item.type === "link" ? getSafeExternalUrl(item.location) : null;
+  const [collectionDraft, setCollectionDraft] = useState(item.collection);
+  const [tagDraft, setTagDraft] = useState(item.tags.join(", "));
+
+  useEffect(() => {
+    setCollectionDraft(item.collection);
+    setTagDraft(item.tags.join(", "));
+  }, [item.collection, item.id, item.tags]);
+
+  function commitCollectionDraft() {
+    const nextCollection = collectionDraft.trim() || "Inbox";
+    setCollectionDraft(nextCollection);
+    if (nextCollection !== item.collection) {
+      onPatch({ collection: nextCollection });
+    }
+  }
+
+  function commitTagDraft() {
+    const nextTags = parseTagInput(tagDraft);
+    setTagDraft(nextTags.join(", "));
+    if (nextTags.join("\u0000") !== item.tags.join("\u0000")) {
+      onPatch({ tags: nextTags });
+    }
+  }
 
   return (
     <div className="readerPanel">
@@ -2014,8 +1926,12 @@ function DetailPanel({
           {t("collection")}
           <input
             list="collection-options"
-            value={item.collection}
-            onChange={(event) => onPatch({ collection: event.target.value.trim() || "Inbox" })}
+            value={collectionDraft}
+            onChange={(event) => setCollectionDraft(event.target.value)}
+            onBlur={commitCollectionDraft}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
           />
         </label>
         <datalist id="collection-options">
@@ -2026,8 +1942,12 @@ function DetailPanel({
         <label className="fieldBlock">
           {t("tagsComma")}
           <input
-            value={item.tags.join(", ")}
-            onChange={(event) => onPatch({ tags: parseTagInput(event.target.value) })}
+            value={tagDraft}
+            onChange={(event) => setTagDraft(event.target.value)}
+            onBlur={commitTagDraft}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
           />
         </label>
       </div>
@@ -2047,7 +1967,7 @@ function DetailPanel({
         <span>{t("collection")}</span>
         <strong>{getCollectionLabel(item.collection, t)}</strong>
         <span>{t("location")}</span>
-        <strong>{item.location}</strong>
+        <strong>{getItemLocation(item, t)}</strong>
         <span>{t("tags")}</span>
         <strong>{item.tags.map((tag) => `#${getTagLabel(tag, t)}`).join(" ") || t("none")}</strong>
       </div>
@@ -2073,6 +1993,11 @@ function ReaderView({
   const onPatchRef = useRef(onPatch);
   const lastSavedProgressRef = useRef(item.readerProgress ?? 0);
   const lastSavedScrollTopRef = useRef(0);
+  const latestReaderPositionRef = useRef({
+    progress: item.readerProgress ?? 0,
+    scrollTop: item.readerScrollTop ?? 0,
+    updatedAt: Date.now(),
+  });
   const canAutoSaveProgressRef = useRef(false);
   const resumePromptVisibleRef = useRef(false);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
@@ -2093,6 +2018,11 @@ function ReaderView({
     resumePromptVisibleRef.current = false;
     lastSavedProgressRef.current = fallbackProgress;
     lastSavedScrollTopRef.current = fallbackScrollTop;
+    latestReaderPositionRef.current = {
+      progress: fallbackProgress,
+      scrollTop: fallbackScrollTop,
+      updatedAt: Date.now(),
+    };
     setSavedProgress(fallbackProgress);
     setSavedScrollTop(fallbackScrollTop);
     setShowResumePrompt(false);
@@ -2125,6 +2055,11 @@ function ReaderView({
         const nextScrollTop = typeof loadedPosition === "number" ? fallbackScrollTop : loadedScrollTop;
         lastSavedProgressRef.current = nextProgress;
         lastSavedScrollTopRef.current = nextScrollTop;
+        latestReaderPositionRef.current = {
+          progress: nextProgress,
+          scrollTop: nextScrollTop,
+          updatedAt: Date.now(),
+        };
         setSavedProgress(nextProgress);
         setSavedScrollTop(nextScrollTop);
         onPatchRef.current({ readerProgress: nextProgress, readerScrollTop: nextScrollTop });
@@ -2176,10 +2111,12 @@ function ReaderView({
         return null;
       }
 
-      return {
+      const position = {
         progress: Math.min(100, Math.max(0, (scrollTop / scrollableHeight) * 100)),
         scrollTop,
       };
+      latestReaderPositionRef.current = { ...position, updatedAt: Date.now() };
+      return position;
     }
 
     function saveScrollProgress() {
@@ -2207,12 +2144,19 @@ function ReaderView({
       setSavedProgress(roundedProgress);
       setSavedScrollTop(roundedScrollTop);
       onPatchRef.current({ readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
-      saveNativeReaderProgress(item.id, roundedProgress, roundedScrollTop).catch(() => {
+      saveBrowserItemProgress(item.id, { readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
+      saveNativeReaderProgress(
+        item.id,
+        roundedProgress,
+        roundedScrollTop,
+        latestReaderPositionRef.current.updatedAt,
+      ).catch(() => {
         // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
       });
     }
 
     function handleScroll() {
+      getScrollPosition();
       if (!frame) {
         frame = window.requestAnimationFrame(() => {
           frame = 0;
@@ -2221,10 +2165,24 @@ function ReaderView({
       }
     }
 
+    function flushScrollProgress() {
+      if (!canAutoSaveProgressRef.current || resumePromptVisibleRef.current) return;
+      const latestPosition = latestReaderPositionRef.current;
+      const roundedProgress = Math.round(latestPosition.progress * 10) / 10;
+      const roundedScrollTop = Math.round(latestPosition.scrollTop);
+      lastSavedProgressRef.current = roundedProgress;
+      lastSavedScrollTopRef.current = roundedScrollTop;
+      onPatchRef.current({ readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
+      saveBrowserItemProgress(item.id, { readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
+      saveNativeReaderProgress(item.id, roundedProgress, roundedScrollTop, latestPosition.updatedAt).catch(() => undefined);
+    }
+
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("pagehide", flushScrollProgress);
     document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
     interval = window.setInterval(saveScrollProgress, 900);
     return () => {
+      flushScrollProgress();
       if (frame) {
         window.cancelAnimationFrame(frame);
       }
@@ -2232,6 +2190,7 @@ function ReaderView({
         window.clearInterval(interval);
       }
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("pagehide", flushScrollProgress);
       document.removeEventListener("scroll", handleScroll, { capture: true });
     };
   }, [item.id]);
@@ -2252,15 +2211,18 @@ function ReaderView({
   }
 
   function restartReading() {
+    const updatedAt = Date.now();
     resumePromptVisibleRef.current = false;
     setShowResumePrompt(false);
     canAutoSaveProgressRef.current = true;
     lastSavedProgressRef.current = 0;
     lastSavedScrollTopRef.current = 0;
+    latestReaderPositionRef.current = { progress: 0, scrollTop: 0, updatedAt };
     setSavedProgress(0);
     setSavedScrollTop(0);
     onPatch({ readerProgress: 0, readerScrollTop: 0 });
-    saveNativeReaderProgress(item.id, 0, 0).catch(() => {
+    saveBrowserItemProgress(item.id, { readerProgress: 0, readerScrollTop: 0 });
+    saveNativeReaderProgress(item.id, 0, 0, updatedAt).catch(() => {
       // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2319,12 +2281,34 @@ function MediaViewerView({
   const canPreviewAudio = item.type === "audio" && previewUrl && canPreviewMediaItem(item, "audio");
   const canPreviewImage = item.type === "image" && previewUrl;
   const mediaElementRef = useRef<HTMLMediaElement | null>(null);
+  const mediaOnPatchRef = useRef(onPatch);
   const lastSavedMediaPositionRef = useRef(item.mediaPosition ?? 0);
+  const latestMediaPositionRef = useRef({ position: item.mediaPosition ?? 0, updatedAt: Date.now() });
   const [savedMediaPosition, setSavedMediaPosition] = useState(item.mediaPosition ?? 0);
+
+  useEffect(() => {
+    mediaOnPatchRef.current = onPatch;
+  }, [onPatch]);
+
+  useEffect(() => {
+    function flushMediaPosition() {
+      const { position: nextPosition, updatedAt } = latestMediaPositionRef.current;
+      mediaOnPatchRef.current({ mediaPosition: nextPosition });
+      saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
+      saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => undefined);
+    }
+
+    window.addEventListener("pagehide", flushMediaPosition);
+    return () => {
+      flushMediaPosition();
+      window.removeEventListener("pagehide", flushMediaPosition);
+    };
+  }, [item.id]);
 
   useEffect(() => {
     const fallbackPosition = item.mediaPosition ?? 0;
     lastSavedMediaPositionRef.current = fallbackPosition;
+    latestMediaPositionRef.current = { position: fallbackPosition, updatedAt: Date.now() };
     setSavedMediaPosition(fallbackPosition);
 
     if (item.type !== "video" && item.type !== "audio") {
@@ -2340,6 +2324,7 @@ function MediaViewerView({
 
         const nextPosition = progress.position ?? fallbackPosition;
         lastSavedMediaPositionRef.current = nextPosition;
+        latestMediaPositionRef.current = { position: nextPosition, updatedAt: Date.now() };
         setSavedMediaPosition(nextPosition);
         onPatch({ mediaPosition: nextPosition });
         const media = mediaElementRef.current;
@@ -2372,11 +2357,14 @@ function MediaViewerView({
   }
 
   function saveMediaPosition(nextPosition: number, minimumDelta = 3) {
+    const updatedAt = Date.now();
+    latestMediaPositionRef.current = { position: nextPosition, updatedAt };
     if (Math.abs(nextPosition - lastSavedMediaPositionRef.current) >= minimumDelta) {
       lastSavedMediaPositionRef.current = nextPosition;
       setSavedMediaPosition(nextPosition);
       onPatch({ mediaPosition: nextPosition });
-      saveNativeMediaProgress(item.id, nextPosition).catch(() => {
+      saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
+      saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => {
         // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
       });
     }
@@ -2440,13 +2428,45 @@ function PreviewBody({
   t: (key: MessageKey) => string;
   onPatch: (patch: Partial<ContentItem>) => void;
 }) {
-  const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.location) : undefined);
+  const canUseAssetPath = item.source === "path" && (item.type === "video" || item.type === "audio" || item.type === "image");
+  const previewUrl = item.objectUrl ?? (canUseAssetPath ? nativeAssetUrl(item.location) || undefined : undefined);
   const nativeMediaPositionRef = useRef(item.mediaPosition ?? 0);
+  const latestPreviewMediaPositionRef = useRef({ position: item.mediaPosition ?? 0, updatedAt: Date.now() });
+  const previewMediaElementRef = useRef<HTMLMediaElement | null>(null);
+  const previewOnPatchRef = useRef(onPatch);
   const [nativeMediaPosition, setNativeMediaPosition] = useState(item.mediaPosition ?? 0);
+
+  useEffect(() => {
+    previewOnPatchRef.current = onPatch;
+  }, [onPatch]);
+
+  useEffect(() => {
+    const media = previewMediaElementRef.current;
+    if (!media || nativeMediaPosition <= 0 || !Number.isFinite(media.duration)) return;
+    if (nativeMediaPosition < media.duration - 2 && Math.abs(media.currentTime - nativeMediaPosition) > 1) {
+      media.currentTime = nativeMediaPosition;
+    }
+  }, [item.id, nativeMediaPosition]);
+
+  useEffect(() => {
+    function flushPreviewMediaPosition() {
+      const { position: nextPosition, updatedAt } = latestPreviewMediaPositionRef.current;
+      previewOnPatchRef.current({ mediaPosition: nextPosition });
+      saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
+      saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => undefined);
+    }
+
+    window.addEventListener("pagehide", flushPreviewMediaPosition);
+    return () => {
+      flushPreviewMediaPosition();
+      window.removeEventListener("pagehide", flushPreviewMediaPosition);
+    };
+  }, [item.id]);
 
   useEffect(() => {
     const fallbackPosition = item.mediaPosition ?? 0;
     nativeMediaPositionRef.current = fallbackPosition;
+    latestPreviewMediaPositionRef.current = { position: fallbackPosition, updatedAt: Date.now() };
     setNativeMediaPosition(fallbackPosition);
 
     if (item.type !== "video" && item.type !== "audio") {
@@ -2454,27 +2474,42 @@ function PreviewBody({
     }
 
     let isMounted = true;
-    loadNativeMediaProgress(item.id)
-      .then((progress) => {
+    function syncNativeMediaPosition() {
+      loadNativeMediaProgress(item.id).then((progress) => {
         if (!isMounted || !progress) {
           return;
         }
 
         const nextPosition = progress.position ?? fallbackPosition;
         nativeMediaPositionRef.current = nextPosition;
+        latestPreviewMediaPositionRef.current = { position: nextPosition, updatedAt: Date.now() };
         setNativeMediaPosition(nextPosition);
         onPatch({ mediaPosition: nextPosition });
+        const media = previewMediaElementRef.current;
+        if (media?.paused && nextPosition > 0) {
+          const duration = media.duration;
+          if (!Number.isFinite(duration) || nextPosition < duration - 2) {
+            media.currentTime = nextPosition;
+          }
+        }
       })
       .catch(() => {
         // Browser preview cannot call Tauri commands; item state remains the fallback.
       });
+    }
+
+    syncNativeMediaPosition();
+    window.addEventListener("focus", syncNativeMediaPosition);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("focus", syncNativeMediaPosition);
     };
   }, [item.id, item.type]);
 
   function savePreviewMediaPosition(nextPosition: number, minimumDelta = 5) {
+    const updatedAt = Date.now();
+    latestPreviewMediaPositionRef.current = { position: nextPosition, updatedAt };
     if (Math.abs(nextPosition - nativeMediaPositionRef.current) < minimumDelta) {
       return;
     }
@@ -2482,7 +2517,8 @@ function PreviewBody({
     nativeMediaPositionRef.current = nextPosition;
     setNativeMediaPosition(nextPosition);
     onPatch({ mediaPosition: nextPosition });
-    saveNativeMediaProgress(item.id, nextPosition).catch(() => {
+    saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
+    saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => {
       // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
     });
   }
@@ -2504,6 +2540,9 @@ function PreviewBody({
       <video
         src={previewUrl}
         controls
+        ref={(node) => {
+          previewMediaElementRef.current = node;
+        }}
         onLoadedMetadata={(event) => {
           event.currentTarget.currentTime = nativeMediaPosition;
         }}
@@ -2523,6 +2562,9 @@ function PreviewBody({
         <audio
           src={previewUrl}
           controls
+          ref={(node) => {
+            previewMediaElementRef.current = node;
+          }}
           onLoadedMetadata={(event) => {
             event.currentTarget.currentTime = nativeMediaPosition;
           }}
@@ -2562,128 +2604,6 @@ function PreviewBody({
       ) : (
         <p>{t("noFolderEntries")}</p>
       )}
-    </div>
-  );
-}
-
-function AddContentModal({
-  mode,
-  draft,
-  t,
-  onModeChange,
-  onDraftChange,
-  onSubmit,
-  onFile,
-  onNativeFile,
-  onNativeFolder,
-  onClose,
-}: {
-  mode: AddMode;
-  draft: DraftItem;
-  t: (key: MessageKey) => string;
-  onModeChange: (mode: AddMode) => void;
-  onDraftChange: (draft: DraftItem) => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-  onFile: (file: File) => void;
-  onNativeFile: () => void;
-  onNativeFolder: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="modalBackdrop" role="presentation">
-      <section className="modalPanel" role="dialog" aria-modal="true" aria-labelledby="add-content-title">
-        <div className="sectionTitle">
-          <h2 id="add-content-title">{t("addContentTitle")}</h2>
-          <button className="iconButton" type="button" aria-label={t("close")} onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="filterRow">
-          <button className={mode === "manual" ? "active" : ""} type="button" onClick={() => onModeChange("manual")}>
-            {t("manual")}
-          </button>
-          <button className={mode === "upload" ? "active" : ""} type="button" onClick={() => onModeChange("upload")}>
-            {t("uploadPreview")}
-          </button>
-          <button type="button" onClick={onNativeFile}>
-            {t("nativeFile")}
-          </button>
-          <button type="button" onClick={onNativeFolder}>
-            {t("nativeFolder")}
-          </button>
-        </div>
-
-        {mode === "upload" ? (
-          <label className="uploadBox">
-            <Upload size={24} />
-            {t("uploadPrompt")}
-            <input
-              type="file"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) onFile(file);
-              }}
-            />
-          </label>
-        ) : (
-          <form className="formGrid" onSubmit={onSubmit}>
-            <label>
-              {t("title")}
-              <input value={draft.title} onChange={(event) => onDraftChange({ ...draft, title: event.target.value })} />
-            </label>
-            <label>
-              {t("type")}
-              <select
-                value={draft.type}
-                onChange={(event) => onDraftChange({ ...draft, type: event.target.value as ContentType })}
-              >
-                {contentTypes.map((type) => (
-                  <option key={type} value={type}>{getTypeLabel(type, t)}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t("source")}
-              <select
-                value={draft.source}
-                onChange={(event) => onDraftChange({ ...draft, source: event.target.value as ContentSource })}
-              >
-                <option value="path">{t("pathOption")}</option>
-                <option value="url">{t("urlOption")}</option>
-                <option value="note">{t("noteOption")}</option>
-              </select>
-            </label>
-            <label>
-              {t("locationLabel")}
-              <input value={draft.location} onChange={(event) => onDraftChange({ ...draft, location: event.target.value })} />
-            </label>
-            <label>
-              {t("collection")}
-              <input value={draft.collection} onChange={(event) => onDraftChange({ ...draft, collection: event.target.value })} />
-            </label>
-            <label>
-              {t("tagsComma")}
-              <input value={draft.tags} onChange={(event) => onDraftChange({ ...draft, tags: event.target.value })} />
-            </label>
-            <label>
-              {t("accent")}
-              <input type="color" value={draft.accent} onChange={(event) => onDraftChange({ ...draft, accent: event.target.value })} />
-            </label>
-            <label className="spanTwo">
-              {t("summaryNotes")}
-              <textarea value={draft.summary} onChange={(event) => onDraftChange({ ...draft, summary: event.target.value })} />
-            </label>
-            <label className="spanTwo">
-              {t("documentText")}
-              <textarea value={draft.textContent} onChange={(event) => onDraftChange({ ...draft, textContent: event.target.value })} />
-            </label>
-            <button className="primaryButton spanTwo" type="submit">
-              {t("addToShelf")}
-            </button>
-          </form>
-        )}
-      </section>
     </div>
   );
 }

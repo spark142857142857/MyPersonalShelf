@@ -10,8 +10,8 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {
-    target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
-    minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
+    target: process.env.TAURI_ENV_PLATFORM === "macos" ? "safari16" : "chrome105",
+    minify: !process.env.TAURI_ENV_DEBUG ? "oxc" : false,
     sourcemap: Boolean(process.env.TAURI_ENV_DEBUG),
   },
 });

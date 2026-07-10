@@ -1,5 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import type { CloseRequestedEvent } from "@tauri-apps/api/window";
 import type { AppSettings, CollectionSettings, ContentType, DashboardLayoutItem, FolderEntry, ThemeSettings } from "../types";
 import type { Language } from "./i18n";
 
@@ -37,6 +38,10 @@ export interface NativeMediaProgress {
   position: number;
 }
 
+export function isNativeRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 export async function loadNativeAppState() {
   const state = await invoke<string | null>("load_app_state");
   return state ? (JSON.parse(state) as PersistedAppState) : null;
@@ -50,16 +55,16 @@ export async function loadNativeReaderProgress(itemId: string) {
   return invoke<NativeReaderProgress | null>("load_reader_progress", { itemId });
 }
 
-export async function saveNativeReaderProgress(itemId: string, progress: number, scrollTop: number) {
-  await invoke("save_reader_progress", { itemId, progress, scrollTop });
+export async function saveNativeReaderProgress(itemId: string, progress: number, scrollTop: number, updatedAt = Date.now()) {
+  await invoke("save_reader_progress", { itemId, progress, scrollTop, updatedAt });
 }
 
 export async function loadNativeMediaProgress(itemId: string) {
   return invoke<NativeMediaProgress | null>("load_media_progress", { itemId });
 }
 
-export async function saveNativeMediaProgress(itemId: string, position: number) {
-  await invoke("save_media_progress", { itemId, position });
+export async function saveNativeMediaProgress(itemId: string, position: number, updatedAt = Date.now()) {
+  await invoke("save_media_progress", { itemId, position, updatedAt });
 }
 
 export async function selectNativeFile() {
@@ -87,7 +92,21 @@ export async function openNativeUrl(url: string) {
 }
 
 export function nativeAssetUrl(path: string) {
-  return convertFileSrc(path);
+  return isNativeRuntime() ? convertFileSrc(path) : "";
+}
+
+export async function closeCurrentNativeWindow() {
+  await getCurrentWebviewWindow().close();
+}
+
+export async function destroyCurrentNativeWindow() {
+  await getCurrentWebviewWindow().destroy();
+}
+
+export async function onNativeCloseRequested(
+  handler: (event: CloseRequestedEvent) => void | Promise<void>,
+) {
+  return getCurrentWebviewWindow().onCloseRequested(handler);
 }
 
 export async function openNativeReaderWindow(itemId: string, title: string) {
