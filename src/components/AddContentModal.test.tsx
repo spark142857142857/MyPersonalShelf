@@ -20,15 +20,21 @@ const draft: DraftItem = {
   textContent: "",
 };
 
-function renderModal(onClose = vi.fn()) {
+function renderModal(
+  onClose = vi.fn(),
+  isSubmitting = false,
+  currentDraft = draft,
+  onDraftChange = vi.fn(),
+) {
   render(
     <AddContentModal
       mode="manual"
-      draft={draft}
+      draft={currentDraft}
+      isSubmitting={isSubmitting}
       t={(key: MessageKey) => key}
       getTypeLabel={(type) => type}
       onModeChange={vi.fn()}
-      onDraftChange={vi.fn()}
+      onDraftChange={onDraftChange}
       onSubmit={(event) => event.preventDefault()}
       onFile={vi.fn()}
       onNativeFile={vi.fn()}
@@ -62,5 +68,32 @@ describe("AddContentModal", () => {
     renderModal();
     expect(screen.getByRole("textbox", { name: "title" }).hasAttribute("required")).toBe(true);
     expect(screen.getByRole("textbox", { name: "locationLabel" }).hasAttribute("required")).toBe(true);
+  });
+
+  it("disables submission while a native path is being registered", () => {
+    renderModal(vi.fn(), true);
+    expect(screen.getByRole("button", { name: "addToShelf" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("keeps the dialog open on Escape while registration is in progress", async () => {
+    const onClose = renderModal(vi.fn(), true);
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("offers only sources that can be opened for the selected content type", () => {
+    renderModal(vi.fn(), false, { ...draft, type: "link", source: "url" });
+    const sourceSelect = screen.getByRole("combobox", { name: "source" }) as HTMLSelectElement;
+
+    expect(sourceSelect.disabled).toBe(true);
+    expect([...sourceSelect.options].map((option) => option.value)).toEqual(["url"]);
+  });
+
+  it("switches to a valid source when the content type changes", async () => {
+    const onDraftChange = vi.fn();
+    renderModal(vi.fn(), false, draft, onDraftChange);
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "type" }), "link");
+    expect(onDraftChange).toHaveBeenCalledWith(expect.objectContaining({ type: "link", source: "url" }));
   });
 });

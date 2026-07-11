@@ -1,10 +1,11 @@
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::Mutex,
     time::{Duration, UNIX_EPOCH},
 };
 use tauri::Manager;
@@ -12,6 +13,64 @@ use url::Url;
 
 const MAX_TEXT_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_FOLDER_ENTRIES: usize = 200;
+
+#[derive(Default)]
+struct AllowedPaths(Mutex<HashSet<PathBuf>>);
+
+fn ensure_main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() == "main" {
+        Ok(())
+    } else {
+        Err("This command is only available from the main window.".to_string())
+    }
+}
+
+fn reader_window_label(item_id: &str) -> String {
+    let safe_id = item_id
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '/' | ':' | '_') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    format!("reader-{safe_id}")
+}
+
+fn ensure_item_window_access(window: &tauri::WebviewWindow, item_id: &str) -> Result<(), String> {
+    if window.label() == "main" || window.label() == reader_window_label(item_id) {
+        Ok(())
+    } else {
+        Err("This reader window cannot access the requested item.".to_string())
+    }
+}
+
+fn filter_state_for_window(window: &tauri::WebviewWindow, state: String) -> Result<String, String> {
+    if window.label() == "main" {
+        return Ok(state);
+    }
+    filter_state_for_reader_label(window.label(), state)
+}
+
+fn filter_state_for_reader_label(label: &str, state: String) -> Result<String, String> {
+    if !label.starts_with("reader-") {
+        return Err("This window cannot load shelf data.".to_string());
+    }
+
+    let mut value = serde_json::from_str::<Value>(&state).map_err(|error| error.to_string())?;
+    let items = value
+        .get_mut("items")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "Saved shelf data does not contain items.".to_string())?;
+    items.retain(|item| {
+        item.get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|item_id| reader_window_label(item_id) == label)
+    });
+    serde_json::to_string(&value).map_err(|error| error.to_string())
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,9 +115,12 @@ struct MediaProgress {
 }
 
 #[tauri::command]
-fn load_app_state(app: tauri::AppHandle) -> Result<Option<String>, String> {
+fn load_app_state(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<Option<String>, String> {
     let connection = open_database(&app)?;
-    connection
+    let state = connection
         .query_row(
             "SELECT value FROM app_state WHERE key = 'state'",
             [],
@@ -66,18 +128,25 @@ fn load_app_state(app: tauri::AppHandle) -> Result<Option<String>, String> {
         )
         .and_then(|state| hydrate_reader_progress(&connection, state))
         .and_then(|state| hydrate_media_progress(&connection, state))
-        .inspect(|state| {
-            allow_persisted_asset_paths(&app, state);
-        })
+        .and_then(|state| hydrate_text_preferences(&connection, state))
         .map(Some)
         .or_else(|error| match error {
             rusqlite::Error::QueryReturnedNoRows => Ok(None),
             error => Err(error.to_string()),
-        })
+        })?;
+
+    state
+        .map(|state| filter_state_for_window(&window, state))
+        .transpose()
 }
 
 #[tauri::command]
-fn save_app_state(app: tauri::AppHandle, state: String) -> Result<(), String> {
+fn save_app_state(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: String,
+) -> Result<(), String> {
+    ensure_main_window(&window)?;
     let connection = open_database(&app)?;
     connection
         .execute(
@@ -181,6 +250,28 @@ fn save_media_progress(
     upsert_media_progress(&connection, &item_id, position, updated_at)
 }
 
+#[tauri::command]
+fn save_text_encoding(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    item_id: String,
+    encoding: String,
+) -> Result<(), String> {
+    let encoding = validate_text_encoding(&encoding)?;
+    let connection = open_database(&app)?;
+    ensure_item_window_access(&window, &item_id)?;
+    ensure_document_item_exists(&connection, &item_id)?;
+    connection
+        .execute(
+            "INSERT INTO text_preferences (item_id, encoding, updated_at)
+             VALUES (?1, ?2, strftime('%s', 'now'))
+             ON CONFLICT(item_id) DO UPDATE SET encoding = excluded.encoding, updated_at = excluded.updated_at",
+            (&item_id, encoding),
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 fn upsert_media_progress(
     connection: &rusqlite::Connection,
     item_id: &str,
@@ -201,7 +292,12 @@ fn upsert_media_progress(
 }
 
 #[tauri::command]
-fn select_file(app: tauri::AppHandle) -> Result<Option<NativeContentSelection>, String> {
+fn select_file(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+) -> Result<Option<NativeContentSelection>, String> {
+    ensure_main_window(&window)?;
     let Some(path) = rfd::FileDialog::new()
         .add_filter(
             "Supported content",
@@ -215,19 +311,24 @@ fn select_file(app: tauri::AppHandle) -> Result<Option<NativeContentSelection>, 
         return Ok(None);
     };
 
-    let selection = file_selection_from_path(path.clone())?;
-    app.asset_protocol_scope()
-        .allow_file(path)
-        .map_err(|error| error.to_string())?;
+    let content_type = content_type_for_path(&path).to_string();
+    let path = register_path(&app, &allowed_paths, &path, &content_type)?;
+    let selection = file_selection_from_path(path)?;
     Ok(Some(selection))
 }
 
 #[tauri::command]
-fn select_folder() -> Result<Option<NativeFolderSelection>, String> {
+fn select_folder(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+) -> Result<Option<NativeFolderSelection>, String> {
+    ensure_main_window(&window)?;
     let Some(path) = rfd::FileDialog::new().pick_folder() else {
         return Ok(None);
     };
 
+    let path = register_path(&app, &allowed_paths, &path, "folder")?;
     let entries = folder_entries(&path)?;
     Ok(Some(NativeFolderSelection {
         title: path
@@ -241,8 +342,33 @@ fn select_folder() -> Result<Option<NativeFolderSelection>, String> {
 }
 
 #[tauri::command]
-fn read_text_file(path: String) -> Result<String, String> {
-    let path = PathBuf::from(path);
+fn register_content_path(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    path: String,
+    content_type: String,
+) -> Result<String, String> {
+    ensure_main_window(&window)?;
+    register_path(&app, &allowed_paths, Path::new(&path), &content_type)
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn read_text_file(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    path: String,
+    encoding: Option<String>,
+    item_id: String,
+) -> Result<String, String> {
+    ensure_item_window_access(&window, &item_id)?;
+    if window.label() != "main" {
+        let connection = open_database(&app)?;
+        ensure_document_item_path(&connection, &item_id, Path::new(&path))?;
+    }
+    let path = require_allowed_path(&allowed_paths, Path::new(&path))?;
     ensure_supported_text_file(&path)?;
     let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
     if metadata.len() > MAX_TEXT_BYTES {
@@ -252,17 +378,28 @@ fn read_text_file(path: String) -> Result<String, String> {
         ));
     }
 
-    read_text_file_contents(&path)
+    read_text_file_contents_with_encoding(&path, encoding.as_deref())
 }
 
 #[tauri::command]
-fn list_folder(path: String) -> Result<Vec<FolderEntry>, String> {
-    folder_entries(Path::new(&path))
+fn list_folder(
+    window: tauri::WebviewWindow,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    path: String,
+) -> Result<Vec<FolderEntry>, String> {
+    ensure_main_window(&window)?;
+    let path = require_allowed_path(&allowed_paths, Path::new(&path))?;
+    folder_entries(&path)
 }
 
 #[tauri::command]
-fn open_folder(path: String) -> Result<(), String> {
-    let path = PathBuf::from(path);
+fn open_folder(
+    window: tauri::WebviewWindow,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    path: String,
+) -> Result<(), String> {
+    ensure_main_window(&window)?;
+    let path = require_allowed_path(&allowed_paths, Path::new(&path))?;
     let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
     if !metadata.is_dir() {
         return Err("Selected path is not a folder.".to_string());
@@ -270,6 +407,7 @@ fn open_folder(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        let path = path_without_verbatim_prefix(&path);
         Command::new("explorer")
             .arg(path)
             .spawn()
@@ -333,6 +471,7 @@ fn open_url(url: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(AllowedPaths::default())
         .invoke_handler(tauri::generate_handler![
             load_app_state,
             save_app_state,
@@ -340,8 +479,10 @@ pub fn run() {
             save_reader_progress,
             load_media_progress,
             save_media_progress,
+            save_text_encoding,
             select_file,
             select_folder,
+            register_content_path,
             read_text_file,
             list_folder,
             open_folder,
@@ -399,6 +540,16 @@ fn open_database(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String>
             "CREATE TABLE IF NOT EXISTS media_progress (
                 item_id TEXT PRIMARY KEY,
                 position REAL NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "CREATE TABLE IF NOT EXISTS text_preferences (
+                item_id TEXT PRIMARY KEY,
+                encoding TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
             )",
             [],
@@ -479,28 +630,195 @@ fn hydrate_media_progress(
     Ok(serde_json::to_string(&value).unwrap_or(state))
 }
 
-fn allow_persisted_asset_paths(app: &tauri::AppHandle, state: &str) {
-    let Ok(value) = serde_json::from_str::<Value>(state) else {
-        return;
+fn hydrate_text_preferences(
+    connection: &rusqlite::Connection,
+    state: String,
+) -> Result<String, rusqlite::Error> {
+    let Ok(mut value) = serde_json::from_str::<Value>(&state) else {
+        return Ok(state);
     };
-    let Some(items) = value.get("items").and_then(Value::as_array) else {
-        return;
-    };
-    let scope = app.asset_protocol_scope();
 
-    for item in items {
-        let is_asset = matches!(
-            item.get("type").and_then(Value::as_str),
-            Some("video" | "audio" | "image")
-        );
-        let is_path = item.get("source").and_then(Value::as_str) == Some("path");
-        if !is_asset || !is_path {
-            continue;
-        }
-        if let Some(path) = item.get("location").and_then(Value::as_str) {
-            let _ = scope.allow_file(path);
+    let mut statement = connection.prepare("SELECT item_id, encoding FROM text_preferences")?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut encoding_by_item = HashMap::new();
+    for row in rows {
+        let (item_id, encoding) = row?;
+        if validate_text_encoding(&encoding).is_ok() {
+            encoding_by_item.insert(item_id, encoding);
         }
     }
+
+    if let Some(items) = value.get_mut("items").and_then(Value::as_array_mut) {
+        for item in items {
+            let Some(item_id) = item.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(encoding) = encoding_by_item.get(item_id) else {
+                continue;
+            };
+            item["textEncoding"] = json!(encoding);
+        }
+    }
+
+    Ok(serde_json::to_string(&value).unwrap_or(state))
+}
+
+fn stored_item(connection: &rusqlite::Connection, item_id: &str) -> Result<Value, String> {
+    let state = connection
+        .query_row(
+            "SELECT value FROM app_state WHERE key = 'state'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let value = serde_json::from_str::<Value>(&state).map_err(|error| error.to_string())?;
+    value
+        .get("items")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items
+                .iter()
+                .find(|item| item.get("id").and_then(Value::as_str) == Some(item_id))
+        })
+        .cloned()
+        .ok_or_else(|| "The requested item is not in the saved shelf.".to_string())
+}
+
+fn ensure_document_item_exists(
+    connection: &rusqlite::Connection,
+    item_id: &str,
+) -> Result<(), String> {
+    let item = stored_item(connection, item_id)?;
+    if item.get("type").and_then(Value::as_str) == Some("document")
+        && item.get("source").and_then(Value::as_str) == Some("path")
+    {
+        Ok(())
+    } else {
+        Err("Text encoding can only be saved for local documents.".to_string())
+    }
+}
+
+fn ensure_document_item_path(
+    connection: &rusqlite::Connection,
+    item_id: &str,
+    requested_path: &Path,
+) -> Result<(), String> {
+    let item = stored_item(connection, item_id)?;
+    if item.get("type").and_then(Value::as_str) != Some("document")
+        || item.get("source").and_then(Value::as_str) != Some("path")
+    {
+        return Err("The requested item is not a local document.".to_string());
+    }
+
+    let saved_path = item
+        .get("location")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "The saved document has no local path.".to_string())?;
+    let saved_canonical = fs::canonicalize(saved_path).map_err(|error| error.to_string())?;
+    let requested_canonical =
+        fs::canonicalize(requested_path).map_err(|error| error.to_string())?;
+    if saved_canonical == requested_canonical {
+        Ok(())
+    } else {
+        Err("This reader window cannot read the requested path.".to_string())
+    }
+}
+
+fn register_path(
+    app: &tauri::AppHandle,
+    allowed_paths: &AllowedPaths,
+    path: &Path,
+    content_type: &str,
+) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path).map_err(|error| error.to_string())?;
+    let usable_path = path_without_verbatim_prefix(&canonical);
+    let metadata = fs::metadata(&canonical).map_err(|error| error.to_string())?;
+
+    match content_type {
+        "folder" if metadata.is_dir() => {}
+        "document" | "video" | "audio" | "image" if metadata.is_file() => {
+            if !is_supported_content_path(&canonical)
+                || content_type_for_path(&canonical) != content_type
+            {
+                return Err("Content type does not match the selected file extension.".to_string());
+            }
+        }
+        "folder" => return Err("Selected path is not a folder.".to_string()),
+        "document" | "video" | "audio" | "image" => {
+            return Err("Selected path is not a regular file.".to_string());
+        }
+        _ => return Err("Unsupported path content type.".to_string()),
+    }
+
+    if matches!(content_type, "video" | "audio" | "image") {
+        app.asset_protocol_scope()
+            .allow_file(&usable_path)
+            .map_err(|error| error.to_string())?;
+    }
+
+    allowed_paths
+        .0
+        .lock()
+        .map_err(|_| "Allowed path registry is unavailable.".to_string())?
+        .insert(canonical.clone());
+
+    Ok(usable_path)
+}
+
+fn require_allowed_path(allowed_paths: &AllowedPaths, path: &Path) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path).map_err(|error| error.to_string())?;
+    let is_allowed = allowed_paths
+        .0
+        .lock()
+        .map_err(|_| "Allowed path registry is unavailable.".to_string())?
+        .contains(&canonical);
+    if !is_allowed {
+        return Err("Path has not been selected or registered by the user.".to_string());
+    }
+    Ok(canonical)
+}
+
+#[cfg(test)]
+fn canonical_usable_path(path: &Path) -> Result<PathBuf, String> {
+    fs::canonicalize(path)
+        .map(|path| path_without_verbatim_prefix(&path))
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn path_without_verbatim_prefix(path: &Path) -> PathBuf {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+
+    const VERBATIM_PREFIX: &[u16] = &[b'\\' as u16, b'\\' as u16, b'?' as u16, b'\\' as u16];
+    const VERBATIM_UNC_PREFIX: &[u16] = &[
+        b'\\' as u16,
+        b'\\' as u16,
+        b'?' as u16,
+        b'\\' as u16,
+        b'U' as u16,
+        b'N' as u16,
+        b'C' as u16,
+        b'\\' as u16,
+    ];
+
+    let wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+    if let Some(rest) = wide.strip_prefix(VERBATIM_UNC_PREFIX) {
+        let mut normalized = vec![b'\\' as u16, b'\\' as u16];
+        normalized.extend_from_slice(rest);
+        PathBuf::from(OsString::from_wide(&normalized))
+    } else if let Some(rest) = wide.strip_prefix(VERBATIM_PREFIX) {
+        PathBuf::from(OsString::from_wide(rest))
+    } else {
+        path.to_path_buf()
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn path_without_verbatim_prefix(path: &Path) -> PathBuf {
+    path.to_path_buf()
 }
 
 fn file_selection_from_path(path: PathBuf) -> Result<NativeContentSelection, String> {
@@ -654,8 +972,65 @@ fn normalize_external_url(url: &str) -> Option<String> {
 }
 
 fn read_text_file_contents(path: &Path) -> Result<String, String> {
+    read_text_file_contents_with_encoding(path, None)
+}
+
+fn read_text_file_contents_with_encoding(
+    path: &Path,
+    encoding: Option<&str>,
+) -> Result<String, String> {
     let bytes = fs::read(path).map_err(|error| error.to_string())?;
-    decode_text_bytes(bytes)
+    decode_text_bytes_with_encoding(bytes, encoding)
+}
+
+fn validate_text_encoding(encoding: &str) -> Result<&str, String> {
+    match encoding {
+        "auto" | "utf-8" | "cp949" | "utf-16le" | "utf-16be" => Ok(encoding),
+        _ => Err("Unsupported text encoding.".to_string()),
+    }
+}
+
+fn decode_text_bytes_with_encoding(
+    bytes: Vec<u8>,
+    encoding: Option<&str>,
+) -> Result<String, String> {
+    match validate_text_encoding(encoding.unwrap_or("auto"))? {
+        "auto" => decode_text_bytes(bytes),
+        "utf-8" => {
+            let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
+            String::from_utf8(bytes.to_vec()).map_err(|error| error.to_string())
+        }
+        "cp949" => {
+            let (decoded, _) = encoding_rs::EUC_KR.decode_without_bom_handling(&bytes);
+            Ok(decoded.into_owned())
+        }
+        "utf-16le" => decode_forced_utf16(&bytes, true),
+        "utf-16be" => decode_forced_utf16(&bytes, false),
+        _ => unreachable!(),
+    }
+}
+
+fn decode_forced_utf16(bytes: &[u8], little_endian: bool) -> Result<String, String> {
+    let bytes = if little_endian {
+        bytes.strip_prefix(&[0xFF, 0xFE]).unwrap_or(bytes)
+    } else {
+        bytes.strip_prefix(&[0xFE, 0xFF]).unwrap_or(bytes)
+    };
+    if !bytes.len().is_multiple_of(2) {
+        return Err("UTF-16 text contains an incomplete code unit.".to_string());
+    }
+
+    let units = bytes
+        .chunks_exact(2)
+        .map(|chunk| {
+            if little_endian {
+                u16::from_le_bytes([chunk[0], chunk[1]])
+            } else {
+                u16::from_be_bytes([chunk[0], chunk[1]])
+            }
+        })
+        .collect::<Vec<_>>();
+    String::from_utf16(&units).map_err(|error| error.to_string())
 }
 
 fn decode_text_bytes(bytes: Vec<u8>) -> Result<String, String> {
@@ -675,6 +1050,20 @@ fn decode_text_bytes(bytes: Vec<u8>) -> Result<String, String> {
         return String::from_utf16(&units).map_err(|error| error.to_string());
     }
 
+    if let Some(little_endian) = detect_bomless_utf16(&bytes) {
+        let units = bytes
+            .chunks_exact(2)
+            .map(|chunk| {
+                if little_endian {
+                    u16::from_le_bytes([chunk[0], chunk[1]])
+                } else {
+                    u16::from_be_bytes([chunk[0], chunk[1]])
+                }
+            })
+            .collect::<Vec<_>>();
+        return String::from_utf16(&units).map_err(|error| error.to_string());
+    }
+
     let utf8_bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
     if let Ok(text) = std::str::from_utf8(utf8_bytes) {
         return Ok(text.to_string());
@@ -684,11 +1073,38 @@ fn decode_text_bytes(bytes: Vec<u8>) -> Result<String, String> {
     Ok(decoded.into_owned())
 }
 
+fn detect_bomless_utf16(bytes: &[u8]) -> Option<bool> {
+    if bytes.len() < 4 || !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+
+    let pairs = bytes.len() / 2;
+    let even_nuls = bytes.iter().step_by(2).filter(|byte| **byte == 0).count();
+    let odd_nuls = bytes
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .filter(|byte| **byte == 0)
+        .count();
+    let dominant_threshold = pairs.div_ceil(2);
+    let minority_limit = pairs / 10;
+
+    if odd_nuls >= dominant_threshold && even_nuls <= minority_limit {
+        Some(true)
+    } else if even_nuls >= dominant_threshold && odd_nuls <= minority_limit {
+        Some(false)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::path_without_verbatim_prefix;
     use super::{
-        decode_text_bytes, is_supported_content_path, is_supported_text_path,
-        normalize_external_url, upsert_media_progress, upsert_reader_progress,
+        canonical_usable_path, decode_text_bytes, decode_text_bytes_with_encoding,
+        filter_state_for_reader_label, is_supported_content_path, is_supported_text_path,
+        normalize_external_url, reader_window_label, upsert_media_progress, upsert_reader_progress,
     };
     use rusqlite::Connection;
     use std::path::Path;
@@ -699,6 +1115,49 @@ mod tests {
         assert!(is_supported_text_path(Path::new("notes.md")));
         assert!(!is_supported_text_path(Path::new("archive.exe")));
         assert!(!is_supported_text_path(Path::new("manual.pdf")));
+    }
+
+    #[test]
+    fn canonicalizes_relative_paths_to_usable_absolute_paths() {
+        let canonical = canonical_usable_path(Path::new(".")).unwrap();
+        assert!(canonical.is_absolute());
+        assert_eq!(
+            canonical,
+            path_without_verbatim_prefix(&std::fs::canonicalize(".").unwrap())
+        );
+    }
+
+    #[test]
+    fn reader_state_contains_only_its_requested_item() {
+        let state = serde_json::json!({
+            "items": [
+                { "id": "first", "type": "document" },
+                { "id": "second", "type": "document" }
+            ],
+            "language": "ko"
+        })
+        .to_string();
+        let filtered =
+            filter_state_for_reader_label(&reader_window_label("second"), state).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&filtered).unwrap();
+        let items = value["items"].as_array().unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["id"], "second");
+        assert_eq!(value["language"], "ko");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn removes_windows_verbatim_prefixes_from_display_paths() {
+        assert_eq!(
+            path_without_verbatim_prefix(Path::new(r"\\?\C:\Media\movie.mp4")),
+            Path::new(r"C:\Media\movie.mp4")
+        );
+        assert_eq!(
+            path_without_verbatim_prefix(Path::new(r"\\?\UNC\server\share\novel.txt")),
+            Path::new(r"\\server\share\novel.txt")
+        );
     }
 
     #[test]
@@ -735,6 +1194,38 @@ mod tests {
         assert_eq!(
             decode_text_bytes(vec![0xBE, 0xC8, 0xB3, 0xE7]).unwrap(),
             "안녕"
+        );
+    }
+
+    #[test]
+    fn decodes_bomless_utf16_in_both_byte_orders() {
+        assert_eq!(
+            decode_text_bytes(vec![
+                0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00
+            ])
+            .unwrap(),
+            "Hello"
+        );
+        assert_eq!(
+            decode_text_bytes(vec![
+                0x00, 0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F
+            ])
+            .unwrap(),
+            "Hello"
+        );
+    }
+
+    #[test]
+    fn force_decodes_bomless_korean_utf16_in_both_byte_orders() {
+        assert_eq!(
+            decode_text_bytes_with_encoding(vec![0x48, 0xC5, 0x55, 0xB1], Some("utf-16le"))
+                .unwrap(),
+            "\u{c548}\u{b155}"
+        );
+        assert_eq!(
+            decode_text_bytes_with_encoding(vec![0xC5, 0x48, 0xB1, 0x55], Some("utf-16be"))
+                .unwrap(),
+            "\u{c548}\u{b155}"
         );
     }
 

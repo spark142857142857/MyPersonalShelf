@@ -1,7 +1,8 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { CloseRequestedEvent } from "@tauri-apps/api/window";
-import type { AppSettings, CollectionSettings, ContentType, DashboardLayoutItem, FolderEntry, ThemeSettings } from "../types";
+import type { AppSettings, CollectionSettings, ContentType, DashboardLayoutItem, FolderEntry, TextEncoding, ThemeSettings } from "../types";
 import type { Language } from "./i18n";
 
 export interface NativeContentSelection {
@@ -37,6 +38,13 @@ export interface NativeReaderProgress {
 export interface NativeMediaProgress {
   position: number;
 }
+
+export interface NativeTextEncodingChange {
+  itemId: string;
+  encoding: TextEncoding;
+}
+
+const textEncodingChangedEvent = "text-encoding-changed";
 
 export function isNativeRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -75,8 +83,23 @@ export async function selectNativeFolder() {
   return invoke<NativeFolderSelection | null>("select_folder");
 }
 
-export async function readNativeTextFile(path: string) {
-  return invoke<string>("read_text_file", { path });
+export async function registerNativeContentPath(path: string, contentType: ContentType) {
+  return invoke<string>("register_content_path", { path, contentType });
+}
+
+export async function readNativeTextFile(path: string, itemId: string, encoding: TextEncoding = "auto") {
+  return invoke<string>("read_text_file", { path, encoding, itemId });
+}
+
+export async function saveNativeTextEncoding(itemId: string, encoding: TextEncoding) {
+  await invoke("save_text_encoding", { itemId, encoding });
+  await emit(textEncodingChangedEvent, { itemId, encoding });
+}
+
+export async function onNativeTextEncodingChanged(
+  handler: (change: NativeTextEncodingChange) => void,
+) {
+  return listen<NativeTextEncodingChange>(textEncodingChangedEvent, (event) => handler(event.payload));
 }
 
 export async function listNativeFolder(path: string) {

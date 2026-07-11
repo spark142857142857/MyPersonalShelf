@@ -35,13 +35,16 @@ import {
   loadNativeAppState,
   nativeAssetUrl,
   onNativeCloseRequested,
+  onNativeTextEncodingChanged,
   openNativeFolder,
   openNativeReaderWindow,
   openNativeUrl,
   readNativeTextFile,
+  registerNativeContentPath,
   saveNativeAppState,
   saveNativeMediaProgress,
   saveNativeReaderProgress,
+  saveNativeTextEncoding,
   selectNativeFile,
   selectNativeFolder,
 } from "./lib/native";
@@ -60,6 +63,7 @@ import type {
   DashboardLayoutItem,
   ReaderOpenMode,
   SearchEnterBehavior,
+  TextEncoding,
   ThemeSettings,
 } from "./types";
 
@@ -133,6 +137,13 @@ const navItems: Array<{ id: View; label: MessageKey; icon: React.ReactNode }> = 
 
 const contentTypes: ContentType[] = ["document", "video", "audio", "image", "link", "folder"];
 const dashboardSizes: DashboardCardSize[] = ["standard", "wide", "tall"];
+const textEncodingOptions: Array<{ value: TextEncoding; label: MessageKey }> = [
+  { value: "auto", label: "encodingAuto" },
+  { value: "utf-8", label: "encodingUtf8" },
+  { value: "cp949", label: "encodingCp949" },
+  { value: "utf-16le", label: "encodingUtf16Le" },
+  { value: "utf-16be", label: "encodingUtf16Be" },
+];
 
 const typeLabelKeys: Record<ContentType, MessageKey> = {
   document: "typeDocument",
@@ -501,13 +512,27 @@ function App() {
   const [draft, setDraft] = useState<DraftItem>(initialDraft);
   const [storageReady, setStorageReady] = useState(false);
   const [storageLoadFailed, setStorageLoadFailed] = useState(false);
+  const [closeError, setCloseError] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [registeredPathIds, setRegisteredPathIds] = useState<Set<string>>(() => new Set());
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const addInFlightRef = useRef(false);
+  const pathRegistrationInFlightRef = useRef<Map<string, Promise<ContentItem>>>(new Map());
+  const encodingReadGenerationRef = useRef<Map<string, number>>(new Map());
+  const readerCloseFlushRef = useRef<() => Promise<void>>(async () => undefined);
+  const activeViewRef = useRef(activeView);
+  activeViewRef.current = activeView;
   const latestAppStateRef = useRef({ items, theme, language, appSettings, dashboardLayouts, collectionSettings });
   latestAppStateRef.current = { items, theme, language, appSettings, dashboardLayouts, collectionSettings };
 
   const t = useCallback((key: MessageKey) => getMessage(language, key), [language]);
+  const tRef = useRef(t);
+  tRef.current = t;
+  const registerReaderCloseFlush = useCallback((handler: (() => Promise<void>) | null) => {
+    readerCloseFlushRef.current = handler ?? (async () => undefined);
+  }, []);
 
   const navigateToView = useCallback((nextView: View, itemId = selectedItemId) => {
     const currentState = window.history.state as { view?: View; selectedItemId?: string } | null;
@@ -608,6 +633,42 @@ function App() {
   }, [language]);
 
   useEffect(() => {
+    if (!nativeRuntime || readerItemIdFromUrl) return;
+
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    void onNativeTextEncodingChanged(({ itemId, encoding }) => {
+      if (!textEncodingOptions.some((option) => option.value === encoding)) return;
+      const item = latestAppStateRef.current.items.find((candidate) => candidate.id === itemId);
+      if (!item || item.type !== "document" || item.source !== "path") return;
+
+      const generation = (encodingReadGenerationRef.current.get(itemId) ?? 0) + 1;
+      encodingReadGenerationRef.current.set(itemId, generation);
+
+      setItems((current) =>
+        current.map((candidate) => candidate.id === itemId ? { ...candidate, textEncoding: encoding } : candidate),
+      );
+      void readNativeTextFile(item.location, itemId, encoding)
+        .then((textContent) => {
+          if (encodingReadGenerationRef.current.get(itemId) === generation) {
+            updateItem(setItems, itemId, { textContent, textEncoding: encoding });
+          }
+        })
+        .catch(() => undefined);
+    })
+      .then((dispose) => {
+        if (disposed) dispose();
+        else unlisten = dispose;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [nativeRuntime, readerItemIdFromUrl]);
+
+  useEffect(() => {
     setDashboardLayouts((current) => normalizeDashboardLayouts(items, current));
   }, [items]);
 
@@ -650,7 +711,7 @@ function App() {
   }, [appSettings, collectionSettings, dashboardLayouts, items, language, nativeRuntime, readerItemIdFromUrl, storageLoadFailed, storageReady, t, theme]);
 
   useEffect(() => {
-    if (!nativeRuntime || readerItemIdFromUrl || !storageReady || storageLoadFailed) {
+    if (!nativeRuntime || !storageReady || storageLoadFailed) {
       return;
     }
 
@@ -659,31 +720,54 @@ function App() {
     let closing = false;
 
     void onNativeCloseRequested(async (event) => {
+      event.preventDefault();
       if (closing) return;
       closing = true;
-      event.preventDefault();
+      setCloseError("");
 
-      const latest = latestAppStateRef.current;
-      const state = {
-        items: prepareItemsForPersistence(latest.items),
-        theme: latest.theme,
-        language: latest.language,
-        appSettings: latest.appSettings,
-        dashboardLayouts: normalizeDashboardLayouts(latest.items, latest.dashboardLayouts),
-        collectionSettings: latest.collectionSettings,
-      };
-      nativeSaveQueueRef.current = nativeSaveQueueRef.current
-        .catch(() => undefined)
-        .then(() => saveNativeAppState(state));
-      await nativeSaveQueueRef.current.catch(() => undefined);
-      await destroyCurrentNativeWindow();
-    }).then((dispose) => {
-      if (disposed) {
-        dispose();
-      } else {
-        unlisten = dispose;
+      try {
+        if (readerItemIdFromUrl) {
+          await readerCloseFlushRef.current();
+        } else {
+          if (activeViewRef.current === "reader") {
+            await readerCloseFlushRef.current();
+          }
+          const latest = latestAppStateRef.current;
+          const state = {
+            items: prepareItemsForPersistence(latest.items),
+            theme: latest.theme,
+            language: latest.language,
+            appSettings: latest.appSettings,
+            dashboardLayouts: normalizeDashboardLayouts(latest.items, latest.dashboardLayouts),
+            collectionSettings: latest.collectionSettings,
+          };
+          nativeSaveQueueRef.current = nativeSaveQueueRef.current
+            .catch(() => undefined)
+            .then(() => saveNativeAppState(state));
+          await nativeSaveQueueRef.current;
+        }
+        await destroyCurrentNativeWindow();
+      } catch {
+        closing = false;
+        setCloseError(tRef.current("nativeStorageFailed"));
+        if (!readerItemIdFromUrl) {
+          setNotice(tRef.current("nativeStorageFailed"));
+        }
       }
-    });
+    })
+      .then((dispose) => {
+        if (disposed) {
+          dispose();
+        } else {
+          unlisten = dispose;
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setCloseError(tRef.current("nativeStorageFailed"));
+          setNotice(tRef.current("nativeStorageFailed"));
+        }
+      });
 
     return () => {
       disposed = true;
@@ -721,6 +805,63 @@ function App() {
   }, [isAddOpen, navigateToView]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0];
+  const ensureItemPathRegistered = useCallback(async (item: ContentItem): Promise<ContentItem> => {
+    if (!nativeRuntime || item.source !== "path") {
+      return item;
+    }
+
+    const key = `${item.id}\u0000${item.type}\u0000${item.location}`;
+    const pending = pathRegistrationInFlightRef.current.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const operation = registerNativeContentPath(item.location, item.type)
+      .then((normalizedLocation) => {
+        if (normalizedLocation !== item.location) {
+          updateItem(setItems, item.id, { location: normalizedLocation });
+        }
+        setRegisteredPathIds((current) => new Set(current).add(item.id));
+        return normalizedLocation === item.location ? item : { ...item, location: normalizedLocation };
+      })
+      .catch((error) => {
+        setRegisteredPathIds((current) => {
+          const next = new Set(current);
+          next.delete(item.id);
+          return next;
+        });
+        throw error;
+      })
+      .finally(() => {
+        pathRegistrationInFlightRef.current.delete(key);
+      });
+
+    pathRegistrationInFlightRef.current.set(key, operation);
+    return operation;
+  }, [nativeRuntime]);
+
+  useEffect(() => {
+    if (
+      !nativeRuntime ||
+      readerItemIdFromUrl ||
+      activeView !== "library" ||
+      !selectedItem ||
+      selectedItem.source !== "path"
+    ) {
+      return;
+    }
+
+    const registerSelectedPath = () => {
+      void ensureItemPathRegistered(selectedItem).catch(() => {
+        setNotice(t("pathUnavailable"));
+      });
+    };
+
+    registerSelectedPath();
+    window.addEventListener("focus", registerSelectedPath);
+    return () => window.removeEventListener("focus", registerSelectedPath);
+  }, [activeView, ensureItemPathRegistered, nativeRuntime, readerItemIdFromUrl, selectedItem?.id, selectedItem?.location, selectedItem?.source, selectedItem?.type, t]);
+
   const favoriteItems = items.filter((item) => item.isFavorite);
   const normalizedDashboardLayouts = useMemo(
     () => normalizeDashboardLayouts(items, dashboardLayouts),
@@ -802,7 +943,7 @@ function App() {
       return;
     }
 
-    readNativeTextFile(selectedItem.location)
+    readNativeTextFile(selectedItem.location, selectedItem.id, selectedItem.textEncoding ?? "auto")
       .then((textContent) => updateItem(setItems, selectedItem.id, { textContent }))
       .catch((error) => setNotice(`${t("documentReadFailed")} ${String(error)}`));
   }, [activeView, selectedItem, t]);
@@ -828,6 +969,29 @@ function App() {
     );
   }
 
+  async function persistItemBeforeOpeningWindow(item: ContentItem) {
+    if (!nativeRuntime || readerItemIdFromUrl) return;
+
+    const latest = latestAppStateRef.current;
+    const itemExists = latest.items.some((candidate) => candidate.id === item.id);
+    const nextItems = itemExists
+      ? latest.items.map((candidate) => candidate.id === item.id ? { ...candidate, ...item } : candidate)
+      : [item, ...latest.items];
+    const state = {
+      items: prepareItemsForPersistence(nextItems),
+      theme: latest.theme,
+      language: latest.language,
+      appSettings: latest.appSettings,
+      dashboardLayouts: normalizeDashboardLayouts(nextItems, latest.dashboardLayouts),
+      collectionSettings: latest.collectionSettings,
+    };
+
+    nativeSaveQueueRef.current = nativeSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveNativeAppState(state));
+    await nativeSaveQueueRef.current;
+  }
+
   async function openItem(item: ContentItem) {
     if (item.type === "link") {
       const safeExternalUrl = getSafeExternalUrl(item.location);
@@ -846,40 +1010,52 @@ function App() {
       return;
     }
 
-    if (item.type === "folder" && item.source === "path") {
-      setSelectedItemId(item.id);
-      markItemOpened(item);
-      openNativeFolder(item.location).catch(() => {
+    let targetItem = item;
+    if (item.source === "path" && nativeRuntime) {
+      try {
+        targetItem = await ensureItemPathRegistered(item);
+      } catch {
+        navigateToView("library", item.id);
+        setNotice(t("pathUnavailable"));
+        return;
+      }
+    }
+
+    if (targetItem.type === "folder" && targetItem.source === "path") {
+      setSelectedItemId(targetItem.id);
+      markItemOpened(targetItem);
+      openNativeFolder(targetItem.location).catch(() => {
         setNotice(t("nativeUnavailable"));
       });
-      setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+      setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
       return;
     }
 
-    if (!isViewerContent(item)) {
-      selectItem(item);
+    if (!isViewerContent(targetItem)) {
+      selectItem(targetItem);
       return;
     }
 
-    markItemOpened(item);
-    if (canOpenSeparateViewerWindow(item) && theme.readerOpenMode === "window" && !readerItemIdFromUrl) {
-      setSelectedItemId(item.id);
+    markItemOpened(targetItem);
+    if (canOpenSeparateViewerWindow(targetItem) && theme.readerOpenMode === "window" && !readerItemIdFromUrl) {
+      setSelectedItemId(targetItem.id);
       try {
-        await openNativeReaderWindow(item.id, getItemTitle(item, t));
-        setNotice(`${getItemTitle(item, t)} ${t("readerWindowOpened")}`);
+        await persistItemBeforeOpeningWindow(targetItem);
+        await openNativeReaderWindow(targetItem.id, getItemTitle(targetItem, t));
+        setNotice(`${getItemTitle(targetItem, t)} ${t("readerWindowOpened")}`);
         return;
       } catch (error) {
         setNotice(`${t("readerWindowFailed")} ${String(error)}`);
       }
     }
 
-    navigateToView("reader", item.id);
-    setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+    navigateToView("reader", targetItem.id);
+    setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
 
-    if (item.type === "document" && item.source === "path" && !item.textContent) {
+    if (targetItem.type === "document" && targetItem.source === "path" && !targetItem.textContent) {
       try {
-        const textContent = await readNativeTextFile(item.location);
-        updateItem(setItems, item.id, { textContent });
+        const textContent = await readNativeTextFile(targetItem.location, targetItem.id, targetItem.textEncoding ?? "auto");
+        updateItem(setItems, targetItem.id, { textContent });
       } catch (error) {
         setNotice(`${t("documentReadFailed")} ${String(error)}`);
       }
@@ -966,7 +1142,7 @@ function App() {
     navigateToView(nextView);
   }
 
-  function addManualItem(event: React.FormEvent<HTMLFormElement>) {
+  async function addManualItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.title.trim()) {
       setNotice(t("titleRequired"));
@@ -980,33 +1156,51 @@ function App() {
       setNotice(t("manualTextTooLarge"));
       return;
     }
+    if (addInFlightRef.current) return;
 
-    const now = new Date().toISOString();
-    const nextItem: ContentItem = {
-      id: createId(),
-      title: draft.title.trim(),
-      type: draft.type,
-      source: draft.source,
-      location: draft.location.trim() || "No location yet",
-      collection: draft.collection.trim() || "Inbox",
-      tags: draft.tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      accent: draft.accent,
-      summary: draft.summary.trim(),
-      textContent: draft.textContent.trim(),
-      isFavorite: true,
-      openCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
+    addInFlightRef.current = true;
+    setIsAdding(true);
+    try {
+      let location = draft.location.trim() || "No location yet";
+      if (nativeRuntime && draft.source === "path") {
+        location = await registerNativeContentPath(location, draft.type);
+      }
 
-    setItems((current) => [nextItem, ...current]);
-    setDraft(initialDraft);
-    setIsAddOpen(false);
-    navigateToView("library", nextItem.id);
-    setNotice(`${nextItem.title} ${t("addedToShelf")}`);
+      const now = new Date().toISOString();
+      const nextItem: ContentItem = {
+        id: createId(),
+        title: draft.title.trim(),
+        type: draft.type,
+        source: draft.source,
+        location,
+        collection: draft.collection.trim() || "Inbox",
+        tags: draft.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        accent: draft.accent,
+        summary: draft.summary.trim(),
+        textContent: draft.textContent.trim(),
+        isFavorite: true,
+        openCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setItems((current) => [nextItem, ...current]);
+      if (nextItem.source === "path") {
+        setRegisteredPathIds((current) => new Set(current).add(nextItem.id));
+      }
+      setDraft(initialDraft);
+      setIsAddOpen(false);
+      navigateToView("library", nextItem.id);
+      setNotice(`${nextItem.title} ${t("addedToShelf")}`);
+    } catch {
+      setNotice(t("invalidLocalPath"));
+    } finally {
+      addInFlightRef.current = false;
+      setIsAdding(false);
+    }
   }
 
   function importFile(file: File) {
@@ -1084,6 +1278,7 @@ function App() {
       };
 
       setItems((current) => [nextItem, ...current]);
+      setRegisteredPathIds((current) => new Set(current).add(nextItem.id));
       navigateToView("library", nextItem.id);
       setIsAddOpen(false);
       setNotice(`${nextItem.title} ${t("nativeFileAdded")}`);
@@ -1118,6 +1313,7 @@ function App() {
       };
 
       setItems((current) => [nextItem, ...current]);
+      setRegisteredPathIds((current) => new Set(current).add(nextItem.id));
       navigateToView("library", nextItem.id);
       setIsAddOpen(false);
       setNotice(`${nextItem.title} ${t("nativeFolderAdded")}`);
@@ -1207,6 +1403,15 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  function retryClose() {
+    setCloseError("");
+    void closeCurrentNativeWindow();
+  }
+
+  function forceClose() {
+    void destroyCurrentNativeWindow();
+  }
+
   if (!storageReady) {
     return (
       <div className="loadingShell" style={shellStyle}>
@@ -1239,12 +1444,22 @@ function App() {
 
     return (
       <div className="readerShell" style={shellStyle}>
+        {closeError && (
+          <div className="closeErrorBanner" role="alert">
+            <span>{closeError}</span>
+            <div>
+              <button type="button" onClick={retryClose}>{t("retry")}</button>
+              <button type="button" onClick={forceClose}>{t("forceClose")}</button>
+            </div>
+          </div>
+        )}
         {selectedItem.type === "document" ? (
           <ReaderView
             item={selectedItem}
             theme={theme}
             t={t}
             onBack={leaveReader}
+            onCloseFlushChange={registerReaderCloseFlush}
             onPatch={updateSelectedItem}
           />
         ) : (
@@ -1252,6 +1467,7 @@ function App() {
             item={selectedItem}
             t={t}
             onBack={leaveReader}
+            onCloseFlushChange={registerReaderCloseFlush}
             onPatch={updateSelectedItem}
           />
         )}
@@ -1291,6 +1507,15 @@ function App() {
       </aside>
 
       <main className="workspace">
+        {closeError && (
+          <div className="closeErrorBanner" role="alert">
+            <span>{closeError}</span>
+            <div>
+              <button type="button" onClick={retryClose}>{t("retry")}</button>
+              <button type="button" onClick={forceClose}>{t("forceClose")}</button>
+            </div>
+          </div>
+        )}
         <header className="topbar">
           <div className="searchBox">
             <Search size={18} />
@@ -1566,6 +1791,7 @@ function App() {
                 item={selectedItem}
                 theme={theme}
                 t={t}
+                pathReady={!nativeRuntime || selectedItem.source !== "path" || registeredPathIds.has(selectedItem.id)}
                 collectionNames={collectionNames}
                 onPatch={updateSelectedItem}
                 onDelete={deleteSelectedItem}
@@ -1711,6 +1937,7 @@ function App() {
         <AddContentModal
           mode={addMode}
           draft={draft}
+          isSubmitting={isAdding}
           t={t}
           getTypeLabel={(type) => getTypeLabel(type, t)}
           onModeChange={setAddMode}
@@ -1817,6 +2044,7 @@ function DetailPanel({
   item,
   theme,
   t,
+  pathReady,
   collectionNames,
   onPatch,
   onDelete,
@@ -1827,6 +2055,7 @@ function DetailPanel({
   item: ContentItem;
   theme: ThemeSettings;
   t: (key: MessageKey) => string;
+  pathReady: boolean;
   collectionNames: string[];
   onPatch: (patch: Partial<ContentItem>) => void;
   onDelete: () => void;
@@ -1909,7 +2138,7 @@ function DetailPanel({
         }}
       >
         <strong>{getItemTitle(item, t)}</strong>
-        <PreviewBody item={item} t={t} onPatch={onPatch} />
+        <PreviewBody item={item} t={t} onPatch={onPatch} pathReady={pathReady} />
       </div>
 
       <label className="fieldBlock">
@@ -1980,17 +2209,20 @@ function ReaderView({
   theme,
   t,
   onBack,
+  onCloseFlushChange,
   onPatch,
 }: {
   item: ContentItem;
   theme: ThemeSettings;
   t: (key: MessageKey) => string;
   onBack: () => void;
+  onCloseFlushChange: (handler: (() => Promise<void>) | null) => void;
   onPatch: (patch: Partial<ContentItem>) => void;
 }) {
   const documentText = getItemTextContent(item, t) || "";
   const fallbackText = item.summary ? getItemSummary(item, t) : t("documentEmpty");
   const onPatchRef = useRef(onPatch);
+  const encodingChangeRef = useRef<Promise<void>>(Promise.resolve());
   const lastSavedProgressRef = useRef(item.readerProgress ?? 0);
   const lastSavedScrollTopRef = useRef(0);
   const latestReaderPositionRef = useRef({
@@ -2003,6 +2235,8 @@ function ReaderView({
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [savedProgress, setSavedProgress] = useState(item.readerProgress ?? 0);
   const [savedScrollTop, setSavedScrollTop] = useState(0);
+  const [isChangingEncoding, setIsChangingEncoding] = useState(false);
+  const [encodingError, setEncodingError] = useState("");
   const hasReadableText = Boolean(documentText);
   const progressLabel = savedScrollTop > 0 && savedProgress < 1 ? "<1" : String(Math.round(savedProgress));
 
@@ -2033,12 +2267,6 @@ function ReaderView({
         isMounted = false;
       };
     }
-
-    const autoSaveFallback = window.setTimeout(() => {
-      if (!resumePromptVisibleRef.current) {
-        canAutoSaveProgressRef.current = true;
-      }
-    }, 800);
 
     loadNativeReaderProgress(item.id)
       .catch(() => ({ progress: fallbackProgress, scrollTop: fallbackScrollTop }))
@@ -2076,7 +2304,6 @@ function ReaderView({
 
     return () => {
       isMounted = false;
-      window.clearTimeout(autoSaveFallback);
     };
   }, [hasReadableText, item.id]);
 
@@ -2165,8 +2392,10 @@ function ReaderView({
       }
     }
 
-    function flushScrollProgress() {
+    async function flushScrollProgress() {
+      await encodingChangeRef.current;
       if (!canAutoSaveProgressRef.current || resumePromptVisibleRef.current) return;
+      getScrollPosition();
       const latestPosition = latestReaderPositionRef.current;
       const roundedProgress = Math.round(latestPosition.progress * 10) / 10;
       const roundedScrollTop = Math.round(latestPosition.scrollTop);
@@ -2174,15 +2403,21 @@ function ReaderView({
       lastSavedScrollTopRef.current = roundedScrollTop;
       onPatchRef.current({ readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
       saveBrowserItemProgress(item.id, { readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
-      saveNativeReaderProgress(item.id, roundedProgress, roundedScrollTop, latestPosition.updatedAt).catch(() => undefined);
+      await saveNativeReaderProgress(item.id, roundedProgress, roundedScrollTop, latestPosition.updatedAt);
     }
 
+    const handlePageHide = () => {
+      void flushScrollProgress().catch(() => undefined);
+    };
+    onCloseFlushChange(flushScrollProgress);
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("pagehide", flushScrollProgress);
+    window.addEventListener("pagehide", handlePageHide);
     document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
     interval = window.setInterval(saveScrollProgress, 900);
     return () => {
-      flushScrollProgress();
+      void flushScrollProgress().catch(() => undefined);
+      onCloseFlushChange(null);
       if (frame) {
         window.cancelAnimationFrame(frame);
       }
@@ -2190,10 +2425,10 @@ function ReaderView({
         window.clearInterval(interval);
       }
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("pagehide", flushScrollProgress);
+      window.removeEventListener("pagehide", handlePageHide);
       document.removeEventListener("scroll", handleScroll, { capture: true });
     };
-  }, [item.id]);
+  }, [item.id, onCloseFlushChange]);
 
   function scrollToPosition(nextScrollTop: number) {
     const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -2228,6 +2463,25 @@ function ReaderView({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  async function changeTextEncoding(nextEncoding: TextEncoding) {
+    if (item.source !== "path" || isChangingEncoding) return;
+    const operation = (async () => {
+      setIsChangingEncoding(true);
+      setEncodingError("");
+      try {
+        const textContent = await readNativeTextFile(item.location, item.id, nextEncoding);
+        await saveNativeTextEncoding(item.id, nextEncoding);
+        onPatch({ textContent, textEncoding: nextEncoding });
+      } catch {
+        setEncodingError(t("encodingReadFailed"));
+      } finally {
+        setIsChangingEncoding(false);
+      }
+    })();
+    encodingChangeRef.current = operation;
+    await operation;
+  }
+
   return (
     <section className="readerPage">
       <div className="readerPageHeader">
@@ -2235,6 +2489,26 @@ function ReaderView({
           <span className="eyebrow">{getCollectionLabel(item.collection, t)}</span>
           <h1>{getItemTitle(item, t)}</h1>
           <p>{t("readerAutoSave")} - {progressLabel}%</p>
+          {item.source === "path" && isNativeRuntime() && (
+            <div className="readerEncodingGroup">
+              <label className="readerEncodingControl">
+                {t("textEncoding")}
+                <select
+                  value={item.textEncoding ?? "auto"}
+                  disabled={isChangingEncoding}
+                  onChange={(event) => void changeTextEncoding(event.target.value as TextEncoding)}
+                >
+                  {textEncodingOptions.map((option) => (
+                    <option value={option.value} key={option.value}>{t(option.label)}</option>
+                  ))}
+                </select>
+              </label>
+              {(item.textEncoding ?? "auto") === "auto" && (
+                <small className="readerEncodingHint">{t("encodingAutoHint")}</small>
+              )}
+            </div>
+          )}
+          {encodingError && <span className="readerEncodingError" role="alert">{encodingError}</span>}
         </div>
         <button type="button" onClick={onBack}>{t("backToLibrary")}</button>
       </div>
@@ -2269,11 +2543,13 @@ function MediaViewerView({
   item,
   t,
   onBack,
+  onCloseFlushChange,
   onPatch,
 }: {
   item: ContentItem;
   t: (key: MessageKey) => string;
   onBack: () => void;
+  onCloseFlushChange: (handler: (() => Promise<void>) | null) => void;
   onPatch: (patch: Partial<ContentItem>) => void;
 }) {
   const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.location) : undefined);
@@ -2291,19 +2567,30 @@ function MediaViewerView({
   }, [onPatch]);
 
   useEffect(() => {
-    function flushMediaPosition() {
+    async function flushMediaPosition() {
+      if (item.type !== "video" && item.type !== "audio") return;
+      const mediaPosition = mediaElementRef.current?.currentTime;
+      if (typeof mediaPosition === "number" && Number.isFinite(mediaPosition)) {
+        latestMediaPositionRef.current = { position: mediaPosition, updatedAt: Date.now() };
+      }
       const { position: nextPosition, updatedAt } = latestMediaPositionRef.current;
       mediaOnPatchRef.current({ mediaPosition: nextPosition });
       saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
-      saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => undefined);
+      await saveNativeMediaProgress(item.id, nextPosition, updatedAt);
     }
 
-    window.addEventListener("pagehide", flushMediaPosition);
-    return () => {
-      flushMediaPosition();
-      window.removeEventListener("pagehide", flushMediaPosition);
+    const handlePageHide = () => {
+      void flushMediaPosition().catch(() => undefined);
     };
-  }, [item.id]);
+    onCloseFlushChange(flushMediaPosition);
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      void flushMediaPosition().catch(() => undefined);
+      onCloseFlushChange(null);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [item.id, item.type, onCloseFlushChange]);
 
   useEffect(() => {
     const fallbackPosition = item.mediaPosition ?? 0;
@@ -2423,12 +2710,14 @@ function PreviewBody({
   item,
   t,
   onPatch,
+  pathReady,
 }: {
   item: ContentItem;
   t: (key: MessageKey) => string;
   onPatch: (patch: Partial<ContentItem>) => void;
+  pathReady: boolean;
 }) {
-  const canUseAssetPath = item.source === "path" && (item.type === "video" || item.type === "audio" || item.type === "image");
+  const canUseAssetPath = pathReady && item.source === "path" && (item.type === "video" || item.type === "audio" || item.type === "image");
   const previewUrl = item.objectUrl ?? (canUseAssetPath ? nativeAssetUrl(item.location) || undefined : undefined);
   const nativeMediaPositionRef = useRef(item.mediaPosition ?? 0);
   const latestPreviewMediaPositionRef = useRef({ position: item.mediaPosition ?? 0, updatedAt: Date.now() });
@@ -2475,8 +2764,9 @@ function PreviewBody({
 
     let isMounted = true;
     function syncNativeMediaPosition() {
+      const positionAtStart = latestPreviewMediaPositionRef.current;
       loadNativeMediaProgress(item.id).then((progress) => {
-        if (!isMounted || !progress) {
+        if (!isMounted || !progress || latestPreviewMediaPositionRef.current !== positionAtStart) {
           return;
         }
 

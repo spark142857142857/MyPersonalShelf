@@ -4,6 +4,7 @@ export type DashboardCardSize = "standard" | "wide" | "tall";
 export type ReaderOpenMode = "embedded" | "window";
 export type CollectionIcon = "book" | "play" | "music" | "link" | "folder" | "tag" | "grid";
 export type SearchEnterBehavior = "select" | "open";
+export type TextEncoding = "auto" | "utf-8" | "cp949" | "utf-16le" | "utf-16be";
 
 export interface ContentItem {
   id: string;
@@ -19,6 +20,7 @@ export interface ContentItem {
   accent: string;
   summary?: string;
   textContent?: string;
+  textEncoding?: TextEncoding;
   objectUrl?: string;
   folderEntries?: FolderEntry[];
   isFavorite: boolean;
