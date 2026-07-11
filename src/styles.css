@@ -1297,6 +1297,33 @@ button {
     var(--app-bg);
 }
 
+.closeErrorBanner {
+  max-width: var(--reader-width);
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border: 1px solid #dc2626;
+  border-radius: 6px;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.closeErrorBanner,
+.closeErrorBanner > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.closeErrorBanner button {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  white-space: nowrap;
+}
+
 .readerPageHeader {
   display: flex;
   gap: 16px;
@@ -1320,6 +1347,40 @@ button {
 .readerPageHeader p {
   margin: 8px 0 0;
   color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.readerEncodingControl {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.readerEncodingGroup {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  max-width: 560px;
+}
+
+.readerEncodingHint {
+  color: var(--app-muted);
+  line-height: 1.5;
+}
+
+.readerEncodingControl select {
+  min-width: 132px;
+}
+
+.readerEncodingError {
+  display: block;
+  margin-top: 8px;
+  color: #b91c1c;
   font-size: 13px;
   font-weight: 700;
 }
