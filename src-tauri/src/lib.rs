@@ -17,6 +17,8 @@ use url::Url;
 const MAX_TEXT_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_FOLDER_ENTRIES: usize = 200;
 const MAX_PROGRESS_FUTURE_SKEW: Duration = Duration::from_secs(5 * 60);
+const MAX_FULL_ASSET_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_RANGE_BYTES: u64 = 1000 * 1024;
 
 #[derive(Default)]
 struct AllowedPaths(Mutex<PathRegistry>);
@@ -1111,7 +1113,6 @@ fn serve_registered_asset(
             }
         };
         let range = &ranges[0];
-        const MAX_RANGE_BYTES: u64 = 1000 * 1024;
         let bytes_to_read = range
             .length
             .min(MAX_RANGE_BYTES)
@@ -1141,11 +1142,28 @@ fn serve_registered_asset(
             .expect("partial asset response must be valid");
     }
 
-    let mut body = Vec::new();
-    if file.read_to_end(&mut body).is_err() {
+    if length > MAX_FULL_ASSET_BYTES {
+        return protocol_response(
+            tauri::http::StatusCode::PAYLOAD_TOO_LARGE,
+            "Large assets require a range request",
+        );
+    }
+
+    let mut body = Vec::with_capacity((length + 1) as usize);
+    if file
+        .take(MAX_FULL_ASSET_BYTES + 1)
+        .read_to_end(&mut body)
+        .is_err()
+    {
         return protocol_response(
             tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
             "Asset read failed",
+        );
+    }
+    if body.len() as u64 > MAX_FULL_ASSET_BYTES {
+        return protocol_response(
+            tauri::http::StatusCode::PAYLOAD_TOO_LARGE,
+            "Large assets require a range request",
         );
     }
     response
