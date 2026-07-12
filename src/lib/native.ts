@@ -1,9 +1,10 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { emit, listen } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { CloseRequestedEvent } from "@tauri-apps/api/window";
 import type { AppSettings, CollectionSettings, ContentType, DashboardLayoutItem, FolderEntry, TextEncoding, ThemeSettings } from "../types";
 import type { Language } from "./i18n";
+import { encodeNativeItemId } from "./nativeIds";
 
 export interface NativeContentSelection {
   title: string;
@@ -87,8 +88,8 @@ export async function registerNativeContentPath(path: string, contentType: Conte
   return invoke<string>("register_content_path", { path, contentType, itemId });
 }
 
-export async function unregisterNativeContentPath(itemId: string) {
-  await invoke("unregister_content_path", { itemId });
+export async function deleteNativeContentItem(itemId: string) {
+  await invoke("delete_content_item", { itemId });
 }
 
 export async function isNativeReaderWindowOpen(itemId: string) {
@@ -101,7 +102,6 @@ export async function readNativeTextFile(path: string, itemId: string, encoding:
 
 export async function saveNativeTextEncoding(itemId: string, encoding: TextEncoding) {
   await invoke("save_text_encoding", { itemId, encoding });
-  await emit(textEncodingChangedEvent, { itemId, encoding });
 }
 
 export async function onNativeTextEncodingChanged(
@@ -122,8 +122,8 @@ export async function openNativeUrl(url: string) {
   await invoke("open_url", { url });
 }
 
-export function nativeAssetUrl(path: string) {
-  return isNativeRuntime() ? convertFileSrc(path) : "";
+export function nativeAssetUrl(itemId: string) {
+  return isNativeRuntime() ? convertFileSrc(encodeNativeItemId(itemId), "shelf-content") : "";
 }
 
 export async function closeCurrentNativeWindow() {
@@ -141,7 +141,7 @@ export async function onNativeCloseRequested(
 }
 
 export async function openNativeReaderWindow(itemId: string, title: string) {
-  const label = `reader-${itemId.replace(/[^a-zA-Z0-9-/:_]/g, "-")}`;
+  const label = `reader-${encodeNativeItemId(itemId)}`;
   const existingWindow = await WebviewWindow.getByLabel(label);
   if (existingWindow) {
     await existingWindow.setFocus();

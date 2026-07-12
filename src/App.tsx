@@ -28,6 +28,7 @@ import { AddContentModal, type AddMode, type DraftItem } from "./components/AddC
 import { DocumentTextView } from "./components/DocumentTextView";
 import {
   closeCurrentNativeWindow,
+  deleteNativeContentItem,
   destroyCurrentNativeWindow,
   isNativeRuntime,
   isNativeReaderWindowOpen,
@@ -48,8 +49,8 @@ import {
   saveNativeTextEncoding,
   selectNativeFile,
   selectNativeFolder,
-  unregisterNativeContentPath,
 } from "./lib/native";
+import { ItemOperationRegistry } from "./lib/itemOperations";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
 import { browserItemStorageKey, prepareItemsForPersistence, saveBrowserItemProgress } from "./lib/persistence";
@@ -520,9 +521,10 @@ function App() {
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const activeDeletionPromiseRef = useRef<Promise<void> | null>(null);
   const addInFlightRef = useRef(false);
   const pathRegistrationInFlightRef = useRef<Map<string, Promise<ContentItem>>>(new Map());
-  const deletingItemIdsRef = useRef<Set<string>>(new Set());
+  const itemOperationsRef = useRef(new ItemOperationRegistry());
   const encodingReadGenerationRef = useRef<Map<string, number>>(new Map());
   const readerCloseFlushRef = useRef<() => Promise<void>>(async () => undefined);
   const activeViewRef = useRef(activeView);
@@ -680,7 +682,9 @@ function App() {
       return;
     }
 
-    const serializableItems = prepareItemsForPersistence(items);
+    const serializableItems = prepareItemsForPersistence(
+      items.filter((item) => !itemOperationsRef.current.isDeleting(item.id)),
+    );
     const normalizedLayouts = normalizeDashboardLayouts(items, dashboardLayouts);
     const state = {
       items: serializableItems,
@@ -736,12 +740,25 @@ function App() {
             await readerCloseFlushRef.current();
           }
           const latest = latestAppStateRef.current;
+          const pendingDeletionIds = new Set(
+            latest.items
+              .filter((item) => itemOperationsRef.current.isDeleting(item.id))
+              .map((item) => item.id),
+          );
+          if (pendingDeletionIds.size > 0) {
+            await activeDeletionPromiseRef.current;
+          }
+          const closingItems = latest.items.filter(
+            (item) =>
+              !pendingDeletionIds.has(item.id)
+              && !itemOperationsRef.current.isDeleting(item.id),
+          );
           const state = {
-            items: prepareItemsForPersistence(latest.items),
+            items: prepareItemsForPersistence(closingItems),
             theme: latest.theme,
             language: latest.language,
             appSettings: latest.appSettings,
-            dashboardLayouts: normalizeDashboardLayouts(latest.items, latest.dashboardLayouts),
+            dashboardLayouts: normalizeDashboardLayouts(closingItems, latest.dashboardLayouts),
             collectionSettings: latest.collectionSettings,
           };
           nativeSaveQueueRef.current = nativeSaveQueueRef.current
@@ -812,7 +829,7 @@ function App() {
     if (!nativeRuntime || item.source !== "path") {
       return item;
     }
-    if (deletingItemIdsRef.current.has(item.id)) {
+    if (itemOperationsRef.current.isDeleting(item.id)) {
       throw new Error("This item is being removed.");
     }
 
@@ -999,10 +1016,19 @@ function App() {
   }
 
   async function openItem(item: ContentItem) {
-    if (deletingItemIdsRef.current.has(item.id)) {
+    const operations = itemOperationsRef.current;
+    if (!operations.beginOpen(item.id)) {
       setNotice(t("itemDeleteInProgress"));
       return;
     }
+    try {
+      await performOpenItem(item);
+    } finally {
+      operations.endOpen(item.id);
+    }
+  }
+
+  async function performOpenItem(item: ContentItem) {
     if (item.type === "link") {
       const safeExternalUrl = getSafeExternalUrl(item.location);
       if (!safeExternalUrl) {
@@ -1034,9 +1060,12 @@ function App() {
     if (targetItem.type === "folder" && targetItem.source === "path") {
       setSelectedItemId(targetItem.id);
       markItemOpened(targetItem);
-      openNativeFolder(targetItem.location, targetItem.id).catch(() => {
+      try {
+        await openNativeFolder(targetItem.location, targetItem.id);
+      } catch {
         setNotice(t("nativeUnavailable"));
-      });
+        return;
+      }
       setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
       return;
     }
@@ -1050,7 +1079,9 @@ function App() {
     if (canOpenSeparateViewerWindow(targetItem) && theme.readerOpenMode === "window" && !readerItemIdFromUrl) {
       setSelectedItemId(targetItem.id);
       try {
+        if (itemOperationsRef.current.isDeleting(targetItem.id)) return;
         await persistItemBeforeOpeningWindow(targetItem);
+        if (itemOperationsRef.current.isDeleting(targetItem.id)) return;
         await openNativeReaderWindow(targetItem.id, getItemTitle(targetItem, t));
         setNotice(`${getItemTitle(targetItem, t)} ${t("readerWindowOpened")}`);
         return;
@@ -1399,28 +1430,41 @@ function App() {
     if (!selectedItem) return;
     if (!window.confirm(t("deleteConfirm"))) return;
     const itemToDelete = selectedItem;
-    deletingItemIdsRef.current.add(itemToDelete.id);
+    const operations = itemOperationsRef.current;
+    if (!operations.beginDelete(itemToDelete.id)) {
+      setNotice(t("itemDeleteInProgress"));
+      return;
+    }
     try {
       if (nativeRuntime) {
         if (await isNativeReaderWindowOpen(itemToDelete.id)) {
           setNotice(t("closeViewerBeforeDelete"));
           return;
         }
-        await unregisterNativeContentPath(itemToDelete.id);
+        const deletion = nativeSaveQueueRef.current
+          .catch(() => undefined)
+          .then(() => deleteNativeContentItem(itemToDelete.id));
+        activeDeletionPromiseRef.current = deletion;
+        nativeSaveQueueRef.current = deletion;
+        await deletion;
       }
-      const nextItems = items.filter((item) => item.id !== itemToDelete.id);
+      const nextSelectedItem = latestAppStateRef.current.items.find(
+        (item) => item.id !== itemToDelete.id,
+      );
       setRegisteredPathIds((current) => {
         const next = new Set(current);
         next.delete(itemToDelete.id);
         return next;
       });
-      setItems(nextItems);
-      navigateToView("library", nextItems[0]?.id ?? "");
+      setItems((current) => current.filter((item) => item.id !== itemToDelete.id));
+      navigateToView("library", nextSelectedItem?.id ?? "");
       setNotice(`${itemToDelete.title} ${t("removed")}`);
     } catch {
+      setItems((current) => [...current]);
       setNotice(t("pathPermissionReleaseFailed"));
     } finally {
-      deletingItemIdsRef.current.delete(itemToDelete.id);
+      activeDeletionPromiseRef.current = null;
+      operations.endDelete(itemToDelete.id);
     }
   }
 
@@ -2600,7 +2644,7 @@ function MediaViewerView({
   onCloseFlushChange: (handler: (() => Promise<void>) | null) => void;
   onPatch: (patch: Partial<ContentItem>) => void;
 }) {
-  const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.location) : undefined);
+  const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.id) : undefined);
   const canPreviewVideo = item.type === "video" && previewUrl && canPreviewMediaItem(item, "video");
   const canPreviewAudio = item.type === "audio" && previewUrl && canPreviewMediaItem(item, "audio");
   const canPreviewImage = item.type === "image" && previewUrl;
@@ -2766,7 +2810,7 @@ function PreviewBody({
   pathReady: boolean;
 }) {
   const canUseAssetPath = pathReady && item.source === "path" && (item.type === "video" || item.type === "audio" || item.type === "image");
-  const previewUrl = item.objectUrl ?? (canUseAssetPath ? nativeAssetUrl(item.location) || undefined : undefined);
+  const previewUrl = item.objectUrl ?? (canUseAssetPath ? nativeAssetUrl(item.id) || undefined : undefined);
   const nativeMediaPositionRef = useRef(item.mediaPosition ?? 0);
   const latestPreviewMediaPositionRef = useRef({ position: item.mediaPosition ?? 0, updatedAt: Date.now() });
   const previewMediaElementRef = useRef<HTMLMediaElement | null>(null);

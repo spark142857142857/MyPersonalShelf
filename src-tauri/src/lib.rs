@@ -1,14 +1,17 @@
+use http_range::HttpRange;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::{
     fs,
+    fs::File,
+    io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     process::Command,
     sync::Mutex,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use url::Url;
 
 const MAX_TEXT_BYTES: u64 = 25 * 1024 * 1024;
@@ -38,18 +41,37 @@ fn ensure_main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     }
 }
 
+fn encode_item_id(item_id: &str) -> String {
+    item_id
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>()
+}
+
+fn decode_item_id(encoded: &str) -> Result<String, String> {
+    let encoded = encoded.as_bytes();
+    if encoded.is_empty()
+        || !encoded.len().is_multiple_of(2)
+        || !encoded.iter().all(u8::is_ascii_hexdigit)
+    {
+        return Err("Invalid item ID.".to_string());
+    }
+    let hex_value = |byte: u8| match byte {
+        b'0'..=b'9' => byte - b'0',
+        b'a'..=b'f' => byte - b'a' + 10,
+        b'A'..=b'F' => byte - b'A' + 10,
+        _ => unreachable!("hex input was validated"),
+    };
+    let bytes = encoded
+        .chunks_exact(2)
+        .map(|pair| (hex_value(pair[0]) << 4) | hex_value(pair[1]))
+        .collect::<Vec<_>>();
+    String::from_utf8(bytes).map_err(|_| "Invalid item ID.".to_string())
+}
+
 fn reader_window_label(item_id: &str) -> String {
-    let safe_id = item_id
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '-' | '/' | ':' | '_') {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-    format!("reader-{safe_id}")
+    format!("reader-{}", encode_item_id(item_id))
 }
 
 fn ensure_item_window_access(window: &tauri::WebviewWindow, item_id: &str) -> Result<(), String> {
@@ -311,8 +333,23 @@ fn save_text_encoding(
              ON CONFLICT(item_id) DO UPDATE SET encoding = excluded.encoding, updated_at = excluded.updated_at",
             (&item_id, encoding),
         )
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    app.emit_to(
+        "main",
+        "text-encoding-changed",
+        TextEncodingChanged {
+            item_id,
+            encoding: encoding.to_string(),
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TextEncodingChanged {
+    item_id: String,
+    encoding: String,
 }
 
 fn upsert_media_progress(
@@ -379,32 +416,34 @@ fn select_folder(window: tauri::WebviewWindow) -> Result<Option<NativeFolderSele
 #[tauri::command]
 fn register_content_path(
     window: tauri::WebviewWindow,
-    app: tauri::AppHandle,
     allowed_paths: tauri::State<'_, AllowedPaths>,
     path: String,
     content_type: String,
     item_id: String,
 ) -> Result<String, String> {
     ensure_main_window(&window)?;
-    register_path(
-        &app,
-        &allowed_paths,
-        Path::new(&path),
-        &content_type,
-        &item_id,
-    )
-    .map(|path| path.to_string_lossy().into_owned())
+    register_path(&allowed_paths, Path::new(&path), &content_type, &item_id)
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
-fn unregister_content_path(
+fn delete_content_item(
     window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     allowed_paths: tauri::State<'_, AllowedPaths>,
     item_id: String,
 ) -> Result<(), String> {
     ensure_main_window(&window)?;
-    unregister_path(&app, &allowed_paths, &item_id)
+    if app
+        .get_webview_window(&reader_window_label(&item_id))
+        .is_some()
+    {
+        return Err("Close the viewer before deleting this item.".to_string());
+    }
+
+    let mut connection = open_database(&app)?;
+    delete_item_data(&mut connection, &item_id)?;
+    unregister_path(&allowed_paths, &item_id)
 }
 
 #[tauri::command]
@@ -549,6 +588,10 @@ fn is_reader_window_open(
 pub fn run() {
     tauri::Builder::default()
         .manage(AllowedPaths::default())
+        .register_uri_scheme_protocol("shelf-content", |context, request| {
+            let allowed_paths = context.app_handle().state::<AllowedPaths>();
+            serve_registered_asset(context.webview_label(), request, &allowed_paths)
+        })
         .invoke_handler(tauri::generate_handler![
             load_app_state,
             save_app_state,
@@ -560,7 +603,7 @@ pub fn run() {
             select_file,
             select_folder,
             register_content_path,
-            unregister_content_path,
+            delete_content_item,
             read_text_file,
             list_folder,
             open_folder,
@@ -843,7 +886,6 @@ fn ensure_document_item_path(
 }
 
 fn register_path(
-    app: &tauri::AppHandle,
     allowed_paths: &AllowedPaths,
     path: &Path,
     content_type: &str,
@@ -881,12 +923,6 @@ fn register_path(
         return Err("This content item has already been removed.".to_string());
     }
 
-    let previous = registry.paths.get(item_id).cloned();
-    if is_asset {
-        app.asset_protocol_scope()
-            .allow_file(&usable_path)
-            .map_err(|error| error.to_string())?;
-    }
     registry.paths.insert(
         item_id.to_string(),
         RegisteredPath {
@@ -895,55 +931,227 @@ fn register_path(
         },
     );
 
-    if let Some(previous) = previous {
-        let previous_still_used = registry.paths.iter().any(|(registered_id, registered)| {
-            registered_id != item_id && registered.path == previous.path && registered.is_asset
-        });
-        if previous.is_asset && previous.path != canonical && !previous_still_used {
-            if let Err(error) = app
-                .asset_protocol_scope()
-                .forbid_file(path_without_verbatim_prefix(&previous.path))
-            {
-                registry.paths.insert(item_id.to_string(), previous);
-                if is_asset
-                    && !registry
-                        .paths
-                        .values()
-                        .any(|registered| registered.path == canonical && registered.is_asset)
-                {
-                    let _ = app.asset_protocol_scope().forbid_file(&usable_path);
-                }
-                return Err(error.to_string());
-            }
-        }
-    }
-
     Ok(usable_path)
 }
 
-fn unregister_path(
-    app: &tauri::AppHandle,
-    allowed_paths: &AllowedPaths,
-    item_id: &str,
-) -> Result<(), String> {
+fn unregister_path(allowed_paths: &AllowedPaths, item_id: &str) -> Result<(), String> {
     let mut registry = allowed_paths
         .0
         .lock()
         .map_err(|_| "Allowed path registry is unavailable.".to_string())?;
-    let removed = registry.paths.get(item_id).cloned();
-    if let Some(removed) = &removed {
-        let is_still_used = registry.paths.iter().any(|(registered_id, registered)| {
-            registered_id != item_id && registered.path == removed.path && registered.is_asset
-        });
-        if removed.is_asset && !is_still_used {
-            app.asset_protocol_scope()
-                .forbid_file(path_without_verbatim_prefix(&removed.path))
-                .map_err(|error| error.to_string())?;
-        }
-    }
     registry.paths.remove(item_id);
     registry.revoked_items.insert(item_id.to_string());
     Ok(())
+}
+
+fn delete_item_data(connection: &mut rusqlite::Connection, item_id: &str) -> Result<(), String> {
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    let state = transaction
+        .query_row(
+            "SELECT value FROM app_state WHERE key = 'state'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .or_else(|error| match error {
+            rusqlite::Error::QueryReturnedNoRows => Ok(String::new()),
+            error => Err(error),
+        })
+        .map_err(|error| error.to_string())?;
+
+    if !state.is_empty() {
+        let mut value = serde_json::from_str::<Value>(&state).map_err(|error| error.to_string())?;
+        let items = value
+            .get_mut("items")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| "Saved shelf data does not contain items.".to_string())?;
+        items.retain(|item| item.get("id").and_then(Value::as_str) != Some(item_id));
+        if let Some(layouts) = value
+            .get_mut("dashboardLayouts")
+            .and_then(Value::as_array_mut)
+        {
+            layouts.retain(|layout| layout.get("itemId").and_then(Value::as_str) != Some(item_id));
+        }
+        transaction
+            .execute(
+                "UPDATE app_state SET value = ?1, updated_at = strftime('%s', 'now') WHERE key = 'state'",
+                [serde_json::to_string(&value).map_err(|error| error.to_string())?],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+
+    for table in ["reader_progress", "media_progress", "text_preferences"] {
+        transaction
+            .execute(
+                &format!("DELETE FROM {table} WHERE item_id = ?1"),
+                [item_id],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+    transaction.commit().map_err(|error| error.to_string())
+}
+
+fn resolve_asset_path(
+    registry: &PathRegistry,
+    webview_label: &str,
+    item_id: &str,
+) -> Result<PathBuf, tauri::http::StatusCode> {
+    if webview_label != "main" && webview_label != reader_window_label(item_id) {
+        return Err(tauri::http::StatusCode::FORBIDDEN);
+    }
+    registry
+        .paths
+        .get(item_id)
+        .filter(|registered| registered.is_asset)
+        .map(|registered| registered.path.clone())
+        .ok_or(tauri::http::StatusCode::NOT_FOUND)
+}
+
+fn protocol_response(
+    status: tauri::http::StatusCode,
+    message: &str,
+) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(status)
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .body(message.as_bytes().to_vec())
+        .expect("static protocol response must be valid")
+}
+
+fn serve_registered_asset(
+    webview_label: &str,
+    request: tauri::http::Request<Vec<u8>>,
+    allowed_paths: &AllowedPaths,
+) -> tauri::http::Response<Vec<u8>> {
+    if request.method() != tauri::http::Method::GET && request.method() != tauri::http::Method::HEAD
+    {
+        return protocol_response(
+            tauri::http::StatusCode::METHOD_NOT_ALLOWED,
+            "Method not allowed",
+        );
+    }
+    let encoded_item_id =
+        percent_encoding::percent_decode_str(request.uri().path().trim_start_matches('/'))
+            .decode_utf8_lossy()
+            .into_owned();
+    let item_id = match decode_item_id(&encoded_item_id) {
+        Ok(item_id) => item_id,
+        Err(_) => {
+            return protocol_response(tauri::http::StatusCode::BAD_REQUEST, "Invalid item ID")
+        }
+    };
+    let path = {
+        let registry = match allowed_paths.0.lock() {
+            Ok(registry) => registry,
+            Err(_) => {
+                return protocol_response(
+                    tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "Path registry unavailable",
+                )
+            }
+        };
+        match resolve_asset_path(&registry, webview_label, &item_id) {
+            Ok(path) => path,
+            Err(status) => return protocol_response(status, "Asset unavailable"),
+        }
+    };
+
+    let mut file = match File::open(&path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return protocol_response(tauri::http::StatusCode::NOT_FOUND, "Asset not found")
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            return protocol_response(tauri::http::StatusCode::FORBIDDEN, "Asset access denied")
+        }
+        Err(_) => {
+            return protocol_response(
+                tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Asset could not be opened",
+            )
+        }
+    };
+    let length = match file.metadata() {
+        Ok(metadata) => metadata.len(),
+        Err(_) => {
+            return protocol_response(
+                tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Asset metadata unavailable",
+            )
+        }
+    };
+    let mime = mime_guess::from_path(&path).first_or_octet_stream();
+    let response = tauri::http::Response::builder()
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Accept-Ranges", "bytes")
+        .header("Content-Type", mime.as_ref());
+
+    if request.method() == tauri::http::Method::HEAD {
+        return response
+            .header("Content-Length", length)
+            .body(Vec::new())
+            .expect("asset HEAD response must be valid");
+    }
+
+    if let Some(range_header) = request
+        .headers()
+        .get("range")
+        .and_then(|value| value.to_str().ok())
+    {
+        let ranges = match HttpRange::parse(range_header, length) {
+            Ok(ranges) if ranges.len() == 1 => ranges,
+            _ => {
+                return tauri::http::Response::builder()
+                    .status(tauri::http::StatusCode::RANGE_NOT_SATISFIABLE)
+                    .header("Content-Range", format!("bytes */{length}"))
+                    .body(Vec::new())
+                    .expect("range error response must be valid")
+            }
+        };
+        let range = &ranges[0];
+        const MAX_RANGE_BYTES: u64 = 1000 * 1024;
+        let bytes_to_read = range
+            .length
+            .min(MAX_RANGE_BYTES)
+            .min(length.saturating_sub(range.start));
+        if bytes_to_read == 0 || file.seek(SeekFrom::Start(range.start)).is_err() {
+            return protocol_response(
+                tauri::http::StatusCode::RANGE_NOT_SATISFIABLE,
+                "Invalid range",
+            );
+        }
+        let mut body = Vec::with_capacity(bytes_to_read as usize);
+        if file.take(bytes_to_read).read_to_end(&mut body).is_err() {
+            return protocol_response(
+                tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Asset read failed",
+            );
+        }
+        let end = range.start + body.len() as u64 - 1;
+        return response
+            .status(tauri::http::StatusCode::PARTIAL_CONTENT)
+            .header(
+                "Content-Range",
+                format!("bytes {}-{end}/{length}", range.start),
+            )
+            .header("Content-Length", body.len())
+            .body(body)
+            .expect("partial asset response must be valid");
+    }
+
+    let mut body = Vec::new();
+    if file.read_to_end(&mut body).is_err() {
+        return protocol_response(
+            tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Asset read failed",
+        );
+    }
+    response
+        .header("Content-Length", body.len())
+        .body(body)
+        .expect("asset response must be valid")
 }
 
 fn require_allowed_path(
@@ -1287,10 +1495,11 @@ fn detect_bomless_utf16(bytes: &[u8]) -> Option<bool> {
 mod tests {
     use super::path_without_verbatim_prefix;
     use super::{
-        canonical_usable_path, decode_text_bytes, decode_text_bytes_with_encoding,
-        filter_state_for_reader_label, is_supported_content_path, is_supported_text_path,
-        normalize_external_url, reader_window_label, require_allowed_path, upsert_media_progress,
-        upsert_reader_progress, validate_progress_timestamp, AllowedPaths, RegisteredPath,
+        canonical_usable_path, decode_item_id, decode_text_bytes, decode_text_bytes_with_encoding,
+        delete_item_data, encode_item_id, filter_state_for_reader_label, is_supported_content_path,
+        is_supported_text_path, normalize_external_url, reader_window_label, require_allowed_path,
+        resolve_asset_path, upsert_media_progress, upsert_reader_progress,
+        validate_progress_timestamp, AllowedPaths, PathRegistry, RegisteredPath,
     };
     use rusqlite::Connection;
     use std::path::Path;
@@ -1359,6 +1568,96 @@ mod tests {
         assert_eq!(value["dashboardLayouts"].as_array().unwrap().len(), 1);
         assert_eq!(value["dashboardLayouts"][0]["itemId"], "second");
         assert_eq!(value["language"], "ko");
+    }
+
+    #[test]
+    fn reader_window_labels_are_injective_for_previously_colliding_ids() {
+        assert_ne!(reader_window_label("a?b"), reader_window_label("a*b"));
+        assert_ne!(reader_window_label("한글"), reader_window_label("--"));
+        assert_eq!(decode_item_id(&encode_item_id("..")).unwrap(), "..");
+        assert_eq!(decode_item_id(&encode_item_id("한글")).unwrap(), "한글");
+        assert!(decode_item_id("not-hex").is_err());
+        assert!(decode_item_id("aéx").is_err());
+    }
+
+    #[test]
+    fn asset_paths_are_scoped_to_the_owning_reader_window() {
+        let path = std::env::temp_dir().join("mypersonalshelf-asset-scope.mp4");
+        let mut registry = PathRegistry::default();
+        registry.paths.insert(
+            "owner".to_string(),
+            RegisteredPath {
+                path: path.clone(),
+                is_asset: true,
+            },
+        );
+
+        assert_eq!(
+            resolve_asset_path(&registry, &reader_window_label("owner"), "owner").unwrap(),
+            path
+        );
+        assert!(resolve_asset_path(&registry, &reader_window_label("other"), "owner").is_err());
+        assert!(resolve_asset_path(&registry, "main", "owner").is_ok());
+    }
+
+    #[test]
+    fn deleting_an_item_removes_state_and_owned_preferences() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);
+                 CREATE TABLE reader_progress (item_id TEXT PRIMARY KEY, progress REAL NOT NULL, scroll_top REAL NOT NULL, updated_at INTEGER NOT NULL);
+                 CREATE TABLE media_progress (item_id TEXT PRIMARY KEY, position REAL NOT NULL, updated_at INTEGER NOT NULL);
+                 CREATE TABLE text_preferences (item_id TEXT PRIMARY KEY, encoding TEXT NOT NULL, updated_at INTEGER NOT NULL);",
+            )
+            .unwrap();
+        let state = serde_json::json!({
+            "items": [{ "id": "remove" }, { "id": "keep" }],
+            "dashboardLayouts": [{ "itemId": "remove" }, { "itemId": "keep" }]
+        })
+        .to_string();
+        connection
+            .execute("INSERT INTO app_state VALUES ('state', ?1, 1)", [&state])
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO reader_progress VALUES ('remove', 10, 20, 1)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("INSERT INTO media_progress VALUES ('remove', 30, 1)", [])
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO text_preferences VALUES ('remove', 'utf-8', 1)",
+                [],
+            )
+            .unwrap();
+
+        delete_item_data(&mut connection, "remove").unwrap();
+
+        let saved: String = connection
+            .query_row(
+                "SELECT value FROM app_state WHERE key = 'state'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&saved).unwrap();
+        assert_eq!(value["items"].as_array().unwrap().len(), 1);
+        assert_eq!(value["items"][0]["id"], "keep");
+        assert_eq!(value["dashboardLayouts"].as_array().unwrap().len(), 1);
+        for table in ["reader_progress", "media_progress", "text_preferences"] {
+            let count: i64 = connection
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE item_id = 'remove'"),
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+        }
     }
 
     #[cfg(target_os = "windows")]

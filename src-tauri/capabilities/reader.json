@@ -5,7 +5,7 @@
   "windows": ["reader-*"],
   "permissions": [
     "core:default",
-    "core:event:allow-emit",
-    "core:event:allow-listen"
+    "core:event:deny-emit",
+    "core:event:deny-emit-to"
   ]
 }
