@@ -30,6 +30,7 @@ import {
   closeCurrentNativeWindow,
   destroyCurrentNativeWindow,
   isNativeRuntime,
+  isNativeReaderWindowOpen,
   loadNativeMediaProgress,
   loadNativeReaderProgress,
   loadNativeAppState,
@@ -47,6 +48,7 @@ import {
   saveNativeTextEncoding,
   selectNativeFile,
   selectNativeFolder,
+  unregisterNativeContentPath,
 } from "./lib/native";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
@@ -520,6 +522,7 @@ function App() {
   const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const addInFlightRef = useRef(false);
   const pathRegistrationInFlightRef = useRef<Map<string, Promise<ContentItem>>>(new Map());
+  const deletingItemIdsRef = useRef<Set<string>>(new Set());
   const encodingReadGenerationRef = useRef<Map<string, number>>(new Map());
   const readerCloseFlushRef = useRef<() => Promise<void>>(async () => undefined);
   const activeViewRef = useRef(activeView);
@@ -809,6 +812,9 @@ function App() {
     if (!nativeRuntime || item.source !== "path") {
       return item;
     }
+    if (deletingItemIdsRef.current.has(item.id)) {
+      throw new Error("This item is being removed.");
+    }
 
     const key = `${item.id}\u0000${item.type}\u0000${item.location}`;
     const pending = pathRegistrationInFlightRef.current.get(key);
@@ -816,7 +822,7 @@ function App() {
       return pending;
     }
 
-    const operation = registerNativeContentPath(item.location, item.type)
+    const operation = registerNativeContentPath(item.location, item.type, item.id)
       .then((normalizedLocation) => {
         if (normalizedLocation !== item.location) {
           updateItem(setItems, item.id, { location: normalizedLocation });
@@ -993,6 +999,10 @@ function App() {
   }
 
   async function openItem(item: ContentItem) {
+    if (deletingItemIdsRef.current.has(item.id)) {
+      setNotice(t("itemDeleteInProgress"));
+      return;
+    }
     if (item.type === "link") {
       const safeExternalUrl = getSafeExternalUrl(item.location);
       if (!safeExternalUrl) {
@@ -1024,7 +1034,7 @@ function App() {
     if (targetItem.type === "folder" && targetItem.source === "path") {
       setSelectedItemId(targetItem.id);
       markItemOpened(targetItem);
-      openNativeFolder(targetItem.location).catch(() => {
+      openNativeFolder(targetItem.location, targetItem.id).catch(() => {
         setNotice(t("nativeUnavailable"));
       });
       setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
@@ -1160,27 +1170,29 @@ function App() {
 
     addInFlightRef.current = true;
     setIsAdding(true);
+    const submittedDraft = { ...draft };
+    const itemId = createId();
     try {
-      let location = draft.location.trim() || "No location yet";
-      if (nativeRuntime && draft.source === "path") {
-        location = await registerNativeContentPath(location, draft.type);
+      let location = submittedDraft.location.trim() || "No location yet";
+      if (nativeRuntime && submittedDraft.source === "path") {
+        location = await registerNativeContentPath(location, submittedDraft.type, itemId);
       }
 
       const now = new Date().toISOString();
       const nextItem: ContentItem = {
-        id: createId(),
-        title: draft.title.trim(),
-        type: draft.type,
-        source: draft.source,
+        id: itemId,
+        title: submittedDraft.title.trim(),
+        type: submittedDraft.type,
+        source: submittedDraft.source,
         location,
-        collection: draft.collection.trim() || "Inbox",
-        tags: draft.tags
+        collection: submittedDraft.collection.trim() || "Inbox",
+        tags: submittedDraft.tags
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
-        accent: draft.accent,
-        summary: draft.summary.trim(),
-        textContent: draft.textContent.trim(),
+        accent: submittedDraft.accent,
+        summary: submittedDraft.summary.trim(),
+        textContent: submittedDraft.textContent.trim(),
         isFavorite: true,
         openCount: 0,
         createdAt: now,
@@ -1250,6 +1262,9 @@ function App() {
   }
 
   async function addNativeFile() {
+    if (addInFlightRef.current) return;
+    addInFlightRef.current = true;
+    setIsAdding(true);
     try {
       const selection = await selectNativeFile();
       if (!selection) {
@@ -1257,12 +1272,14 @@ function App() {
       }
 
       const now = new Date().toISOString();
+      const itemId = createId();
+      const location = await registerNativeContentPath(selection.path, selection.contentType, itemId);
       const nextItem: ContentItem = {
-        id: createId(),
+        id: itemId,
         title: selection.title,
         type: selection.contentType,
         source: "path",
-        location: selection.path,
+        location,
         fileName: selection.fileName,
         sizeBytes: selection.sizeBytes,
         modifiedAt: selection.modifiedAt,
@@ -1284,10 +1301,16 @@ function App() {
       setNotice(`${nextItem.title} ${t("nativeFileAdded")}`);
     } catch {
       setNotice(t("nativeUnavailable"));
+    } finally {
+      addInFlightRef.current = false;
+      setIsAdding(false);
     }
   }
 
   async function addNativeFolder() {
+    if (addInFlightRef.current) return;
+    addInFlightRef.current = true;
+    setIsAdding(true);
     try {
       const selection = await selectNativeFolder();
       if (!selection) {
@@ -1295,12 +1318,14 @@ function App() {
       }
 
       const now = new Date().toISOString();
+      const itemId = createId();
+      const location = await registerNativeContentPath(selection.path, "folder", itemId);
       const nextItem: ContentItem = {
-        id: createId(),
+        id: itemId,
         title: selection.title,
         type: "folder",
         source: "path",
-        location: selection.path,
+        location,
         collection: "Folders",
         tags: ["folder", "local"],
         accent: "#059669",
@@ -1319,6 +1344,9 @@ function App() {
       setNotice(`${nextItem.title} ${t("nativeFolderAdded")}`);
     } catch {
       setNotice(t("nativeUnavailable"));
+    } finally {
+      addInFlightRef.current = false;
+      setIsAdding(false);
     }
   }
 
@@ -1367,13 +1395,33 @@ function App() {
     );
   }
 
-  function deleteSelectedItem() {
+  async function deleteSelectedItem() {
     if (!selectedItem) return;
     if (!window.confirm(t("deleteConfirm"))) return;
-    const nextItems = items.filter((item) => item.id !== selectedItem.id);
-    setItems(nextItems);
-    navigateToView("library", nextItems[0]?.id ?? "");
-    setNotice(`${selectedItem.title} ${t("removed")}`);
+    const itemToDelete = selectedItem;
+    deletingItemIdsRef.current.add(itemToDelete.id);
+    try {
+      if (nativeRuntime) {
+        if (await isNativeReaderWindowOpen(itemToDelete.id)) {
+          setNotice(t("closeViewerBeforeDelete"));
+          return;
+        }
+        await unregisterNativeContentPath(itemToDelete.id);
+      }
+      const nextItems = items.filter((item) => item.id !== itemToDelete.id);
+      setRegisteredPathIds((current) => {
+        const next = new Set(current);
+        next.delete(itemToDelete.id);
+        return next;
+      });
+      setItems(nextItems);
+      navigateToView("library", nextItems[0]?.id ?? "");
+      setNotice(`${itemToDelete.title} ${t("removed")}`);
+    } catch {
+      setNotice(t("pathPermissionReleaseFailed"));
+    } finally {
+      deletingItemIdsRef.current.delete(itemToDelete.id);
+    }
   }
 
   function exportData() {

@@ -72,7 +72,9 @@ describe("AddContentModal", () => {
 
   it("disables submission while a native path is being registered", () => {
     renderModal(vi.fn(), true);
-    expect(screen.getByRole("button", { name: "addToShelf" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "addToShelf" }).matches(":disabled")).toBe(true);
+    expect(screen.getByRole("textbox", { name: "title" }).matches(":disabled")).toBe(true);
+    expect(screen.getByRole("combobox", { name: "type" }).matches(":disabled")).toBe(true);
   });
 
   it("keeps the dialog open on Escape while registration is in progress", async () => {

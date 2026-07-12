@@ -110,7 +110,8 @@ export function AddContentModal({
             />
           </label>
         ) : (
-          <form className="formGrid" onSubmit={onSubmit} aria-busy={isSubmitting}>
+          <form onSubmit={onSubmit} aria-busy={isSubmitting}>
+            <fieldset className="formGrid formFieldset" disabled={isSubmitting}>
             <label>
               {t("title")}
               <input required value={draft.title} onChange={(event) => onDraftChange({ ...draft, title: event.target.value })} />
@@ -180,7 +181,8 @@ export function AddContentModal({
                 />
               </label>
             )}
-            <button className="primaryButton spanTwo" type="submit" disabled={isSubmitting}>{t("addToShelf")}</button>
+              <button className="primaryButton spanTwo" type="submit">{t("addToShelf")}</button>
+            </fieldset>
           </form>
         )}
       </section>

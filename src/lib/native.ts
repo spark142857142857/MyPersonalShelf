@@ -83,8 +83,16 @@ export async function selectNativeFolder() {
   return invoke<NativeFolderSelection | null>("select_folder");
 }
 
-export async function registerNativeContentPath(path: string, contentType: ContentType) {
-  return invoke<string>("register_content_path", { path, contentType });
+export async function registerNativeContentPath(path: string, contentType: ContentType, itemId: string) {
+  return invoke<string>("register_content_path", { path, contentType, itemId });
+}
+
+export async function unregisterNativeContentPath(itemId: string) {
+  await invoke("unregister_content_path", { itemId });
+}
+
+export async function isNativeReaderWindowOpen(itemId: string) {
+  return invoke<boolean>("is_reader_window_open", { itemId });
 }
 
 export async function readNativeTextFile(path: string, itemId: string, encoding: TextEncoding = "auto") {
@@ -102,12 +110,12 @@ export async function onNativeTextEncodingChanged(
   return listen<NativeTextEncodingChange>(textEncodingChangedEvent, (event) => handler(event.payload));
 }
 
-export async function listNativeFolder(path: string) {
-  return invoke<FolderEntry[]>("list_folder", { path });
+export async function listNativeFolder(path: string, itemId: string) {
+  return invoke<FolderEntry[]>("list_folder", { path, itemId });
 }
 
-export async function openNativeFolder(path: string) {
-  await invoke("open_folder", { path });
+export async function openNativeFolder(path: string, itemId: string) {
+  await invoke("open_folder", { path, itemId });
 }
 
 export async function openNativeUrl(url: string) {
@@ -119,11 +127,11 @@ export function nativeAssetUrl(path: string) {
 }
 
 export async function closeCurrentNativeWindow() {
-  await getCurrentWebviewWindow().close();
+  await invoke("request_current_window_close");
 }
 
 export async function destroyCurrentNativeWindow() {
-  await getCurrentWebviewWindow().destroy();
+  await invoke("destroy_current_window");
 }
 
 export async function onNativeCloseRequested(

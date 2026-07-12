@@ -6,16 +6,29 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::Mutex,
-    time::{Duration, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
 use url::Url;
 
 const MAX_TEXT_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_FOLDER_ENTRIES: usize = 200;
+const MAX_PROGRESS_FUTURE_SKEW: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Default)]
-struct AllowedPaths(Mutex<HashSet<PathBuf>>);
+struct AllowedPaths(Mutex<PathRegistry>);
+
+#[derive(Default)]
+struct PathRegistry {
+    paths: HashMap<String, RegisteredPath>,
+    revoked_items: HashSet<String>,
+}
+
+#[derive(Clone)]
+struct RegisteredPath {
+    path: PathBuf,
+    is_asset: bool,
+}
 
 fn ensure_main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() == "main" {
@@ -69,6 +82,19 @@ fn filter_state_for_reader_label(label: &str, state: String) -> Result<String, S
             .and_then(Value::as_str)
             .is_some_and(|item_id| reader_window_label(item_id) == label)
     });
+    let allowed_item_id = items
+        .first()
+        .and_then(|item| item.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(layouts) = value
+        .get_mut("dashboardLayouts")
+        .and_then(Value::as_array_mut)
+    {
+        layouts.retain(|layout| {
+            layout.get("itemId").and_then(Value::as_str) == allowed_item_id.as_deref()
+        });
+    }
     serde_json::to_string(&value).map_err(|error| error.to_string())
 }
 
@@ -161,10 +187,13 @@ fn save_app_state(
 
 #[tauri::command]
 fn load_reader_progress(
+    window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     item_id: String,
 ) -> Result<Option<ReaderProgress>, String> {
     let connection = open_database(&app)?;
+    ensure_item_window_access(&window, &item_id)?;
+    ensure_item_type(&connection, &item_id, &["document"])?;
     connection
         .query_row(
             "SELECT progress, scroll_top FROM reader_progress WHERE item_id = ?1",
@@ -185,6 +214,7 @@ fn load_reader_progress(
 
 #[tauri::command]
 fn save_reader_progress(
+    window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     item_id: String,
     progress: f64,
@@ -192,6 +222,9 @@ fn save_reader_progress(
     updated_at: i64,
 ) -> Result<(), String> {
     let connection = open_database(&app)?;
+    ensure_item_window_access(&window, &item_id)?;
+    ensure_item_type(&connection, &item_id, &["document"])?;
+    validate_progress_timestamp(updated_at)?;
     upsert_reader_progress(&connection, &item_id, progress, scroll_top, updated_at)
 }
 
@@ -202,6 +235,9 @@ fn upsert_reader_progress(
     scroll_top: f64,
     updated_at: i64,
 ) -> Result<(), String> {
+    if !progress.is_finite() || !scroll_top.is_finite() {
+        return Err("Reader progress must contain finite numbers.".to_string());
+    }
     let clamped_progress = progress.clamp(0.0, 100.0);
     let clamped_scroll_top = scroll_top.max(0.0);
     connection
@@ -218,10 +254,13 @@ fn upsert_reader_progress(
 
 #[tauri::command]
 fn load_media_progress(
+    window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     item_id: String,
 ) -> Result<Option<MediaProgress>, String> {
     let connection = open_database(&app)?;
+    ensure_item_window_access(&window, &item_id)?;
+    ensure_item_type(&connection, &item_id, &["video", "audio"])?;
     connection
         .query_row(
             "SELECT position FROM media_progress WHERE item_id = ?1",
@@ -241,12 +280,16 @@ fn load_media_progress(
 
 #[tauri::command]
 fn save_media_progress(
+    window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     item_id: String,
     position: f64,
     updated_at: i64,
 ) -> Result<(), String> {
     let connection = open_database(&app)?;
+    ensure_item_window_access(&window, &item_id)?;
+    ensure_item_type(&connection, &item_id, &["video", "audio"])?;
+    validate_progress_timestamp(updated_at)?;
     upsert_media_progress(&connection, &item_id, position, updated_at)
 }
 
@@ -278,6 +321,9 @@ fn upsert_media_progress(
     position: f64,
     updated_at: i64,
 ) -> Result<(), String> {
+    if !position.is_finite() {
+        return Err("Media progress must contain a finite position.".to_string());
+    }
     let clamped_position = position.max(0.0);
     connection
         .execute(
@@ -292,11 +338,7 @@ fn upsert_media_progress(
 }
 
 #[tauri::command]
-fn select_file(
-    window: tauri::WebviewWindow,
-    app: tauri::AppHandle,
-    allowed_paths: tauri::State<'_, AllowedPaths>,
-) -> Result<Option<NativeContentSelection>, String> {
+fn select_file(window: tauri::WebviewWindow) -> Result<Option<NativeContentSelection>, String> {
     ensure_main_window(&window)?;
     let Some(path) = rfd::FileDialog::new()
         .add_filter(
@@ -311,24 +353,17 @@ fn select_file(
         return Ok(None);
     };
 
-    let content_type = content_type_for_path(&path).to_string();
-    let path = register_path(&app, &allowed_paths, &path, &content_type)?;
     let selection = file_selection_from_path(path)?;
     Ok(Some(selection))
 }
 
 #[tauri::command]
-fn select_folder(
-    window: tauri::WebviewWindow,
-    app: tauri::AppHandle,
-    allowed_paths: tauri::State<'_, AllowedPaths>,
-) -> Result<Option<NativeFolderSelection>, String> {
+fn select_folder(window: tauri::WebviewWindow) -> Result<Option<NativeFolderSelection>, String> {
     ensure_main_window(&window)?;
     let Some(path) = rfd::FileDialog::new().pick_folder() else {
         return Ok(None);
     };
 
-    let path = register_path(&app, &allowed_paths, &path, "folder")?;
     let entries = folder_entries(&path)?;
     Ok(Some(NativeFolderSelection {
         title: path
@@ -348,10 +383,28 @@ fn register_content_path(
     allowed_paths: tauri::State<'_, AllowedPaths>,
     path: String,
     content_type: String,
+    item_id: String,
 ) -> Result<String, String> {
     ensure_main_window(&window)?;
-    register_path(&app, &allowed_paths, Path::new(&path), &content_type)
-        .map(|path| path.to_string_lossy().into_owned())
+    register_path(
+        &app,
+        &allowed_paths,
+        Path::new(&path),
+        &content_type,
+        &item_id,
+    )
+    .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn unregister_content_path(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    item_id: String,
+) -> Result<(), String> {
+    ensure_main_window(&window)?;
+    unregister_path(&app, &allowed_paths, &item_id)
 }
 
 #[tauri::command]
@@ -368,7 +421,7 @@ fn read_text_file(
         let connection = open_database(&app)?;
         ensure_document_item_path(&connection, &item_id, Path::new(&path))?;
     }
-    let path = require_allowed_path(&allowed_paths, Path::new(&path))?;
+    let path = require_allowed_path(&allowed_paths, &item_id, Path::new(&path))?;
     ensure_supported_text_file(&path)?;
     let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
     if metadata.len() > MAX_TEXT_BYTES {
@@ -386,9 +439,10 @@ fn list_folder(
     window: tauri::WebviewWindow,
     allowed_paths: tauri::State<'_, AllowedPaths>,
     path: String,
+    item_id: String,
 ) -> Result<Vec<FolderEntry>, String> {
     ensure_main_window(&window)?;
-    let path = require_allowed_path(&allowed_paths, Path::new(&path))?;
+    let path = require_allowed_path(&allowed_paths, &item_id, Path::new(&path))?;
     folder_entries(&path)
 }
 
@@ -397,9 +451,10 @@ fn open_folder(
     window: tauri::WebviewWindow,
     allowed_paths: tauri::State<'_, AllowedPaths>,
     path: String,
+    item_id: String,
 ) -> Result<(), String> {
     ensure_main_window(&window)?;
-    let path = require_allowed_path(&allowed_paths, Path::new(&path))?;
+    let path = require_allowed_path(&allowed_paths, &item_id, Path::new(&path))?;
     let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
     if !metadata.is_dir() {
         return Err("Selected path is not a folder.".to_string());
@@ -468,6 +523,28 @@ fn open_url(url: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn request_current_window_close(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.close().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn destroy_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.destroy().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn is_reader_window_open(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    item_id: String,
+) -> Result<bool, String> {
+    ensure_main_window(&window)?;
+    Ok(app
+        .get_webview_window(&reader_window_label(&item_id))
+        .is_some())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -483,10 +560,14 @@ pub fn run() {
             select_file,
             select_folder,
             register_content_path,
+            unregister_content_path,
             read_text_file,
             list_folder,
             open_folder,
-            open_url
+            open_url,
+            request_current_window_close,
+            destroy_current_window,
+            is_reader_window_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running MyPersonalShelf");
@@ -686,6 +767,41 @@ fn stored_item(connection: &rusqlite::Connection, item_id: &str) -> Result<Value
         .ok_or_else(|| "The requested item is not in the saved shelf.".to_string())
 }
 
+fn ensure_item_type(
+    connection: &rusqlite::Connection,
+    item_id: &str,
+    allowed_types: &[&str],
+) -> Result<(), String> {
+    let item = stored_item(connection, item_id)?;
+    let item_type = item
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "The saved item has no content type.".to_string())?;
+    if allowed_types.contains(&item_type) {
+        Ok(())
+    } else {
+        Err("The requested progress type does not match the saved item.".to_string())
+    }
+}
+
+fn validate_progress_timestamp(updated_at: i64) -> Result<(), String> {
+    if updated_at < 0 {
+        return Err("Progress timestamp cannot be negative.".to_string());
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?;
+    let maximum = now
+        .checked_add(MAX_PROGRESS_FUTURE_SKEW)
+        .ok_or_else(|| "Progress timestamp range overflowed.".to_string())?
+        .as_millis();
+    if updated_at as u128 > maximum {
+        Err("Progress timestamp is too far in the future.".to_string())
+    } else {
+        Ok(())
+    }
+}
+
 fn ensure_document_item_exists(
     connection: &rusqlite::Connection,
     item_id: &str,
@@ -731,7 +847,11 @@ fn register_path(
     allowed_paths: &AllowedPaths,
     path: &Path,
     content_type: &str,
+    item_id: &str,
 ) -> Result<PathBuf, String> {
+    if item_id.is_empty() {
+        return Err("A content item ID is required to register a path.".to_string());
+    }
     let canonical = fs::canonicalize(path).map_err(|error| error.to_string())?;
     let usable_path = path_without_verbatim_prefix(&canonical);
     let metadata = fs::metadata(&canonical).map_err(|error| error.to_string())?;
@@ -752,28 +872,93 @@ fn register_path(
         _ => return Err("Unsupported path content type.".to_string()),
     }
 
-    if matches!(content_type, "video" | "audio" | "image") {
+    let is_asset = matches!(content_type, "video" | "audio" | "image");
+    let mut registry = allowed_paths
+        .0
+        .lock()
+        .map_err(|_| "Allowed path registry is unavailable.".to_string())?;
+    if registry.revoked_items.contains(item_id) {
+        return Err("This content item has already been removed.".to_string());
+    }
+
+    let previous = registry.paths.get(item_id).cloned();
+    if is_asset {
         app.asset_protocol_scope()
             .allow_file(&usable_path)
             .map_err(|error| error.to_string())?;
     }
+    registry.paths.insert(
+        item_id.to_string(),
+        RegisteredPath {
+            path: canonical.clone(),
+            is_asset,
+        },
+    );
 
-    allowed_paths
-        .0
-        .lock()
-        .map_err(|_| "Allowed path registry is unavailable.".to_string())?
-        .insert(canonical.clone());
+    if let Some(previous) = previous {
+        let previous_still_used = registry.paths.iter().any(|(registered_id, registered)| {
+            registered_id != item_id && registered.path == previous.path && registered.is_asset
+        });
+        if previous.is_asset && previous.path != canonical && !previous_still_used {
+            if let Err(error) = app
+                .asset_protocol_scope()
+                .forbid_file(path_without_verbatim_prefix(&previous.path))
+            {
+                registry.paths.insert(item_id.to_string(), previous);
+                if is_asset
+                    && !registry
+                        .paths
+                        .values()
+                        .any(|registered| registered.path == canonical && registered.is_asset)
+                {
+                    let _ = app.asset_protocol_scope().forbid_file(&usable_path);
+                }
+                return Err(error.to_string());
+            }
+        }
+    }
 
     Ok(usable_path)
 }
 
-fn require_allowed_path(allowed_paths: &AllowedPaths, path: &Path) -> Result<PathBuf, String> {
+fn unregister_path(
+    app: &tauri::AppHandle,
+    allowed_paths: &AllowedPaths,
+    item_id: &str,
+) -> Result<(), String> {
+    let mut registry = allowed_paths
+        .0
+        .lock()
+        .map_err(|_| "Allowed path registry is unavailable.".to_string())?;
+    let removed = registry.paths.get(item_id).cloned();
+    if let Some(removed) = &removed {
+        let is_still_used = registry.paths.iter().any(|(registered_id, registered)| {
+            registered_id != item_id && registered.path == removed.path && registered.is_asset
+        });
+        if removed.is_asset && !is_still_used {
+            app.asset_protocol_scope()
+                .forbid_file(path_without_verbatim_prefix(&removed.path))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    registry.paths.remove(item_id);
+    registry.revoked_items.insert(item_id.to_string());
+    Ok(())
+}
+
+fn require_allowed_path(
+    allowed_paths: &AllowedPaths,
+    item_id: &str,
+    path: &Path,
+) -> Result<PathBuf, String> {
     let canonical = fs::canonicalize(path).map_err(|error| error.to_string())?;
     let is_allowed = allowed_paths
         .0
         .lock()
         .map_err(|_| "Allowed path registry is unavailable.".to_string())?
-        .contains(&canonical);
+        .paths
+        .get(item_id)
+        .is_some_and(|registered| registered.path == canonical);
     if !is_allowed {
         return Err("Path has not been selected or registered by the user.".to_string());
     }
@@ -1104,7 +1289,8 @@ mod tests {
     use super::{
         canonical_usable_path, decode_text_bytes, decode_text_bytes_with_encoding,
         filter_state_for_reader_label, is_supported_content_path, is_supported_text_path,
-        normalize_external_url, reader_window_label, upsert_media_progress, upsert_reader_progress,
+        normalize_external_url, reader_window_label, require_allowed_path, upsert_media_progress,
+        upsert_reader_progress, validate_progress_timestamp, AllowedPaths, RegisteredPath,
     };
     use rusqlite::Connection;
     use std::path::Path;
@@ -1128,11 +1314,37 @@ mod tests {
     }
 
     #[test]
+    fn registered_paths_are_scoped_to_their_item_id() {
+        let path = std::env::temp_dir().join(format!(
+            "mypersonalshelf-path-scope-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, "scope test").unwrap();
+        let canonical = std::fs::canonicalize(&path).unwrap();
+        let allowed = AllowedPaths::default();
+        allowed.0.lock().unwrap().paths.insert(
+            "owner".to_string(),
+            RegisteredPath {
+                path: canonical,
+                is_asset: false,
+            },
+        );
+
+        assert!(require_allowed_path(&allowed, "owner", &path).is_ok());
+        assert!(require_allowed_path(&allowed, "other", &path).is_err());
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn reader_state_contains_only_its_requested_item() {
         let state = serde_json::json!({
             "items": [
                 { "id": "first", "type": "document" },
                 { "id": "second", "type": "document" }
+            ],
+            "dashboardLayouts": [
+                { "itemId": "first", "order": 0 },
+                { "itemId": "second", "order": 1 }
             ],
             "language": "ko"
         })
@@ -1144,6 +1356,8 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["id"], "second");
+        assert_eq!(value["dashboardLayouts"].as_array().unwrap().len(), 1);
+        assert_eq!(value["dashboardLayouts"][0]["itemId"], "second");
         assert_eq!(value["language"], "ko");
     }
 
@@ -1269,5 +1483,30 @@ mod tests {
             )
             .unwrap();
         assert_eq!(position, 80.0);
+    }
+
+    #[test]
+    fn rejects_invalid_progress_values_and_future_timestamps() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE reader_progress (
+                    item_id TEXT PRIMARY KEY,
+                    progress REAL NOT NULL,
+                    scroll_top REAL NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                CREATE TABLE media_progress (
+                    item_id TEXT PRIMARY KEY,
+                    position REAL NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );",
+            )
+            .unwrap();
+
+        assert!(upsert_reader_progress(&connection, "reader", f64::NAN, 0.0, 1).is_err());
+        assert!(upsert_media_progress(&connection, "media", f64::INFINITY, 1).is_err());
+        assert!(validate_progress_timestamp(-1).is_err());
+        assert!(validate_progress_timestamp(i64::MAX).is_err());
     }
 }
