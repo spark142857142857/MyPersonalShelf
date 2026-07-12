@@ -71,6 +71,7 @@ import type {
 } from "./types";
 
 type View = "dashboard" | "library" | "collections" | "customize" | "settings" | "guide" | "reader";
+type ActiveDeletion = { itemId: string; promise: Promise<boolean> };
 const themeStorageKey = "mypersonalshelf.theme.v1";
 const languageStorageKey = "mypersonalshelf.language.v1";
 const dashboardStorageKey = "mypersonalshelf.dashboard.v1";
@@ -521,7 +522,7 @@ function App() {
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const activeDeletionPromiseRef = useRef<Promise<void> | null>(null);
+  const activeDeletionRef = useRef<ActiveDeletion | null>(null);
   const addInFlightRef = useRef(false);
   const pathRegistrationInFlightRef = useRef<Map<string, Promise<ContentItem>>>(new Map());
   const itemOperationsRef = useRef(new ItemOperationRegistry());
@@ -682,9 +683,11 @@ function App() {
       return;
     }
 
-    const serializableItems = prepareItemsForPersistence(
-      items.filter((item) => !itemOperationsRef.current.isDeleting(item.id)),
-    );
+    if (nativeRuntime && activeDeletionRef.current) {
+      return;
+    }
+
+    const serializableItems = prepareItemsForPersistence(items);
     const normalizedLayouts = normalizeDashboardLayouts(items, dashboardLayouts);
     const state = {
       items: serializableItems,
@@ -739,20 +742,14 @@ function App() {
           if (activeViewRef.current === "reader") {
             await readerCloseFlushRef.current();
           }
+          const activeDeletion = activeDeletionRef.current;
+          const deletionSucceeded = activeDeletion
+            ? await activeDeletion.promise
+            : false;
           const latest = latestAppStateRef.current;
-          const pendingDeletionIds = new Set(
-            latest.items
-              .filter((item) => itemOperationsRef.current.isDeleting(item.id))
-              .map((item) => item.id),
-          );
-          if (pendingDeletionIds.size > 0) {
-            await activeDeletionPromiseRef.current;
-          }
-          const closingItems = latest.items.filter(
-            (item) =>
-              !pendingDeletionIds.has(item.id)
-              && !itemOperationsRef.current.isDeleting(item.id),
-          );
+          const closingItems = activeDeletion && deletionSucceeded
+            ? latest.items.filter((item) => item.id !== activeDeletion.itemId)
+            : latest.items;
           const state = {
             items: prepareItemsForPersistence(closingItems),
             theme: latest.theme,
@@ -994,6 +991,11 @@ function App() {
 
   async function persistItemBeforeOpeningWindow(item: ContentItem) {
     if (!nativeRuntime || readerItemIdFromUrl) return;
+
+    const activeDeletion = activeDeletionRef.current;
+    if (activeDeletion) {
+      await activeDeletion.promise;
+    }
 
     const latest = latestAppStateRef.current;
     const itemExists = latest.items.some((candidate) => candidate.id === item.id);
@@ -1435,22 +1437,33 @@ function App() {
       setNotice(t("itemDeleteInProgress"));
       return;
     }
+    const deletionOperation = (async () => {
+      if (!nativeRuntime) return true;
+      if (await isNativeReaderWindowOpen(itemToDelete.id)) return false;
+      const deletion = nativeSaveQueueRef.current
+        .catch(() => undefined)
+        .then(() => deleteNativeContentItem(itemToDelete.id));
+      nativeSaveQueueRef.current = deletion;
+      await deletion;
+      return true;
+    })();
+    activeDeletionRef.current = { itemId: itemToDelete.id, promise: deletionOperation };
     try {
-      if (nativeRuntime) {
-        if (await isNativeReaderWindowOpen(itemToDelete.id)) {
-          setNotice(t("closeViewerBeforeDelete"));
-          return;
-        }
-        const deletion = nativeSaveQueueRef.current
-          .catch(() => undefined)
-          .then(() => deleteNativeContentItem(itemToDelete.id));
-        activeDeletionPromiseRef.current = deletion;
-        nativeSaveQueueRef.current = deletion;
-        await deletion;
+      if (!await deletionOperation) {
+        setItems((current) => [...current]);
+        setNotice(t("closeViewerBeforeDelete"));
+        return;
       }
-      const nextSelectedItem = latestAppStateRef.current.items.find(
+      const latest = latestAppStateRef.current;
+      const nextItems = latest.items.filter((item) => item.id !== itemToDelete.id);
+      const nextSelectedItem = nextItems.find(
         (item) => item.id !== itemToDelete.id,
       );
+      latestAppStateRef.current = {
+        ...latest,
+        items: nextItems,
+        dashboardLayouts: normalizeDashboardLayouts(nextItems, latest.dashboardLayouts),
+      };
       setRegisteredPathIds((current) => {
         const next = new Set(current);
         next.delete(itemToDelete.id);
@@ -1463,7 +1476,7 @@ function App() {
       setItems((current) => [...current]);
       setNotice(t("pathPermissionReleaseFailed"));
     } finally {
-      activeDeletionPromiseRef.current = null;
+      activeDeletionRef.current = null;
       operations.endDelete(itemToDelete.id);
     }
   }
