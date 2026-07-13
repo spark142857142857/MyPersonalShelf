@@ -8,6 +8,7 @@ import type {
   ThemeSettings,
 } from "../types";
 import { normalizeAppSettings } from "./appSettings";
+import { normalizeLocationKey } from "./duplicates";
 import type { Language } from "./i18n";
 import { prepareItemsForPersistence } from "./persistence";
 
@@ -66,6 +67,25 @@ function asStringArray(value: unknown): string[] {
   return [];
 }
 
+function sanitizeFolderEntries(value: unknown): ContentItem["folderEntries"] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entries: NonNullable<ContentItem["folderEntries"]> = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const name = asString(entry.name).trim();
+    const path = asString(entry.path).trim();
+    const entryType = entry.entryType === "folder" || entry.entryType === "file" ? entry.entryType : null;
+    if (!name || !path || !entryType) continue;
+    entries.push({
+      name,
+      path,
+      entryType,
+      sizeBytes: typeof entry.sizeBytes === "number" && Number.isFinite(entry.sizeBytes) ? entry.sizeBytes : undefined,
+    });
+  }
+  return entries.length > 0 ? entries : undefined;
+}
+
 export function sanitizeShelfItem(value: unknown): ContentItem | null {
   if (!isRecord(value)) return null;
 
@@ -106,7 +126,7 @@ export function sanitizeShelfItem(value: unknown): ContentItem | null {
         ? value.textEncoding
         : undefined,
     previewImage: typeof value.previewImage === "string" ? value.previewImage : undefined,
-    folderEntries: Array.isArray(value.folderEntries) ? (value.folderEntries as ContentItem["folderEntries"]) : undefined,
+    folderEntries: sanitizeFolderEntries(value.folderEntries),
     isFavorite: asBoolean(value.isFavorite, true),
     openCount: asNumber(value.openCount, 0),
     lastOpenedAt: typeof value.lastOpenedAt === "string" ? value.lastOpenedAt : undefined,
@@ -120,6 +140,7 @@ export function sanitizeShelfItem(value: unknown): ContentItem | null {
 
 export function sanitizeShelfItems(values: unknown[]): { items: ContentItem[]; skippedInvalidItems: number } {
   const items: ContentItem[] = [];
+  const seenIds = new Set<string>();
   let skippedInvalidItems = 0;
   for (const value of values) {
     const item = sanitizeShelfItem(value);
@@ -127,6 +148,11 @@ export function sanitizeShelfItems(values: unknown[]): { items: ContentItem[]; s
       skippedInvalidItems += 1;
       continue;
     }
+    if (seenIds.has(item.id)) {
+      skippedInvalidItems += 1;
+      continue;
+    }
+    seenIds.add(item.id);
     items.push(item);
   }
   return { items, skippedInvalidItems };
@@ -196,8 +222,30 @@ export function restoreShelfState(
   }
 
   const existingIds = new Set(current.items.map((item) => item.id));
-  const toAdd = incomingItems.filter((item) => !existingIds.has(item.id));
-  const skippedCount = incomingItems.length - toAdd.length + (payload.skippedInvalidItems ?? 0);
+  const seenLocationKeys = new Set(
+    current.items
+      .map((item) => normalizeLocationKey(item))
+      .filter((key): key is string => Boolean(key)),
+  );
+  const toAdd: ContentItem[] = [];
+  let skippedCount = payload.skippedInvalidItems ?? 0;
+
+  for (const item of incomingItems) {
+    if (existingIds.has(item.id)) {
+      skippedCount += 1;
+      continue;
+    }
+    const locationKey = normalizeLocationKey(item);
+    if (locationKey && seenLocationKeys.has(locationKey)) {
+      skippedCount += 1;
+      continue;
+    }
+    if (locationKey) {
+      seenLocationKeys.add(locationKey);
+    }
+    existingIds.add(item.id);
+    toAdd.push(item);
+  }
 
   return {
     items: [...toAdd, ...current.items],

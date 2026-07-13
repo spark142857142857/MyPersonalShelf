@@ -921,9 +921,9 @@ fn register_path(
         .0
         .lock()
         .map_err(|_| "Allowed path registry is unavailable.".to_string())?;
-    if registry.revoked_items.contains(item_id) {
-        return Err("This content item has already been removed.".to_string());
-    }
+    // Explicit re-registration (restore, relink, reopen) is allowed to revive an ID
+    // that was revoked earlier in this process lifetime.
+    registry.revoked_items.remove(item_id);
 
     registry.paths.insert(
         item_id.to_string(),
@@ -1515,9 +1515,10 @@ mod tests {
     use super::{
         canonical_usable_path, decode_item_id, decode_text_bytes, decode_text_bytes_with_encoding,
         delete_item_data, encode_item_id, filter_state_for_reader_label, is_supported_content_path,
-        is_supported_text_path, normalize_external_url, reader_window_label, require_allowed_path,
-        resolve_asset_path, upsert_media_progress, upsert_reader_progress,
-        validate_progress_timestamp, AllowedPaths, PathRegistry, RegisteredPath,
+        is_supported_text_path, normalize_external_url, reader_window_label, register_path,
+        require_allowed_path, resolve_asset_path, unregister_path, upsert_media_progress,
+        upsert_reader_progress, validate_progress_timestamp, AllowedPaths, PathRegistry,
+        RegisteredPath,
     };
     use rusqlite::Connection;
     use std::path::Path;
@@ -1538,6 +1539,28 @@ mod tests {
             canonical,
             path_without_verbatim_prefix(&std::fs::canonicalize(".").unwrap())
         );
+    }
+
+    #[test]
+    fn register_path_can_revive_a_revoked_item_id() {
+        let path = std::env::temp_dir().join(format!(
+            "mypersonalshelf-revive-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, "revive test").unwrap();
+        let allowed = AllowedPaths::default();
+
+        let registered = register_path(&allowed, &path, "document", "item-1").unwrap();
+        assert!(registered.exists() || !registered.as_os_str().is_empty());
+        unregister_path(&allowed, "item-1").unwrap();
+        assert!(allowed.0.lock().unwrap().revoked_items.contains("item-1"));
+
+        let revived = register_path(&allowed, &path, "document", "item-1");
+        assert!(revived.is_ok());
+        assert!(!allowed.0.lock().unwrap().revoked_items.contains("item-1"));
+        assert!(allowed.0.lock().unwrap().paths.contains_key("item-1"));
+
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

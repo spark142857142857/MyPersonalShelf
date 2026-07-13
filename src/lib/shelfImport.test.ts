@@ -59,6 +59,31 @@ describe("restoreShelfState", () => {
     expect(result.items.map((entry) => entry.id)).toEqual(["b", "a"]);
   });
 
+  it("merges by skipping location duplicates with different ids", () => {
+    const current = {
+      items: [item("a", "A")],
+      theme,
+      language: "en" as const,
+      dashboardLayouts: [],
+      collectionSettings: {},
+      appSettings,
+    };
+    const payload = parseShelfExport(
+      JSON.stringify({
+        items: [
+          {
+            ...item("b", "Same URL"),
+            location: "https://example.com/a",
+          },
+        ],
+      }),
+    );
+    const result = restoreShelfState(current, payload, "merge");
+    expect(result.addedCount).toBe(0);
+    expect(result.skippedCount).toBe(1);
+    expect(result.items.map((entry) => entry.id)).toEqual(["a"]);
+  });
+
   it("replaces shelf contents", () => {
     const current = {
       items: [item("a", "A")],
@@ -124,13 +149,60 @@ describe("restoreShelfState", () => {
             source: "url",
             location: "https://example.com/nope",
           },
+          {
+            id: "folder-bad",
+            title: "Folder",
+            type: "folder",
+            source: "path",
+            location: "C:/Books",
+            collection: "Folders",
+            tags: [],
+            accent: "#059669",
+            isFavorite: true,
+            openCount: 0,
+            createdAt: "2020-01-01T00:00:00.000Z",
+            updatedAt: "2020-01-01T00:00:00.000Z",
+            folderEntries: [null, { name: "ok.txt", path: "C:/Books/ok.txt", entryType: "file" }],
+          },
+          {
+            id: "dup",
+            title: "First",
+            type: "link",
+            source: "url",
+            location: "https://example.com/dup-1",
+            collection: "Inbox",
+            tags: [],
+            accent: "#2563eb",
+            isFavorite: true,
+            openCount: 0,
+            createdAt: "2020-01-01T00:00:00.000Z",
+            updatedAt: "2020-01-01T00:00:00.000Z",
+          },
+          {
+            id: "dup",
+            title: "Second",
+            type: "link",
+            source: "url",
+            location: "https://example.com/dup-2",
+            collection: "Inbox",
+            tags: [],
+            accent: "#2563eb",
+            isFavorite: true,
+            openCount: 0,
+            createdAt: "2020-01-01T00:00:00.000Z",
+            updatedAt: "2020-01-01T00:00:00.000Z",
+          },
         ],
       }),
     );
 
-    expect(payload.skippedInvalidItems).toBe(1);
-    expect(payload.items).toHaveLength(1);
+    expect(payload.skippedInvalidItems).toBe(2);
+    expect(payload.items.map((entry) => entry.id)).toEqual(["bad-tags", "folder-bad", "dup"]);
     expect(payload.items[0].tags).toEqual(["imported", "later"]);
+    expect(payload.items[1].folderEntries).toEqual([
+      { name: "ok.txt", path: "C:/Books/ok.txt", entryType: "file" },
+    ]);
+    expect(payload.items[2].title).toBe("First");
 
     const result = restoreShelfState(
       {

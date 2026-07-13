@@ -303,17 +303,23 @@ function getItemTextContent(item: ContentItem, t: (key: MessageKey) => string) {
   return item.textContent ? translateKnown(item.textContent, seedTextContentLabelKeys, t) : "";
 }
 
-function loadItems(): ContentItem[] {
+function loadBrowserShelf(): { items: ContentItem[]; loadFailed: boolean } {
   const raw = window.localStorage.getItem(browserItemStorageKey);
   if (!raw) {
-    return [];
+    return { items: [], loadFailed: false };
   }
 
   try {
-    const parsed = JSON.parse(raw) as ContentItem[];
-    return parsed.map(normalizeItem);
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return { items: [], loadFailed: true };
+    }
+    return {
+      items: parsed.map((entry) => normalizeItem(entry as ContentItem)),
+      loadFailed: false,
+    };
   } catch {
-    return [];
+    return { items: [], loadFailed: true };
   }
 }
 
@@ -515,7 +521,8 @@ function getReaderItemIdFromUrl() {
 function App() {
   const readerItemIdFromUrl = getReaderItemIdFromUrl();
   const nativeRuntime = isNativeRuntime();
-  const [items, setItems] = useState<ContentItem[]>(() => (nativeRuntime ? [] : loadItems()));
+  const [browserBoot] = useState(() => (isNativeRuntime() ? null : loadBrowserShelf()));
+  const [items, setItems] = useState<ContentItem[]>(() => browserBoot?.items ?? []);
   const [theme, setTheme] = useState<ThemeSettings>(() => (nativeRuntime ? defaultTheme : loadTheme()));
   const [language, setLanguage] = useState<Language>(() => (nativeRuntime ? "en" : loadLanguage()));
   const [appSettings, setAppSettings] = useState<AppSettings>(() => (nativeRuntime ? defaultAppSettings : loadAppSettings()));
@@ -523,7 +530,7 @@ function App() {
     nativeRuntime ? {} : loadCollectionSettings(),
   );
   const [dashboardLayouts, setDashboardLayouts] = useState<DashboardLayoutItem[]>(() =>
-    nativeRuntime ? [] : normalizeDashboardLayouts(loadItems(), loadDashboardLayouts()),
+    nativeRuntime ? [] : normalizeDashboardLayouts(browserBoot?.items ?? [], loadDashboardLayouts()),
   );
   const [activeView, setActiveView] = useState<View>(readerItemIdFromUrl ? "reader" : "dashboard");
   const [selectedItemId, setSelectedItemId] = useState(readerItemIdFromUrl ?? items[0]?.id ?? "");
@@ -535,7 +542,7 @@ function App() {
   const [addMode, setAddMode] = useState<AddMode>("manual");
   const [draft, setDraft] = useState<DraftItem>(initialDraft);
   const [storageReady, setStorageReady] = useState(false);
-  const [storageLoadFailed, setStorageLoadFailed] = useState(false);
+  const [storageLoadFailed, setStorageLoadFailed] = useState(() => Boolean(browserBoot?.loadFailed));
   const [closeError, setCloseError] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [registeredPathIds, setRegisteredPathIds] = useState<Set<string>>(() => new Set());
@@ -555,6 +562,7 @@ function App() {
   const addInFlightRef = useRef(false);
   const pathRegistrationInFlightRef = useRef<Map<string, Promise<ContentItem>>>(new Map());
   const itemOperationsRef = useRef(new ItemOperationRegistry());
+  const linkEnrichEpochRef = useRef(0);
   const encodingReadGenerationRef = useRef<Map<string, number>>(new Map());
   const readerCloseFlushRef = useRef<() => Promise<void>>(async () => undefined);
   const activeViewRef = useRef(activeView);
@@ -638,19 +646,31 @@ function App() {
   const enrichLinkItems = useCallback((linkItems: ContentItem[]) => {
     for (const item of linkItems) {
       if (item.type !== "link") continue;
+      const epoch = linkEnrichEpochRef.current;
+      const capturedLocation = item.location;
       const capturedAccent = item.accent;
       const capturedPreviewImage = item.previewImage;
+      const capturedTagsKey = item.tags.join("\u0000");
       void (async () => {
         try {
           const preview = await fetchLinkPreview(item.location);
+          if (epoch !== linkEnrichEpochRef.current) return;
           setItems((current) =>
             current.map((entry) => {
-              if (entry.id !== item.id || entry.type !== "link") return entry;
+              if (
+                entry.id !== item.id ||
+                entry.type !== "link" ||
+                entry.location !== capturedLocation
+              ) {
+                return entry;
+              }
 
               const patch: Partial<ContentItem> = {};
-              const nextTags = buildLinkTags(entry.tags, entry.location);
-              if (nextTags.join("\u0000") !== entry.tags.join("\u0000")) {
-                patch.tags = nextTags;
+              if (entry.tags.join("\u0000") === capturedTagsKey) {
+                const nextTags = buildLinkTags(entry.tags, entry.location);
+                if (nextTags.join("\u0000") !== entry.tags.join("\u0000")) {
+                  patch.tags = nextTags;
+                }
               }
 
               if (entry.accent === capturedAccent) {
@@ -1339,21 +1359,36 @@ function App() {
     const confirmMessage = t("duplicatesConfirmKeep").replace("{count}", String(removeIds.length));
     if (!window.confirm(confirmMessage)) return;
 
+    let removedCount = 0;
     for (const id of removeIds) {
       const operations = itemOperationsRef.current;
       if (!operations.beginDelete(id)) continue;
+
+      const deletionOperation = (async () => {
+        if (!nativeRuntime) return true;
+        if (await isNativeReaderWindowOpen(id)) return false;
+        const deletion = nativeSaveQueueRef.current
+          .catch(() => undefined)
+          .then(() => deleteNativeContentItem(id));
+        nativeSaveQueueRef.current = deletion;
+        await deletion;
+        return true;
+      })();
+      activeDeletionRef.current = { itemId: id, promise: deletionOperation };
+
       try {
-        if (nativeRuntime) {
-          if (await isNativeReaderWindowOpen(id)) {
-            showNotice(t("closeViewerBeforeDelete"), "warning");
-            continue;
-          }
-          const deletion = nativeSaveQueueRef.current
-            .catch(() => undefined)
-            .then(() => deleteNativeContentItem(id));
-          nativeSaveQueueRef.current = deletion;
-          await deletion;
+        if (!await deletionOperation) {
+          showNotice(t("closeViewerBeforeDelete"), "warning");
+          continue;
         }
+
+        const latest = latestAppStateRef.current;
+        const nextItems = latest.items.filter((item) => item.id !== id);
+        latestAppStateRef.current = {
+          ...latest,
+          items: nextItems,
+          dashboardLayouts: normalizeDashboardLayouts(nextItems, latest.dashboardLayouts),
+        };
         setItems((current) => current.filter((item) => item.id !== id));
         setRegisteredPathIds((current) => {
           const next = new Set(current);
@@ -1366,13 +1401,18 @@ function App() {
           next.delete(id);
           return next;
         });
+        removedCount += 1;
       } catch {
         showNotice(t("pathPermissionReleaseFailed"), "danger");
       } finally {
+        activeDeletionRef.current = null;
         operations.endDelete(id);
       }
     }
-    showNotice(`${removeIds.length} ${t("duplicatesCleaned")}`);
+
+    if (removedCount > 0) {
+      showNotice(`${removedCount} ${t("duplicatesCleaned")}`);
+    }
     navigateToView("library", keepId);
   }
 
@@ -1959,6 +1999,7 @@ function App() {
       );
 
       const nextItems = restored.items.map((item) => normalizeItem(item));
+      linkEnrichEpochRef.current += 1;
       setItems(nextItems);
       setRegisteredPathIds(new Set());
       clearItemSelection();

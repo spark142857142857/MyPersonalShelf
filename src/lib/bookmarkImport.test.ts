@@ -25,13 +25,13 @@ describe("parseNetscapeBookmarkHtml", () => {
     const result = parseNetscapeBookmarkHtml(`<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <DL><p>
   <DT><A HREF="https://example.com/watch?v=1&amp;list=abc">Encoded</A>
+  <DT><A HREF="https://example.com/watch?v=2&#38;list=def">Numeric</A>
+  <DT><A HREF="https://example.com/watch?v=3&#x26;list=ghi">Hex</A>
 </DL>`);
-    expect(result.bookmarks).toEqual([
-      {
-        title: "Encoded",
-        url: "https://example.com/watch?v=1&list=abc",
-        collection: "Inbox",
-      },
+    expect(result.bookmarks.map((bookmark) => bookmark.url)).toEqual([
+      "https://example.com/watch?v=1&list=abc",
+      "https://example.com/watch?v=2&list=def",
+      "https://example.com/watch?v=3&list=ghi",
     ]);
   });
 });
