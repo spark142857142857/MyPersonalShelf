@@ -11,6 +11,7 @@ import { normalizeAppSettings } from "./appSettings";
 import { normalizeLocationKey } from "./duplicates";
 import type { Language } from "./i18n";
 import { prepareItemsForPersistence } from "./persistence";
+import { normalizeThemeSettings } from "./theme";
 
 export interface ShelfExportPayload {
   items: ContentItem[];
@@ -178,7 +179,9 @@ export function parseShelfExport(raw: string): ShelfExportPayload {
   return {
     items: sanitized.items,
     skippedInvalidItems: sanitized.skippedInvalidItems,
-    theme: parsed.theme as ThemeSettings | undefined,
+    theme: isRecord(parsed.theme)
+      ? normalizeThemeSettings(parsed.theme as Partial<ThemeSettings> & { compactCards?: boolean })
+      : undefined,
     language: parsed.language === "ko" || parsed.language === "en" ? parsed.language : undefined,
     dashboardLayouts: Array.isArray(parsed.dashboardLayouts)
       ? (parsed.dashboardLayouts as DashboardLayoutItem[])

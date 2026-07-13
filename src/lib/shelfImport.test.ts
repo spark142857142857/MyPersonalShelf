@@ -12,7 +12,7 @@ const theme: ThemeSettings = {
   lineHeight: 1.8,
   readerFontSize: 15,
   readerOpenMode: "window",
-  compactCards: false,
+  dashboardCardDensity: "large",
 };
 
 const appSettings: AppSettings = {

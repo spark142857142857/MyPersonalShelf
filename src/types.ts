@@ -5,6 +5,7 @@ export type ReaderOpenMode = "embedded" | "window";
 export type CollectionIcon = "book" | "play" | "music" | "link" | "folder" | "tag" | "grid";
 export type SearchEnterBehavior = "select" | "open";
 export type TextEncoding = "auto" | "utf-8" | "cp949" | "utf-16le" | "utf-16be";
+export type DashboardCardDensity = "large" | "normal" | "small";
 
 export interface ContentItem {
   id: string;
@@ -79,5 +80,5 @@ export interface ThemeSettings {
   lineHeight: number;
   readerFontSize: number;
   readerOpenMode: ReaderOpenMode;
-  compactCards: boolean;
+  dashboardCardDensity: DashboardCardDensity;
 }

@@ -558,12 +558,124 @@ button {
   background: color-mix(in srgb, var(--app-surface) 86%, #fff4dc);
 }
 
-.compact .dashboardGrid {
-  grid-auto-rows: minmax(160px, auto);
+.cardDragHandle {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  bottom: 12px;
+  left: auto;
+  top: auto;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(55, 64, 78, 0.12);
+  border-radius: 8px;
+  color: var(--app-muted);
+  background: color-mix(in srgb, var(--app-surface) 94%, #dfe7ea);
+  cursor: grab;
+  opacity: 1;
+  touch-action: none;
+  user-select: none;
 }
 
-.compact .contentCard {
-  padding: 14px;
+.contentCard:has(.cardDragHandle) .tagRow {
+  padding-right: 48px;
+}
+
+.cardDragHandle:hover,
+.contentCard:hover .cardDragHandle,
+.contentCard:focus-within .cardDragHandle {
+  opacity: 1;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 96%, #d5e0e4);
+}
+
+.cardDragHandle:active,
+.contentCard.dragging .cardDragHandle {
+  cursor: grabbing;
+}
+
+.contentCard.dragging {
+  opacity: 0.55;
+}
+
+.contentCard.dropTarget {
+  border-color: color-mix(in srgb, var(--app-accent) 45%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--app-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.density-normal .dashboardGrid {
+  grid-auto-rows: minmax(150px, auto);
+  gap: 12px;
+}
+
+.density-small .dashboardGrid {
+  grid-auto-rows: minmax(118px, auto);
+  gap: 10px;
+}
+
+.density-normal .contentCard {
+  gap: 9px;
+  padding: 12px;
+}
+
+.density-small .contentCard {
+  gap: 7px;
+  padding: 10px;
+}
+
+.density-normal .contentCard h2 {
+  font-size: 16px;
+  -webkit-line-clamp: 2;
+}
+
+.density-small .contentCard h2 {
+  font-size: 15px;
+  -webkit-line-clamp: 1;
+}
+
+.density-normal .contentCard p,
+.density-small .contentCard p {
+  font-size: 12px;
+  -webkit-line-clamp: 2;
+}
+
+.density-small .contentCard p {
+  -webkit-line-clamp: 1;
+}
+
+.density-normal .cardMedia {
+  margin-bottom: 6px;
+  max-height: 88px;
+  aspect-ratio: 2 / 1;
+}
+
+.density-small .cardMedia {
+  margin-bottom: 4px;
+  max-height: 52px;
+  aspect-ratio: 2.4 / 1;
+}
+
+.density-normal .cardHitArea,
+.density-small .cardHitArea {
+  gap: inherit;
+}
+
+.density-normal .itemPreview,
+.density-small .itemPreview {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.density-small .tagRow {
+  gap: 4px;
+}
+
+.density-small .tagRow button {
+  padding: 3px 7px;
+  font-size: 11px;
 }
 
 .contentCard:hover,
@@ -780,16 +892,10 @@ button {
   background: var(--app-surface);
 }
 
-.customizeGrid {
-  display: grid;
-  grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
-  gap: 16px;
-  align-items: start;
-}
-
 .customizeControls {
   display: grid;
   gap: 14px;
+  max-width: 920px;
 }
 
 .settingsWorkspace {
@@ -804,23 +910,11 @@ button {
   align-items: start;
 }
 
-.settingsGroup,
-.customPreviewPane {
+.settingsGroup {
   border: 1px solid rgba(55, 64, 78, 0.1);
   border-radius: 8px;
   background: color-mix(in srgb, var(--app-surface) 84%, transparent);
   box-shadow: 0 18px 50px rgba(49, 57, 70, 0.07);
-}
-
-.settingsGroup {
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-}
-
-.customPreviewPane {
-  position: sticky;
-  top: 24px;
   display: grid;
   gap: 14px;
   padding: 18px;
@@ -962,6 +1056,10 @@ button {
   background: var(--app-accent);
 }
 
+.segmentedControl.densityControl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .readerSample {
   padding: 16px;
   border-left: 3px solid var(--app-accent);
@@ -970,112 +1068,14 @@ button {
   background: color-mix(in srgb, var(--app-surface) 72%, #f3efe8);
 }
 
-.readerSample strong,
-.previewReader strong,
-.previewCard strong {
+.readerSample strong {
   display: block;
   margin-bottom: 8px;
 }
 
-.readerSample p,
-.previewReader p,
-.previewCard p {
+.readerSample p {
   margin: 0;
   color: var(--app-muted);
-}
-
-.themePreview {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  min-height: 560px;
-  overflow: hidden;
-  border: 1px solid rgba(55, 64, 78, 0.1);
-  border-radius: 8px;
-  color: var(--app-text);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 14%, transparent), transparent 42%),
-    var(--app-bg);
-}
-
-.previewSidebar {
-  display: grid;
-  align-content: start;
-  gap: 10px;
-  padding: 16px;
-  border-right: 1px solid rgba(55, 64, 78, 0.1);
-  background: color-mix(in srgb, var(--app-surface) 84%, transparent);
-}
-
-.previewMark {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--app-accent);
-  font-weight: 800;
-}
-
-.previewSidebar span {
-  padding: 8px;
-  border-radius: 8px;
-  color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-surface) 70%, transparent);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.previewMain {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  min-width: 0;
-  padding: 18px;
-}
-
-.previewHero {
-  display: grid;
-  gap: 6px;
-  padding: 18px;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--app-accent);
-}
-
-.previewHero span {
-  font-size: 11px;
-  font-weight: 700;
-  opacity: 0.7;
-}
-
-.previewHero strong {
-  max-width: 360px;
-  font-size: 25px;
-  line-height: 1.15;
-}
-
-.previewCard,
-.previewReader {
-  padding: 16px;
-  border: 1px solid rgba(55, 64, 78, 0.1);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 88%, transparent);
-}
-
-.previewCard {
-  display: grid;
-  gap: 10px;
-  min-height: 150px;
-}
-
-.compactPreviewCard {
-  min-height: 112px;
-  padding: 12px;
-}
-
-.previewReader {
-  border-left: 3px solid var(--app-accent);
 }
 
 .itemList {
@@ -2466,16 +2466,8 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .customizeGrid {
-    grid-template-columns: 1fr;
-  }
-
   .settingsPageGrid {
     grid-template-columns: 1fr;
-  }
-
-  .customPreviewPane {
-    position: static;
   }
 
   .formGrid {
@@ -2603,24 +2595,6 @@ button {
 
   .colorControlGrid {
     grid-template-columns: 1fr;
-  }
-
-  .themePreview {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
-  .previewSidebar {
-    grid-template-columns: 36px repeat(3, minmax(0, 1fr));
-    align-items: center;
-    border-right: 0;
-    border-bottom: 1px solid rgba(55, 64, 78, 0.1);
-  }
-
-  .previewSidebar span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .contentCard.wide,

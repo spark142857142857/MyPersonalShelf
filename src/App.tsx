@@ -9,6 +9,7 @@ import {
   FilePlus2,
   FolderOpen,
   Grid3X3,
+  GripVertical,
   HelpCircle,
   Library,
   Link,
@@ -40,6 +41,8 @@ import { GuidePanel } from "./components/GuidePanel";
 import { MediaViewerView } from "./components/MediaViewerView";
 import { ReaderView } from "./components/ReaderView";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { reorderDashboardLayouts } from "./lib/dashboardLayouts";
+import { defaultTheme, normalizeThemeSettings } from "./lib/theme";
 import {
   canPreviewMediaItem,
   getCollectionLabel,
@@ -130,19 +133,6 @@ const appSettingsStorageKey = "mypersonalshelf.appSettings.v1";
 const maxUploadDocumentBytes = 10 * 1024 * 1024;
 const maxManualTextBytes = 1024 * 1024;
 const collectionIconOptions: CollectionIcon[] = ["grid", "book", "play", "music", "link", "folder", "tag"];
-
-const defaultTheme: ThemeSettings = {
-  background: "#f3f6f4",
-  surface: "#ffffff",
-  text: "#202622",
-  muted: "#68736c",
-  accent: "#2d6f62",
-  readerWidth: 680,
-  lineHeight: 1.8,
-  readerFontSize: 15,
-  readerOpenMode: "window",
-  compactCards: false,
-};
 
 const initialDraft: DraftItem = {
   title: "",
@@ -240,7 +230,7 @@ function loadTheme(): ThemeSettings {
   }
 
   try {
-    return { ...defaultTheme, ...(JSON.parse(raw) as Partial<ThemeSettings>) };
+    return normalizeThemeSettings(JSON.parse(raw) as Partial<ThemeSettings> & { compactCards?: boolean });
   } catch {
     return defaultTheme;
   }
@@ -437,6 +427,9 @@ function App() {
   const [bulkTags, setBulkTags] = useState("");
   const [editingCollection, setEditingCollection] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [draggingDashboardItemId, setDraggingDashboardItemId] = useState<string | null>(null);
+  const [dashboardDropTargetId, setDashboardDropTargetId] = useState<string | null>(null);
+  const draggingDashboardItemIdRef = useRef<string | null>(null);
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const bookmarkInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -598,7 +591,7 @@ function App() {
 
         const nextItems = state.items.map((item) => normalizeItem(item as ContentItem));
         setItems(nextItems);
-        setTheme({ ...defaultTheme, ...state.theme });
+        setTheme(normalizeThemeSettings(state.theme ?? {}));
         setLanguage(state.language === "ko" ? "ko" : "en");
         setAppSettings(normalizeAppSettings(state.appSettings));
         setDashboardLayouts(normalizeDashboardLayouts(nextItems, state.dashboardLayouts ?? []));
@@ -1695,6 +1688,8 @@ function App() {
 
   function handleShellDragOver(event: React.DragEvent<HTMLDivElement>) {
     if (readerItemIdFromUrl || isAddOpen) return;
+    if (draggingDashboardItemIdRef.current) return;
+    if ([...event.dataTransfer.types].includes("application/x-mypersonalshelf-card")) return;
     event.preventDefault();
     setIsDraggingOver(true);
   }
@@ -1708,6 +1703,8 @@ function App() {
     event.preventDefault();
     setIsDraggingOver(false);
     if (readerItemIdFromUrl || isAddOpen) return;
+    if (draggingDashboardItemIdRef.current) return;
+    if ([...event.dataTransfer.types].includes("application/x-mypersonalshelf-card")) return;
 
     const capture = readDropCapture(event.dataTransfer);
     if (capture.kind === "url") {
@@ -1865,7 +1862,7 @@ function App() {
       const nextItems = restored.items.map((item) => normalizeItem(item));
       const nextTheme =
         mode === "replace" && restored.theme
-          ? { ...defaultTheme, ...restored.theme }
+          ? normalizeThemeSettings(restored.theme)
           : current.theme;
       const nextLanguage =
         mode === "replace" && restored.language ? restored.language : current.language;
@@ -1955,6 +1952,12 @@ function App() {
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next.map((layout, order) => ({ ...layout, order }));
     });
+  }
+
+  function reorderDashboardCard(activeItemId: string, overItemId: string) {
+    setDashboardLayouts((current) =>
+      reorderDashboardLayouts(normalizeDashboardLayouts(items, current), activeItemId, overItemId),
+    );
   }
 
   function cycleDashboardCardSize(itemId: string) {
@@ -2126,7 +2129,7 @@ function App() {
 
   return (
     <div
-      className={`appShell ${theme.compactCards ? "compact" : ""} ${isDraggingOver ? "dragOver" : ""}`}
+      className={`appShell density-${theme.dashboardCardDensity} ${isDraggingOver ? "dragOver" : ""}`}
       style={shellStyle}
       onDragOver={handleShellDragOver}
       onDragLeave={handleShellDragLeave}
@@ -2380,10 +2383,31 @@ function App() {
                     t={t}
                     selected={selectedItemId === item.id}
                     variant={layout.size}
+                    reorderable
+                    dragging={draggingDashboardItemId === item.id}
+                    dropTarget={dashboardDropTargetId === item.id && draggingDashboardItemId !== item.id}
                     onSelect={() => selectItem(item)}
-                    onOpen={() => void openItem(item)}
                     onFilterTag={filterByTag}
                     onToggleFavorite={() => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}
+                    onReorderStart={(itemId) => {
+                      draggingDashboardItemIdRef.current = itemId;
+                      setDraggingDashboardItemId(itemId);
+                      setDashboardDropTargetId(null);
+                    }}
+                    onReorderHover={(overItemId) => {
+                      const activeId = draggingDashboardItemIdRef.current;
+                      if (activeId && overItemId && activeId !== overItemId) {
+                        setDashboardDropTargetId(overItemId);
+                      }
+                    }}
+                    onReorderEnd={(activeItemId, overItemId) => {
+                      if (overItemId && activeItemId !== overItemId) {
+                        reorderDashboardCard(activeItemId, overItemId);
+                      }
+                      draggingDashboardItemIdRef.current = null;
+                      setDraggingDashboardItemId(null);
+                      setDashboardDropTargetId(null);
+                    }}
                   />
                 ))
               )}
@@ -2886,27 +2910,61 @@ function updateItem(setItems: React.Dispatch<React.SetStateAction<ContentItem[]>
 }
 
 
+function findDashboardCardIdAtPoint(clientX: number, clientY: number, excludeId?: string) {
+  const cards = document.querySelectorAll<HTMLElement>("[data-dashboard-card-id]");
+  for (const card of cards) {
+    const itemId = card.dataset.dashboardCardId;
+    if (!itemId || itemId === excludeId) continue;
+    const rect = card.getBoundingClientRect();
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
+      return itemId;
+    }
+  }
+  return null;
+}
+
 function ShelfCard({
   item,
   t,
   selected,
   variant,
+  reorderable = false,
+  dragging = false,
+  dropTarget = false,
   onSelect,
   onOpen,
   onFilterTag,
   onToggleFavorite,
+  onReorderStart,
+  onReorderHover,
+  onReorderEnd,
 }: {
   item: ContentItem;
   t: (key: MessageKey) => string;
   selected: boolean;
   variant: "standard" | "wide" | "tall";
+  reorderable?: boolean;
+  dragging?: boolean;
+  dropTarget?: boolean;
   onSelect: () => void;
-  onOpen: () => void;
+  onOpen?: () => void;
   onFilterTag: (tag: string) => void;
   onToggleFavorite: () => void;
+  onReorderStart?: (itemId: string) => void;
+  onReorderHover?: (overItemId: string) => void;
+  onReorderEnd?: (activeItemId: string, overItemId: string | null) => void;
 }) {
+  const pointerIdRef = useRef<number | null>(null);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const reorderActiveRef = useRef(false);
+
   function handleCardKeyDown(event: React.KeyboardEvent<HTMLElement>) {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    if (onOpen && (event.ctrlKey || event.metaKey) && event.key === "Enter") {
       event.preventDefault();
       onOpen();
       return;
@@ -2918,6 +2976,19 @@ function ShelfCard({
     }
   }
 
+  function finishPointerReorder(clientX: number, clientY: number) {
+    if (!reorderActiveRef.current) {
+      pointerIdRef.current = null;
+      dragOriginRef.current = null;
+      return;
+    }
+    const overItemId = findDashboardCardIdAtPoint(clientX, clientY, item.id);
+    onReorderEnd?.(item.id, overItemId);
+    reorderActiveRef.current = false;
+    pointerIdRef.current = null;
+    dragOriginRef.current = null;
+  }
+
   const platform = item.type === "link" ? detectLinkPlatform(item.location) : null;
   const previewSrc =
     item.previewImage ?? (item.type === "link" ? faviconUrlFor(item.location) : null);
@@ -2925,13 +2996,16 @@ function ShelfCard({
     platform === "youtube-music" ? "ytMusicCard" : platform === "youtube" ? "youtubeCard" : "";
 
   return (
-    <article className={`contentCard ${variant} ${selected ? "selected" : ""} ${platformClass}`.trim()}>
+    <article
+      className={`contentCard ${variant} ${selected ? "selected" : ""} ${dragging ? "dragging" : ""} ${dropTarget ? "dropTarget" : ""} ${platformClass}`.trim()}
+      data-dashboard-card-id={reorderable ? item.id : undefined}
+    >
       <button
         className="cardHitArea"
         type="button"
         aria-pressed={selected}
         onClick={onSelect}
-        onDoubleClick={onOpen}
+        onDoubleClick={onOpen ? () => onOpen() : undefined}
         onKeyDown={handleCardKeyDown}
       >
         {previewSrc && (
@@ -2968,10 +3042,71 @@ function ShelfCard({
           onToggleFavorite();
         }}
         onDoubleClick={(event) => event.stopPropagation()}
-      aria-label={item.isFavorite ? t("unpin") : t("pin")}
+        aria-label={item.isFavorite ? t("unpin") : t("pin")}
       >
         <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
       </button>
+      {reorderable && (
+        <span
+          className="cardDragHandle"
+          role="button"
+          tabIndex={0}
+          aria-label={t("dragToReorder")}
+          title={t("dragToReorder")}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+            }
+          }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            pointerIdRef.current = event.pointerId;
+            dragOriginRef.current = { x: event.clientX, y: event.clientY };
+            reorderActiveRef.current = false;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (pointerIdRef.current !== event.pointerId || !dragOriginRef.current) return;
+            const origin = dragOriginRef.current;
+            const distance = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
+            if (!reorderActiveRef.current) {
+              if (distance < 5) return;
+              reorderActiveRef.current = true;
+              onReorderStart?.(item.id);
+            }
+            const overItemId = findDashboardCardIdAtPoint(event.clientX, event.clientY, item.id);
+            if (overItemId) {
+              onReorderHover?.(overItemId);
+            }
+          }}
+          onPointerUp={(event) => {
+            if (pointerIdRef.current !== event.pointerId) return;
+            try {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            } catch {
+              // Pointer may already be released.
+            }
+            finishPointerReorder(event.clientX, event.clientY);
+          }}
+          onPointerCancel={(event) => {
+            if (pointerIdRef.current !== event.pointerId) return;
+            if (reorderActiveRef.current) {
+              onReorderEnd?.(item.id, null);
+            }
+            reorderActiveRef.current = false;
+            pointerIdRef.current = null;
+            dragOriginRef.current = null;
+          }}
+        >
+          <GripVertical size={16} />
+        </span>
+      )}
     </article>
   );
 }
@@ -3371,7 +3506,6 @@ function CustomizePanel({
   onToggleDashboardCardHidden: (itemId: string) => void;
   onReset: () => void;
 }) {
-  const previewItem = items.find((item) => item.isFavorite) ?? items[0];
   const visibleLayoutCount = dashboardLayouts.filter((layout) => !layout.hidden).length;
   const hiddenLayoutCount = dashboardLayouts.length - visibleLayoutCount;
 
@@ -3385,8 +3519,7 @@ function CustomizePanel({
         <button type="button" onClick={onReset}>{t("resetTheme")}</button>
       </div>
 
-      <div className="customizeGrid">
-        <div className="customizeControls">
+      <div className="customizeControls">
           <section className="settingsGroup">
             <div className="groupHeading">
               <h2>{t("identityAndMood")}</h2>
@@ -3454,14 +3587,27 @@ function CustomizePanel({
               <span>{visibleLayoutCount} {t("layoutVisible")} / {hiddenLayoutCount} {t("layoutHidden")}</span>
             </div>
             <p className="groupDescription">{t("homeLayoutHint")}</p>
-            <label className="toggleRow">
-              <input
-                type="checkbox"
-                checked={theme.compactCards}
-                onChange={(event) => onChange({ ...theme, compactCards: event.target.checked })}
-              />
-              <span>{t("compactCards")}</span>
-            </label>
+            <div className="controlRow">
+              <span>{t("dashboardCardDensity")}</span>
+              <div className="segmentedControl densityControl" aria-label={t("dashboardCardDensity")}>
+                {(
+                  [
+                    ["large", "densityLarge"],
+                    ["normal", "densityNormal"],
+                    ["small", "densitySmall"],
+                  ] as const
+                ).map(([value, labelKey]) => (
+                  <button
+                    className={theme.dashboardCardDensity === value ? "active" : ""}
+                    type="button"
+                    key={value}
+                    onClick={() => onChange({ ...theme, dashboardCardDensity: value })}
+                  >
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="layoutList">
               {dashboardLayouts.map((layout, index) => {
                 const item = items.find((candidate) => candidate.id === layout.itemId);
@@ -3513,45 +3659,6 @@ function CustomizePanel({
               })}
             </div>
           </section>
-        </div>
-
-        <aside className="customPreviewPane">
-          <div className="groupHeading">
-            <h2>{t("livePreview")}</h2>
-            <span>{t("preview")}</span>
-          </div>
-          <div className="themePreview">
-            <div className="previewSidebar">
-              <div className="previewMark">S</div>
-              <span>{t("navDashboard")}</span>
-              <span>{t("navLibrary")}</span>
-              <span>{t("navCollections")}</span>
-            </div>
-            <div className="previewMain">
-              <div className="previewHero">
-                <span>{t("heroEyebrow")}</span>
-                <strong>{t("previewHeroTitle")}</strong>
-              </div>
-              {previewItem && (
-                <div className={`previewCard ${theme.compactCards ? "compactPreviewCard" : ""}`}>
-                  <div className="typeBadge" style={{ color: previewItem.accent }}>
-                    {typeIcons[previewItem.type]}
-                    {getCollectionLabel(previewItem.collection, t)}
-                  </div>
-                  <strong>{getItemTitle(previewItem, t)}</strong>
-                  <p>{getItemSummary(previewItem, t)}</p>
-                </div>
-              )}
-              <div
-                className="previewReader"
-                style={{ fontSize: theme.readerFontSize, maxWidth: theme.readerWidth / 2, lineHeight: theme.lineHeight }}
-              >
-                <strong>{t("readerSampleTitle")}</strong>
-                <p>{t("readerSampleText")}</p>
-              </div>
-            </div>
-          </div>
-        </aside>
       </div>
     </section>
   );
