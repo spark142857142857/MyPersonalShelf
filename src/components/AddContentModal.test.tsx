@@ -39,6 +39,7 @@ function renderModal(
       onFile={vi.fn()}
       onNativeFile={vi.fn()}
       onNativeFolder={vi.fn()}
+      onImportBookmarks={vi.fn()}
       onClose={onClose}
     />,
   );

@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  ClipboardPaste,
   Download,
   Eye,
   EyeOff,
@@ -19,10 +20,19 @@ import {
   Star,
   Tags,
   Trash2,
+  Upload,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { appConfig } from "./lib/appConfig";
+import {
+  defaultAppSettings,
+  normalizeAppSettings,
+  renamePinnedCollection,
+  togglePinnedCollection,
+  togglePinnedTag,
+  togglePinnedType,
+} from "./lib/appSettings";
 import { getMessage, languageOptions, type Language, type MessageKey } from "./lib/i18n";
 import { AddContentModal, type AddMode, type DraftItem } from "./components/AddContentModal";
 import { DocumentTextView } from "./components/DocumentTextView";
@@ -54,6 +64,25 @@ import { ItemOperationRegistry } from "./lib/itemOperations";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
 import { browserItemStorageKey, prepareItemsForPersistence, saveBrowserItemProgress } from "./lib/persistence";
+import { buildShelfItem, createShelfItemId, findDuplicate, findDuplicateGroups, mergeShelfItems } from "./lib/duplicates";
+import { parseBookmarkFile } from "./lib/bookmarkImport";
+import {
+  extractUrlFromText,
+  isEditableKeyboardTarget,
+  isQuickCaptureShortcut,
+  readDropCapture,
+  titleFromUrl,
+} from "./lib/quickCapture";
+import { parseShelfExport, restoreShelfState, type ShelfRestoreMode } from "./lib/shelfImport";
+import {
+  buildLinkTags,
+  detectLinkPlatform,
+  faviconUrlFor,
+  fetchLinkPreview,
+  isPlaceholderLinkTitle,
+  linkPlatformAccent,
+  type LinkPlatform,
+} from "./lib/linkMeta";
 import { contentItems as seedItems } from "./lib/sampleData";
 import type {
   AppSettings,
@@ -71,6 +100,7 @@ import type {
 } from "./types";
 
 type View = "dashboard" | "library" | "collections" | "customize" | "settings" | "guide" | "reader";
+type NoticeLevel = "info" | "warning" | "danger";
 type ActiveDeletion = { itemId: string; promise: Promise<boolean> };
 const themeStorageKey = "mypersonalshelf.theme.v1";
 const languageStorageKey = "mypersonalshelf.language.v1";
@@ -80,11 +110,6 @@ const appSettingsStorageKey = "mypersonalshelf.appSettings.v1";
 const maxUploadDocumentBytes = 10 * 1024 * 1024;
 const maxManualTextBytes = 1024 * 1024;
 const collectionIconOptions: CollectionIcon[] = ["grid", "book", "play", "music", "link", "folder", "tag"];
-
-const defaultAppSettings: AppSettings = {
-  resetSearchOnNavigation: true,
-  searchEnterBehavior: "select",
-};
 
 const defaultTheme: ThemeSettings = {
   background: "#f3f6f4",
@@ -199,6 +224,9 @@ const tagLabelKeys: Record<string, MessageKey> = {
   lecture: "tagLecture",
   link: "typeLink",
   local: "tagLocal",
+  imported: "tagImported",
+  youtube: "tagYoutube",
+  "yt-music": "tagYtMusic",
   playlist: "tagPlaylist",
   reading: "tagReading",
   reference: "tagReference",
@@ -351,15 +379,6 @@ function loadAppSettings(): AppSettings {
   }
 }
 
-function normalizeAppSettings(settings: Partial<AppSettings> = {}): AppSettings {
-  return {
-    ...defaultAppSettings,
-    ...settings,
-    searchEnterBehavior: settings.searchEnterBehavior === "open" ? "open" : "select",
-    resetSearchOnNavigation: settings.resetSearchOnNavigation ?? defaultAppSettings.resetSearchOnNavigation,
-  };
-}
-
 function loadCollectionSettings(): Record<string, CollectionSettings> {
   const raw = window.localStorage.getItem(collectionSettingsStorageKey);
   if (!raw) {
@@ -459,7 +478,7 @@ function canOpenSeparateViewerWindow(item: ContentItem) {
 }
 
 function createId() {
-  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return createShelfItemId();
 }
 
 function itemSearchText(item: ContentItem, t: (key: MessageKey) => string) {
@@ -511,6 +530,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<ContentType | "all">("all");
   const [notice, setNotice] = useState("");
+  const [noticeLevel, setNoticeLevel] = useState<NoticeLevel>("info");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addMode, setAddMode] = useState<AddMode>("manual");
   const [draft, setDraft] = useState<DraftItem>(initialDraft);
@@ -519,7 +539,16 @@ function App() {
   const [closeError, setCloseError] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [registeredPathIds, setRegisteredPathIds] = useState<Set<string>>(() => new Set());
+  const [unavailablePathIds, setUnavailablePathIds] = useState<Set<string>>(() => new Set());
+  const [pathHealthFilter, setPathHealthFilter] = useState(false);
+  const [pathScanInFlight, setPathScanInFlight] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set());
+  const [bulkCollection, setBulkCollection] = useState("");
+  const [bulkTags, setBulkTags] = useState("");
+  const [editingCollection, setEditingCollection] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const objectUrlsRef = useRef<Set<string>>(new Set());
+  const bookmarkInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const activeDeletionRef = useRef<ActiveDeletion | null>(null);
@@ -586,8 +615,58 @@ function App() {
   useEffect(() => {
     if (!notice) {
       setNotice(t("readyNotice"));
+      setNoticeLevel("info");
     }
   }, [notice, t]);
+
+  const showNotice = useCallback((message: string, level: NoticeLevel = "info") => {
+    setNotice(message);
+    setNoticeLevel(level);
+  }, []);
+
+  const focusInboxCleanup = useCallback(
+    (baseNotice: string) => {
+      setPathHealthFilter(false);
+      setQuery("collection:Inbox");
+      setActiveType("all");
+      navigateToView("library");
+      showNotice(`${baseNotice} ${t("inboxCleanupHint")}`);
+    },
+    [navigateToView, showNotice, t],
+  );
+
+  const enrichLinkItems = useCallback((linkItems: ContentItem[]) => {
+    for (const item of linkItems) {
+      if (item.type !== "link") continue;
+      void (async () => {
+        try {
+          const preview = await fetchLinkPreview(item.location);
+          const patch: Partial<ContentItem> = {
+            tags: buildLinkTags(item.tags, item.location),
+            accent: linkPlatformAccent(preview.platform),
+          };
+          if (preview.previewImage) {
+            patch.previewImage = preview.previewImage;
+          } else {
+            const favicon = faviconUrlFor(item.location);
+            if (favicon) patch.previewImage = favicon;
+          }
+          if (preview.title && isPlaceholderLinkTitle(item.title, item.location)) {
+            patch.title = preview.title;
+          }
+          setItems((current) =>
+            current.map((entry) =>
+              entry.id === item.id
+                ? { ...entry, ...patch, updatedAt: new Date().toISOString() }
+                : entry,
+            ),
+          );
+        } catch {
+          // Offline or blocked — keep local title/URL.
+        }
+      })();
+    }
+  }, []);
 
   useEffect(() => {
     if (!nativeRuntime) {
@@ -810,6 +889,16 @@ function App() {
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
+      if (
+        isQuickCaptureShortcut(event) &&
+        !isAddOpen &&
+        !readerItemIdFromUrl &&
+        !isEditableKeyboardTarget(event.target)
+      ) {
+        event.preventDefault();
+        void addClipboardLink();
+        return;
+      }
       if (isSearchFocusShortcut(event, isAddOpen)) {
         event.preventDefault();
         searchInputRef.current?.focus();
@@ -819,7 +908,7 @@ function App() {
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [isAddOpen, navigateToView]);
+  }, [isAddOpen, navigateToView, readerItemIdFromUrl, t]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0];
   const ensureItemPathRegistered = useCallback(async (item: ContentItem): Promise<ContentItem> => {
@@ -842,6 +931,12 @@ function App() {
           updateItem(setItems, item.id, { location: normalizedLocation });
         }
         setRegisteredPathIds((current) => new Set(current).add(item.id));
+        setUnavailablePathIds((current) => {
+          if (!current.has(item.id)) return current;
+          const next = new Set(current);
+          next.delete(item.id);
+          return next;
+        });
         return normalizedLocation === item.location ? item : { ...item, location: normalizedLocation };
       })
       .catch((error) => {
@@ -850,6 +945,7 @@ function App() {
           next.delete(item.id);
           return next;
         });
+        setUnavailablePathIds((current) => new Set(current).add(item.id));
         throw error;
       })
       .finally(() => {
@@ -873,16 +969,23 @@ function App() {
 
     const registerSelectedPath = () => {
       void ensureItemPathRegistered(selectedItem).catch(() => {
-        setNotice(t("pathUnavailable"));
+        showNotice(t("pathUnavailable"), "danger");
       });
     };
 
     registerSelectedPath();
     window.addEventListener("focus", registerSelectedPath);
     return () => window.removeEventListener("focus", registerSelectedPath);
-  }, [activeView, ensureItemPathRegistered, nativeRuntime, readerItemIdFromUrl, selectedItem?.id, selectedItem?.location, selectedItem?.source, selectedItem?.type, t]);
+  }, [activeView, ensureItemPathRegistered, nativeRuntime, readerItemIdFromUrl, selectedItem?.id, selectedItem?.location, selectedItem?.source, selectedItem?.type, showNotice, t]);
 
   const favoriteItems = items.filter((item) => item.isFavorite);
+  const inboxItems = items.filter((item) => item.collection === "Inbox");
+  const duplicateGroups = useMemo(() => findDuplicateGroups(items), [items]);
+  const pinnedTypeShortcuts = appSettings.pinnedTypes;
+  const pinnedCollectionShortcuts = appSettings.pinnedCollections;
+  const pinnedTagShortcuts = appSettings.pinnedTags;
+  const hasDashboardShortcuts =
+    pinnedTypeShortcuts.length > 0 || pinnedCollectionShortcuts.length > 0 || pinnedTagShortcuts.length > 0;
   const normalizedDashboardLayouts = useMemo(
     () => normalizeDashboardLayouts(items, dashboardLayouts),
     [dashboardLayouts, items],
@@ -909,6 +1012,9 @@ function App() {
   const filteredItems = useMemo(() => {
     const parsedQuery = parseSearchQuery(query);
     return [...items].filter((item) => {
+      if (pathHealthFilter) {
+        return item.source === "path" && unavailablePathIds.has(item.id);
+      }
       const searchable = itemSearchText(item, t);
       const matchesQuery =
         !parsedQuery.value ||
@@ -929,7 +1035,7 @@ function App() {
       const rightRecent = right.lastOpenedAt ?? "";
       return rightRecent.localeCompare(leftRecent) || left.title.localeCompare(right.title);
     });
-  }, [activeType, items, query, t]);
+  }, [activeType, items, pathHealthFilter, query, t, unavailablePathIds]);
 
   const groupedCollections = useMemo(() => {
     return items.reduce<Record<string, ContentItem[]>>((groups, item) => {
@@ -945,7 +1051,14 @@ function App() {
       return groups;
     }, {});
   }, [items]);
-  const collectionNames = useMemo(() => Object.keys(groupedCollections).sort((left, right) => left.localeCompare(right)), [groupedCollections]);
+  const collectionNames = useMemo(() => {
+    const names = new Set([
+      ...Object.keys(groupedCollections),
+      ...Object.keys(collectionSettings),
+    ]);
+    return [...names].sort((left, right) => left.localeCompare(right));
+  }, [collectionSettings, groupedCollections]);
+  const [newCollectionName, setNewCollectionName] = useState("");
 
   const shellStyle = {
     "--app-bg": theme.background,
@@ -1035,7 +1148,7 @@ function App() {
       const safeExternalUrl = getSafeExternalUrl(item.location);
       if (!safeExternalUrl) {
         navigateToView("library", item.id);
-        setNotice(t("invalidLink"));
+        showNotice(t("invalidLink"), "warning");
         return;
       }
 
@@ -1044,7 +1157,7 @@ function App() {
       openNativeUrl(safeExternalUrl).catch(() => {
         window.open(safeExternalUrl, "_blank", "noopener,noreferrer");
       });
-      setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+      showNotice(`${getItemTitle(item, t)} ${t("selected")}`);
       return;
     }
 
@@ -1054,7 +1167,7 @@ function App() {
         targetItem = await ensureItemPathRegistered(item);
       } catch {
         navigateToView("library", item.id);
-        setNotice(t("pathUnavailable"));
+        showNotice(t("pathUnavailable"), "danger");
         return;
       }
     }
@@ -1129,17 +1242,125 @@ function App() {
   }, [isAddOpen, selectedItem, theme.readerOpenMode, t]);
 
   function filterByCollection(collection: string) {
+    setPathHealthFilter(false);
     setQuery(`collection:${collection}`);
     setActiveType("all");
     navigateToView("library");
-    setNotice(`${getCollectionLabel(collection, t)} ${t("collectionFiltered")}`);
+    showNotice(`${getCollectionLabel(collection, t)} ${t("collectionFiltered")}`);
+  }
+
+  function filterByTypePin(type: ContentType) {
+    setPathHealthFilter(false);
+    setQuery("");
+    setActiveType(type);
+    navigateToView("library");
+    showNotice(`${getTypeLabel(type, t)} ${t("typeFiltered")}`);
   }
 
   function filterByTag(tag: string) {
+    setPathHealthFilter(false);
     setQuery(`tag:${tag}`);
     setActiveType("all");
     navigateToView("library");
-    setNotice(`#${getTagLabel(tag, t)} ${t("tagFiltered")}`);
+    showNotice(`#${getTagLabel(tag, t)} ${t("tagFiltered")}`);
+  }
+
+  function pinTypeToDashboard(type: ContentType) {
+    const next = togglePinnedType(appSettings, type);
+    const pinned = next.pinnedTypes.includes(type);
+    setAppSettings(next);
+    showNotice(`${getTypeLabel(type, t)} ${pinned ? t("typePinnedNotice") : t("typeUnpinnedNotice")}`);
+  }
+
+  function pinCollectionToDashboard(collection: string) {
+    const next = togglePinnedCollection(appSettings, collection);
+    const pinned = next.pinnedCollections.includes(collection);
+    setAppSettings(next);
+    showNotice(
+      `${getCollectionLabel(collection, t)} ${pinned ? t("collectionPinnedNotice") : t("collectionUnpinnedNotice")}`,
+    );
+  }
+
+  function pinTagToDashboard(tag: string) {
+    const next = togglePinnedTag(appSettings, tag);
+    const pinned = next.pinnedTags.includes(tag);
+    setAppSettings(next);
+    showNotice(`#${getTagLabel(tag, t)} ${pinned ? t("tagPinnedNotice") : t("tagUnpinnedNotice")}`);
+  }
+
+  async function filterBrokenPaths() {
+    setQuery("");
+    setActiveType("all");
+    setPathHealthFilter(true);
+    navigateToView("library");
+    if (!nativeRuntime) {
+      showNotice(t("nativeUnavailable"), "warning");
+      return;
+    }
+    setPathScanInFlight(true);
+    showNotice(t("brokenPathsScanning"));
+    const pathItems = latestAppStateRef.current.items.filter((item) => item.source === "path");
+    const broken = new Set<string>();
+    try {
+      for (const item of pathItems) {
+        try {
+          await ensureItemPathRegistered(item);
+        } catch {
+          broken.add(item.id);
+        }
+      }
+      setUnavailablePathIds(broken);
+      if (broken.size === 0) {
+        showNotice(t("brokenPathsNone"));
+      } else {
+        showNotice(`${broken.size} ${t("brokenPathsFound")}`, "warning");
+      }
+    } finally {
+      setPathScanInFlight(false);
+    }
+  }
+
+  async function keepDuplicateItem(keepId: string, groupIds: string[]) {
+    const removeIds = groupIds.filter((id) => id !== keepId);
+    if (removeIds.length === 0) return;
+    const confirmMessage = t("duplicatesConfirmKeep").replace("{count}", String(removeIds.length));
+    if (!window.confirm(confirmMessage)) return;
+
+    for (const id of removeIds) {
+      const operations = itemOperationsRef.current;
+      if (!operations.beginDelete(id)) continue;
+      try {
+        if (nativeRuntime) {
+          if (await isNativeReaderWindowOpen(id)) {
+            showNotice(t("closeViewerBeforeDelete"), "warning");
+            continue;
+          }
+          const deletion = nativeSaveQueueRef.current
+            .catch(() => undefined)
+            .then(() => deleteNativeContentItem(id));
+          nativeSaveQueueRef.current = deletion;
+          await deletion;
+        }
+        setItems((current) => current.filter((item) => item.id !== id));
+        setRegisteredPathIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+        setUnavailablePathIds((current) => {
+          if (!current.has(id)) return current;
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      } catch {
+        showNotice(t("pathPermissionReleaseFailed"), "danger");
+      } finally {
+        operations.endDelete(id);
+      }
+    }
+    showNotice(`${removeIds.length} ${t("duplicatesCleaned")}`);
+    navigateToView("library", keepId);
   }
 
   function updateCollectionSettings(collection: string, patch: Partial<CollectionSettings>) {
@@ -1156,8 +1377,11 @@ function App() {
     const normalizedName = nextName.trim();
     if (!normalizedName) return false;
     if (normalizedName === previousName) return true;
-    if (items.some((item) => item.collection === normalizedName)) {
-      setNotice(t("collectionNameExists"));
+    const nameTaken =
+      items.some((item) => item.collection === normalizedName) ||
+      Boolean(collectionSettings[normalizedName]);
+    if (nameTaken) {
+      showNotice(t("collectionNameExists"), "warning");
       return false;
     }
 
@@ -1173,8 +1397,57 @@ function App() {
       next[normalizedName] = previousSettings;
       return next;
     });
-    setNotice(`${getCollectionLabel(previousName, t)} -> ${normalizedName}`);
+    setAppSettings((current) => renamePinnedCollection(current, previousName, normalizedName));
+    showNotice(`${getCollectionLabel(previousName, t)} -> ${normalizedName}`);
     return true;
+  }
+
+  function createCollection(rawName: string) {
+    const normalizedName = rawName.trim();
+    if (!normalizedName) {
+      showNotice(t("collectionNameRequired"), "warning");
+      return false;
+    }
+    const nameTaken =
+      items.some((item) => item.collection === normalizedName) ||
+      Boolean(collectionSettings[normalizedName]) ||
+      Object.keys(groupedCollections).includes(normalizedName);
+    if (nameTaken) {
+      showNotice(t("collectionNameExists"), "warning");
+      return false;
+    }
+
+    setCollectionSettings((current) => ({
+      ...current,
+      [normalizedName]: {
+        color: "#263238",
+        icon: defaultCollectionIcon(normalizedName),
+      },
+    }));
+    setNewCollectionName("");
+    setEditingCollection(normalizedName);
+    showNotice(`${normalizedName} ${t("collectionCreated")}`);
+    return true;
+  }
+
+  function deleteEmptyCollection(collection: string) {
+    if ((groupedCollections[collection] ?? []).length > 0) {
+      showNotice(t("collectionDeleteNotEmpty"), "warning");
+      return;
+    }
+    setCollectionSettings((current) => {
+      const next = { ...current };
+      delete next[collection];
+      return next;
+    });
+    setAppSettings((current) => ({
+      ...current,
+      pinnedCollections: current.pinnedCollections.filter((entry) => entry !== collection),
+    }));
+    if (editingCollection === collection) {
+      setEditingCollection(null);
+    }
+    showNotice(`${getCollectionLabel(collection, t)} ${t("collectionDeleted")}`);
   }
 
   function navigatePrimaryView(nextView: View) {
@@ -1182,6 +1455,7 @@ function App() {
       setQuery("");
       setActiveType("all");
     }
+    setPathHealthFilter(false);
     navigateToView(nextView);
   }
 
@@ -1207,91 +1481,170 @@ function App() {
     const itemId = createId();
     try {
       let location = submittedDraft.location.trim() || "No location yet";
+      if (submittedDraft.source === "url") {
+        const safeUrl = getSafeExternalUrl(location);
+        if (!safeUrl) {
+          showNotice(t("invalidLink"), "warning");
+          return;
+        }
+        location = safeUrl;
+      }
       if (nativeRuntime && submittedDraft.source === "path") {
         location = await registerNativeContentPath(location, submittedDraft.type, itemId);
       }
 
-      const now = new Date().toISOString();
-      const nextItem: ContentItem = {
+      const manualTags = submittedDraft.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      const isLink = submittedDraft.type === "link" || submittedDraft.source === "url";
+      const nextItem = buildShelfItem({
         id: itemId,
         title: submittedDraft.title.trim(),
         type: submittedDraft.type,
         source: submittedDraft.source,
         location,
         collection: submittedDraft.collection.trim() || "Inbox",
-        tags: submittedDraft.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-        accent: submittedDraft.accent,
+        tags: isLink ? buildLinkTags(manualTags, location) : manualTags,
+        accent: isLink ? linkPlatformAccent(detectLinkPlatform(location)) : submittedDraft.accent,
         summary: submittedDraft.summary.trim(),
         textContent: submittedDraft.textContent.trim(),
-        isFavorite: true,
-        openCount: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
+        previewImage: isLink ? faviconUrlFor(location) ?? undefined : undefined,
+      });
 
-      setItems((current) => [nextItem, ...current]);
-      if (nextItem.source === "path") {
-        setRegisteredPathIds((current) => new Set(current).add(nextItem.id));
-      }
+      commitShelfItems([nextItem], { closeModal: true });
       setDraft(initialDraft);
-      setIsAddOpen(false);
-      navigateToView("library", nextItem.id);
-      setNotice(`${nextItem.title} ${t("addedToShelf")}`);
     } catch {
-      setNotice(t("invalidLocalPath"));
+      showNotice(t("invalidLocalPath"), "danger");
     } finally {
       addInFlightRef.current = false;
       setIsAdding(false);
     }
   }
 
+  function commitShelfItems(
+    candidates: ContentItem[],
+    options?: { closeModal?: boolean; successNotice?: string; focusInbox?: boolean },
+  ) {
+    let result = mergeShelfItems(latestAppStateRef.current.items, candidates);
+    setItems((current) => {
+      result = mergeShelfItems(current, candidates);
+      return result.nextItems;
+    });
+
+    if (result.added.some((item) => item.source === "path")) {
+      setRegisteredPathIds((current) => {
+        const next = new Set(current);
+        result.added.forEach((item) => {
+          if (item.source === "path") next.add(item.id);
+        });
+        return next;
+      });
+    }
+
+    if (options?.closeModal) {
+      setIsAddOpen(false);
+    }
+
+    if (result.added.length === 0) {
+      const duplicate = result.skippedDuplicates[0];
+      if (duplicate) {
+        navigateToView("library", duplicate.existing.id);
+        showNotice(`${getItemTitle(duplicate.existing, t)} ${t("alreadyOnShelf")}`, "warning");
+      }
+      return result;
+    }
+
+    enrichLinkItems(result.added.filter((item) => item.type === "link"));
+
+    let successMessage = options?.successNotice;
+    if (!successMessage) {
+      if (result.added.length === 1) {
+        const warning =
+          result.titleWarnings.length > 0 ? ` ${t("titleSimilarWarning")}` : "";
+        successMessage = `${result.added[0].title} ${t("addedToShelf")}${warning}`;
+      } else {
+        const skipped =
+          result.skippedDuplicates.length > 0
+            ? ` ${result.skippedDuplicates.length} ${t("bookmarksSkipped")}`
+            : "";
+        successMessage = `${result.added.length} ${t("bookmarksImported")}${skipped}`;
+      }
+    }
+
+    if (options?.focusInbox) {
+      focusInboxCleanup(successMessage);
+      if (result.added[0]) {
+        setSelectedItemId(result.added[0].id);
+      }
+    } else {
+      navigateToView("library", result.added[0].id);
+      showNotice(successMessage);
+    }
+    return result;
+  }
+
+  function patchItems(ids: string[], patch: Partial<ContentItem> | ((item: ContentItem) => Partial<ContentItem>)) {
+    const idSet = new Set(ids);
+    const updatedAt = new Date().toISOString();
+    setItems((current) =>
+      current.map((item) => {
+        if (!idSet.has(item.id)) return item;
+        const nextPatch = typeof patch === "function" ? patch(item) : patch;
+        return { ...item, ...nextPatch, updatedAt };
+      }),
+    );
+  }
+
   function importFile(file: File) {
-    if (getTypeFromFile(file) === "document" && file.size > maxUploadDocumentBytes) {
-      setNotice(t("uploadDocumentTooLarge"));
-      return;
-    }
+    void importFiles([file]);
+  }
 
-    const now = new Date().toISOString();
-    const type = getTypeFromFile(file);
-    const baseItem: ContentItem = {
-      id: createId(),
-      title: file.name.replace(/\.[^/.]+$/, ""),
-      type,
-      source: "upload",
-      location: file.name,
-      collection: type === "document" ? "Reading" : "Media",
-      tags: [type, "uploaded"],
-      accent: type === "document" ? "#b7791f" : "#2563eb",
-      summary: t("uploadPreviewSummary"),
-      fileName: file.name,
-      isFavorite: true,
-      openCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
+  async function importFiles(files: File[]) {
+    if (files.length === 0) return;
 
-    if (type === "document") {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const textContent = typeof reader.result === "string" ? reader.result : "";
-        const nextItem = { ...baseItem, textContent };
-        setItems((current) => [nextItem, ...current]);
-        navigateToView("library", nextItem.id);
-        setIsAddOpen(false);
-        setNotice(`${nextItem.title} ${t("importedReadable")}`);
+    const candidates: ContentItem[] = [];
+    for (const file of files) {
+      if (getTypeFromFile(file) === "document" && file.size > maxUploadDocumentBytes) {
+        setNotice(t("uploadDocumentTooLarge"));
+        continue;
+      }
+
+      const type = getTypeFromFile(file);
+      const baseFields = {
+        title: file.name.replace(/\.[^/.]+$/, ""),
+        type,
+        source: "upload" as const,
+        location: file.name,
+        collection: "Inbox",
+        tags: [type, "uploaded"],
+        accent: type === "document" ? "#b7791f" : "#2563eb",
+        summary: t("uploadPreviewSummary"),
+        fileName: file.name,
       };
-      reader.readAsText(file);
-      return;
+
+      if (type === "document") {
+        const textContent = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+          reader.onerror = () => resolve("");
+          reader.readAsText(file);
+        });
+        candidates.push(buildShelfItem({ ...baseFields, textContent }));
+      } else {
+        candidates.push(buildShelfItem({ ...baseFields, objectUrl: URL.createObjectURL(file) }));
+      }
     }
 
-    const nextItem = { ...baseItem, objectUrl: URL.createObjectURL(file) };
-    setItems((current) => [nextItem, ...current]);
-    navigateToView("library", nextItem.id);
-    setIsAddOpen(false);
-    setNotice(`${nextItem.title} ${t("importedPreview")}`);
+    if (candidates.length === 0) return;
+    commitShelfItems(candidates, {
+      closeModal: true,
+      successNotice:
+        candidates.length === 1
+          ? `${candidates[0].title} ${t("importedPreview")}`
+          : `${candidates.length} ${t("addedToShelf")}`,
+      focusInbox: true,
+    });
   }
 
   async function addNativeFile() {
@@ -1304,10 +1657,21 @@ function App() {
         return;
       }
 
-      const now = new Date().toISOString();
+      const duplicate = findDuplicate(latestAppStateRef.current.items, {
+        type: selection.contentType,
+        source: "path",
+        location: selection.path,
+      });
+      if (duplicate) {
+        navigateToView("library", duplicate.id);
+        setNotice(`${getItemTitle(duplicate, t)} ${t("alreadyOnShelf")}`);
+        setIsAddOpen(false);
+        return;
+      }
+
       const itemId = createId();
       const location = await registerNativeContentPath(selection.path, selection.contentType, itemId);
-      const nextItem: ContentItem = {
+      const nextItem = buildShelfItem({
         id: itemId,
         title: selection.title,
         type: selection.contentType,
@@ -1321,17 +1685,12 @@ function App() {
         accent: selection.contentType === "document" ? "#b7791f" : "#2563eb",
         summary: selection.fileName ? t("localFileSummary") : t("localFilePathSummary"),
         textContent: selection.textContent,
-        isFavorite: true,
-        openCount: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
+      });
 
-      setItems((current) => [nextItem, ...current]);
-      setRegisteredPathIds((current) => new Set(current).add(nextItem.id));
-      navigateToView("library", nextItem.id);
-      setIsAddOpen(false);
-      setNotice(`${nextItem.title} ${t("nativeFileAdded")}`);
+      commitShelfItems([nextItem], {
+        closeModal: true,
+        successNotice: `${nextItem.title} ${t("nativeFileAdded")}`,
+      });
     } catch {
       setNotice(t("nativeUnavailable"));
     } finally {
@@ -1350,10 +1709,21 @@ function App() {
         return;
       }
 
-      const now = new Date().toISOString();
+      const duplicate = findDuplicate(latestAppStateRef.current.items, {
+        type: "folder",
+        source: "path",
+        location: selection.path,
+      });
+      if (duplicate) {
+        navigateToView("library", duplicate.id);
+        setNotice(`${getItemTitle(duplicate, t)} ${t("alreadyOnShelf")}`);
+        setIsAddOpen(false);
+        return;
+      }
+
       const itemId = createId();
       const location = await registerNativeContentPath(selection.path, "folder", itemId);
-      const nextItem: ContentItem = {
+      const nextItem = buildShelfItem({
         id: itemId,
         title: selection.title,
         type: "folder",
@@ -1364,17 +1734,12 @@ function App() {
         accent: "#059669",
         summary: `${selection.entries.length} ${t("localFolderSummary")}`,
         folderEntries: selection.entries,
-        isFavorite: true,
-        openCount: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
+      });
 
-      setItems((current) => [nextItem, ...current]);
-      setRegisteredPathIds((current) => new Set(current).add(nextItem.id));
-      navigateToView("library", nextItem.id);
-      setIsAddOpen(false);
-      setNotice(`${nextItem.title} ${t("nativeFolderAdded")}`);
+      commitShelfItems([nextItem], {
+        closeModal: true,
+        successNotice: `${nextItem.title} ${t("nativeFolderAdded")}`,
+      });
     } catch {
       setNotice(t("nativeUnavailable"));
     } finally {
@@ -1383,13 +1748,232 @@ function App() {
     }
   }
 
+  async function addClipboardLink() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const url = extractUrlFromText(text);
+      if (!url) {
+        showNotice(t("clipboardNoUrl"), "warning");
+        return;
+      }
+      const platform = detectLinkPlatform(url);
+      const nextItem = buildShelfItem({
+        title: titleFromUrl(url),
+        type: "link",
+        source: "url",
+        location: url,
+        collection: "Inbox",
+        tags: buildLinkTags([], url),
+        accent: linkPlatformAccent(platform),
+        previewImage: faviconUrlFor(url) ?? undefined,
+      });
+      commitShelfItems([nextItem], {
+        successNotice: `${nextItem.title} ${t("quickAddSuccess")}`,
+        focusInbox: true,
+      });
+    } catch {
+      showNotice(t("clipboardReadFailed"), "warning");
+    }
+  }
+
+  function handleShellDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (readerItemIdFromUrl || isAddOpen) return;
+    event.preventDefault();
+    setIsDraggingOver(true);
+  }
+
+  function handleShellDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setIsDraggingOver(false);
+  }
+
+  function handleShellDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingOver(false);
+    if (readerItemIdFromUrl || isAddOpen) return;
+
+    const capture = readDropCapture(event.dataTransfer);
+    if (capture.kind === "url") {
+      const platform = detectLinkPlatform(capture.url);
+      const nextItem = buildShelfItem({
+        title: titleFromUrl(capture.url),
+        type: "link",
+        source: "url",
+        location: capture.url,
+        collection: "Inbox",
+        tags: buildLinkTags([], capture.url),
+        accent: linkPlatformAccent(platform),
+        previewImage: faviconUrlFor(capture.url) ?? undefined,
+      });
+      commitShelfItems([nextItem], {
+        successNotice: `${nextItem.title} ${t("quickAddSuccess")}`,
+        focusInbox: true,
+      });
+      return;
+    }
+
+    if (capture.kind === "files") {
+      void importFiles(capture.files);
+    }
+  }
+
+  async function relinkSelectedPath(item: ContentItem) {
+    if (!nativeRuntime || item.source !== "path") {
+      setNotice(t("nativeUnavailable"));
+      return;
+    }
+
+    try {
+      if (item.type === "folder") {
+        const selection = await selectNativeFolder();
+        if (!selection) return;
+        const location = await registerNativeContentPath(selection.path, "folder", item.id);
+        patchItems([item.id], {
+          location,
+          folderEntries: selection.entries,
+          title: item.title || selection.title,
+          summary: `${selection.entries.length} ${t("localFolderSummary")}`,
+        });
+      } else {
+        const selection = await selectNativeFile();
+        if (!selection) return;
+        if (selection.contentType !== item.type) {
+          setNotice(t("relinkFailed"));
+          return;
+        }
+        const location = await registerNativeContentPath(selection.path, item.type, item.id);
+        patchItems([item.id], {
+          location,
+          fileName: selection.fileName,
+          sizeBytes: selection.sizeBytes,
+          modifiedAt: selection.modifiedAt,
+          textContent: selection.textContent,
+        });
+      }
+      setRegisteredPathIds((current) => new Set(current).add(item.id));
+      setNotice(t("relinkSuccess"));
+    } catch {
+      setNotice(t("relinkFailed"));
+    }
+  }
+
+  async function importBookmarksFile(file: File) {
+    try {
+      const content = await file.text();
+      const parsed = parseBookmarkFile(content, file.name);
+      if (parsed.bookmarks.length === 0) {
+        showNotice(t("bookmarksImportFailed"), "warning");
+        return;
+      }
+      const confirmMessage = t("bookmarksImportConfirm").replace("{count}", String(parsed.bookmarks.length));
+      if (!window.confirm(confirmMessage)) return;
+
+      const candidates = parsed.bookmarks.map((bookmark) => {
+        const platform = detectLinkPlatform(bookmark.url);
+        return buildShelfItem({
+          title: bookmark.title,
+          type: "link",
+          source: "url",
+          location: bookmark.url,
+          collection: bookmark.collection || "Inbox",
+          tags: buildLinkTags(["imported"], bookmark.url),
+          accent: linkPlatformAccent(platform),
+          previewImage: faviconUrlFor(bookmark.url) ?? undefined,
+        });
+      });
+      commitShelfItems(candidates, { closeModal: true, focusInbox: true });
+    } catch {
+      showNotice(t("bookmarksImportFailed"), "warning");
+    }
+  }
+
+  function toggleItemSelection(itemId: string, selected: boolean) {
+    setSelectedItemIds((current) => {
+      const next = new Set(current);
+      if (selected) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+  }
+
+  function selectAllVisibleItems() {
+    setSelectedItemIds(new Set(filteredItems.map((item) => item.id)));
+  }
+
+  function clearItemSelection() {
+    setSelectedItemIds(new Set());
+    setBulkCollection("");
+    setBulkTags("");
+  }
+
+  function applyBulkEdits() {
+    const ids = [...selectedItemIds];
+    if (ids.length === 0) return;
+    const nextCollection = bulkCollection.trim();
+    const nextTags = parseTagInput(bulkTags);
+    if (!nextCollection && nextTags.length === 0) return;
+
+    patchItems(ids, (item) => ({
+      ...(nextCollection ? { collection: nextCollection } : {}),
+      ...(nextTags.length > 0
+        ? { tags: [...new Set([...item.tags, ...nextTags])] }
+        : {}),
+    }));
+    clearItemSelection();
+    setNotice(`${ids.length} ${t("selectedCount")}`);
+  }
+
+  async function restoreFromFile(file: File, mode: ShelfRestoreMode) {
+    try {
+      const raw = await file.text();
+      const payload = parseShelfExport(raw);
+      if (mode === "replace" && !window.confirm(t("restoreConfirmReplace"))) {
+        return;
+      }
+
+      const current = latestAppStateRef.current;
+      const restored = restoreShelfState(
+        {
+          items: current.items,
+          theme: current.theme,
+          language: current.language,
+          dashboardLayouts: current.dashboardLayouts,
+          collectionSettings: current.collectionSettings,
+          appSettings: current.appSettings,
+        },
+        payload,
+        mode,
+      );
+
+      const nextItems = restored.items.map((item) => normalizeItem(item));
+      setItems(nextItems);
+      setRegisteredPathIds(new Set());
+      clearItemSelection();
+
+      if (mode === "replace") {
+        if (restored.theme) setTheme({ ...defaultTheme, ...restored.theme });
+        if (restored.language) setLanguage(restored.language);
+        if (restored.appSettings) setAppSettings(normalizeAppSettings(restored.appSettings));
+        setDashboardLayouts(normalizeDashboardLayouts(nextItems, restored.dashboardLayouts ?? []));
+        setCollectionSettings(normalizeCollectionSettings(restored.collectionSettings ?? {}));
+      } else {
+        setDashboardLayouts((currentLayouts) => normalizeDashboardLayouts(nextItems, currentLayouts));
+      }
+
+      setSelectedItemId(nextItems[0]?.id ?? "");
+      setNotice(
+        mode === "merge"
+          ? `${t("restoreSuccess")} (+${restored.addedCount}, skip ${restored.skippedCount})`
+          : t("restoreSuccess"),
+      );
+    } catch {
+      setNotice(t("restoreFailed"));
+    }
+  }
+
   function updateSelectedItem(patch: Partial<ContentItem>) {
     if (!selectedItem) return;
-    setItems((current) =>
-      current.map((item) =>
-        item.id === selectedItem.id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item,
-      ),
-    );
+    patchItems([selectedItem.id], patch);
   }
 
   function moveDashboardCard(itemId: string, direction: -1 | 1) {
@@ -1581,7 +2165,14 @@ function App() {
   }
 
   return (
-    <div className={`appShell ${theme.compactCards ? "compact" : ""}`} style={shellStyle}>
+    <div
+      className={`appShell ${theme.compactCards ? "compact" : ""} ${isDraggingOver ? "dragOver" : ""}`}
+      style={shellStyle}
+      onDragOver={handleShellDragOver}
+      onDragLeave={handleShellDragLeave}
+      onDrop={handleShellDrop}
+    >
+      {isDraggingOver && <div className="dropOverlay" aria-hidden="true">{t("dropToAdd")}</div>}
       <aside className="sidebar">
         <button className="brand brandButton" type="button" onClick={() => navigatePrimaryView("dashboard")}>
           <div className="brandMark">S</div>
@@ -1647,10 +2238,13 @@ function App() {
             />
           </div>
           <div className="actions">
-            <button className="iconButton" type="button" aria-label={t("exportData")} onClick={exportData}>
+            <button className="iconButton" type="button" aria-label={t("quickAddClipboard")} title={`${t("quickAddClipboard")} (Ctrl+Shift+V)`} onClick={() => void addClipboardLink()}>
+              <ClipboardPaste size={18} />
+            </button>
+            <button className="iconButton" type="button" aria-label={t("exportData")} title={t("exportData")} onClick={exportData}>
               <Download size={18} />
             </button>
-            <button className="iconButton" type="button" aria-label={t("openCustomize")} onClick={() => navigatePrimaryView("customize")}>
+            <button className="iconButton" type="button" aria-label={t("openCustomize")} title={t("openCustomize")} onClick={() => navigatePrimaryView("customize")}>
               <Paintbrush size={18} />
             </button>
             <button className="primaryButton" type="button" onClick={() => setIsAddOpen(true)}>
@@ -1660,12 +2254,21 @@ function App() {
           </div>
         </header>
 
-        <section className="statusStrip" aria-live="polite">
-          {notice} <span>{t("commandHint")}</span>
+        <section className={`statusStrip statusStrip--${noticeLevel}`} aria-live="polite">
+          <span className="statusNotice">{notice}</span>
         </section>
 
         {activeView === "dashboard" && (
           <>
+            {inboxItems.length > 0 && (
+              <section className="cleanupBanner" aria-label={t("inboxCleanupAction")}>
+                <p>{t("inboxPendingBanner").replace("{count}", String(inboxItems.length))}</p>
+                <button type="button" onClick={() => focusInboxCleanup(t("inboxCleanupAction"))}>
+                  {t("inboxCleanupAction")}
+                </button>
+              </section>
+            )}
+
             <section className="heroBand">
               <div className="heroCopy">
                 <span className="eyebrow">{t("heroEyebrow")}</span>
@@ -1691,6 +2294,90 @@ function App() {
                 </button>
               </div>
             </section>
+
+            {hasDashboardShortcuts && (
+              <section className="dashboardShortcutGrid" aria-label={t("dashboardShortcutsTitle")}>
+                <div className="dashboardSectionHeading">
+                  <div>
+                    <span className="eyebrow">{t("dashboardShortcutsTitle")}</span>
+                    <h2>{t("dashboardShortcutsTitle")}</h2>
+                  </div>
+                  <p>{t("dashboardShortcutsHint")}</p>
+                </div>
+                <div className="shortcutCardRow">
+                  {pinnedTypeShortcuts.map((type) => {
+                    const count = items.filter((item) => item.type === type).length;
+                    return (
+                      <div className="shortcutCard" key={`type:${type}`}>
+                        <button type="button" className="shortcutCardMain" onClick={() => filterByTypePin(type)}>
+                          <span className="shortcutCardIcon" style={{ color: "var(--app-accent)" }}>
+                            {typeIcons[type]}
+                          </span>
+                          <strong>{getTypeLabel(type, t)}</strong>
+                          <span>{count} {count === 1 ? t("itemSingular") : t("itemPlural")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="shortcutCardUnpin"
+                          aria-label={t("unpinType")}
+                          title={t("unpinType")}
+                          onClick={() => pinTypeToDashboard(type)}
+                        >
+                          <Star size={14} fill="currentColor" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {pinnedCollectionShortcuts.map((collection) => {
+                    const settings = getCollectionSettings(collection, collectionSettings, items);
+                    const count = items.filter((item) => item.collection === collection).length;
+                    return (
+                      <div className="shortcutCard" key={`collection:${collection}`} style={{ borderColor: settings.color }}>
+                        <button type="button" className="shortcutCardMain" onClick={() => filterByCollection(collection)}>
+                          <span className="shortcutCardIcon" style={{ color: settings.color }}>
+                            {collectionIcons[settings.icon]}
+                          </span>
+                          <strong>{getCollectionLabel(collection, t)}</strong>
+                          <span>{count} {count === 1 ? t("itemSingular") : t("itemPlural")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="shortcutCardUnpin"
+                          aria-label={t("unpinCollection")}
+                          title={t("unpinCollection")}
+                          onClick={() => pinCollectionToDashboard(collection)}
+                        >
+                          <Star size={14} fill="currentColor" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {pinnedTagShortcuts.map((tag) => {
+                    const count = items.filter((item) => item.tags.includes(tag)).length;
+                    return (
+                      <div className="shortcutCard" key={`tag:${tag}`}>
+                        <button type="button" className="shortcutCardMain" onClick={() => filterByTag(tag)}>
+                          <span className="shortcutCardIcon" style={{ color: "var(--app-accent)" }}>
+                            <Tags size={16} />
+                          </span>
+                          <strong>#{getTagLabel(tag, t)}</strong>
+                          <span>{count} {count === 1 ? t("itemSingular") : t("itemPlural")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="shortcutCardUnpin"
+                          aria-label={t("unpinTag")}
+                          title={t("unpinTag")}
+                          onClick={() => pinTagToDashboard(tag)}
+                        >
+                          <Star size={14} fill="currentColor" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             <div className="dashboardSectionHeading">
               <div>
@@ -1837,20 +2524,87 @@ function App() {
                   <span>{filteredItems.length} {t("visible")}</span>
                 </div>
                 <div className="filterRow">
-                  <button className={activeType === "all" ? "active" : ""} type="button" onClick={() => setActiveType("all")}>
+                  <button
+                    className={activeType === "all" && !pathHealthFilter ? "active" : ""}
+                    type="button"
+                    onClick={() => {
+                      setPathHealthFilter(false);
+                      setActiveType("all");
+                    }}
+                  >
                     {t("all")}
                   </button>
-                  {contentTypes.map((type) => (
+                  {contentTypes.map((type) => {
+                    const pinned = appSettings.pinnedTypes.includes(type);
+                    return (
+                      <div className="filterChipGroup" key={type}>
+                        <button
+                          className={activeType === type && !pathHealthFilter ? "active" : ""}
+                          type="button"
+                          onClick={() => {
+                            setPathHealthFilter(false);
+                            setActiveType(type);
+                          }}
+                        >
+                          {getTypeLabel(type, t)}
+                        </button>
+                        <button
+                          className={`pinChipButton ${pinned ? "pinned" : ""}`}
+                          type="button"
+                          aria-pressed={pinned}
+                          aria-label={pinned ? t("unpinType") : t("pinType")}
+                          title={pinned ? t("unpinType") : t("pinType")}
+                          onClick={() => pinTypeToDashboard(type)}
+                        >
+                          <Star size={13} fill={pinned ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {nativeRuntime && (
                     <button
-                      className={activeType === type ? "active" : ""}
+                      className={pathHealthFilter ? "active" : ""}
                       type="button"
-                      key={type}
-                      onClick={() => setActiveType(type)}
+                      title={t("brokenPathsHint")}
+                      disabled={pathScanInFlight}
+                      onClick={() => void filterBrokenPaths()}
                     >
-                      {getTypeLabel(type, t)}
+                      {t("brokenPathsFilter")}
+                      {unavailablePathIds.size > 0 ? ` (${unavailablePathIds.size})` : ""}
                     </button>
-                  ))}
+                  )}
                 </div>
+                {inboxItems.length > 0 && !pathHealthFilter && query !== "collection:Inbox" && (
+                  <div className="cleanupBanner compactCleanupBanner">
+                    <p>{t("inboxPendingBanner").replace("{count}", String(inboxItems.length))}</p>
+                    <button type="button" onClick={() => focusInboxCleanup(t("inboxCleanupAction"))}>
+                      {t("inboxCleanupAction")}
+                    </button>
+                  </div>
+                )}
+                {selectedItemIds.size > 0 && (
+                  <div className="bulkBar">
+                    <span className="bulkCount">{selectedItemIds.size} {t("selectedCount")}</span>
+                    <input
+                      list="collection-options"
+                      placeholder={t("bulkCollection")}
+                      value={bulkCollection}
+                      onChange={(event) => setBulkCollection(event.target.value)}
+                    />
+                    <input
+                      placeholder={t("bulkAddTags")}
+                      value={bulkTags}
+                      onChange={(event) => setBulkTags(event.target.value)}
+                    />
+                    <button className="primaryButton" type="button" onClick={applyBulkEdits}>{t("applyBulk")}</button>
+                    <button type="button" onClick={clearItemSelection}>{t("clearSelection")}</button>
+                  </div>
+                )}
+                {filteredItems.length > 0 && selectedItemIds.size === 0 && (
+                  <div className="bulkBar bulkBarIdle">
+                    <button type="button" onClick={selectAllVisibleItems}>{t("selectAllVisible")}</button>
+                  </div>
+                )}
                 <div className="itemList">
                   {filteredItems.length === 0 ? (
                     <div className="emptyListPanel">
@@ -1865,27 +2619,42 @@ function App() {
                     </div>
                   ) : (
                     filteredItems.map((item) => (
-                      <button
-                        className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
-                        type="button"
-                        key={item.id}
-                        onClick={() => selectItem(item)}
-                        onDoubleClick={() => void openItem(item)}
-                        onKeyDown={(event) => {
-                          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                            event.preventDefault();
-                            void openItem(item);
-                          }
-                        }}
-                      >
-                        <span className="listIcon" style={{ color: item.accent }}>
-                          {typeIcons[item.type]}
-                        </span>
-                        <span>
-                          <strong>{getItemTitle(item, t)}</strong>
-                          <small>{getCollectionLabel(item.collection, t)} / {getItemLocation(item, t)}</small>
-                        </span>
-                      </button>
+                      <div className={`listItemRow ${selectedItemId === item.id ? "selected" : ""}`} key={item.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItemIds.has(item.id)}
+                          aria-label={getItemTitle(item, t)}
+                          onChange={(event) => toggleItemSelection(item.id, event.target.checked)}
+                        />
+                        <button
+                          className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
+                          type="button"
+                          onClick={() => selectItem(item)}
+                          onDoubleClick={() => void openItem(item)}
+                          onKeyDown={(event) => {
+                            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                              event.preventDefault();
+                              void openItem(item);
+                            }
+                          }}
+                        >
+                          <span className="listIcon" style={{ color: item.accent }}>
+                            {item.type === "link" && item.previewImage ? (
+                              <img className="listFavicon" src={item.previewImage} alt="" />
+                            ) : (
+                              typeIcons[item.type]
+                            )}
+                          </span>
+                          <span>
+                            <strong>{getItemTitle(item, t)}</strong>
+                            <small>
+                              {item.type === "link"
+                                ? `${getLinkPlatformLabel(detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
+                                : `${getCollectionLabel(item.collection, t)} / ${getItemLocation(item, t)}`}
+                            </small>
+                          </span>
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
@@ -1901,6 +2670,7 @@ function App() {
                 onPatch={updateSelectedItem}
                 onDelete={deleteSelectedItem}
                 onOpenItem={() => void openItem(selectedItem)}
+                onRelink={selectedItem.source === "path" && nativeRuntime ? () => void relinkSelectedPath(selectedItem) : undefined}
                 onFilterCollection={filterByCollection}
                 onFilterTag={filterByTag}
               />
@@ -1917,7 +2687,7 @@ function App() {
                 <h1>{t("collectionsTitle")}</h1>
               </div>
               <div className="pageIntroStats">
-                <span>{Object.keys(groupedCollections).length} {t("groups")}</span>
+                <span>{collectionNames.length} {t("groups")}</span>
                 <span>{items.length} {t("items")}</span>
               </div>
             </section>
@@ -1926,56 +2696,113 @@ function App() {
                 <h2>{t("navCollections")}</h2>
                 <span>{t("clickCollection")}</span>
               </div>
+              <form
+                className="createCollectionRow"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  createCollection(newCollectionName);
+                }}
+              >
+                <input
+                  value={newCollectionName}
+                  onChange={(event) => setNewCollectionName(event.target.value)}
+                  placeholder={t("createCollectionPlaceholder")}
+                  aria-label={t("createCollection")}
+                />
+                <button className="primaryButton" type="submit">
+                  {t("createCollection")}
+                </button>
+              </form>
+              <p className="collectionCreateHint">{t("createCollectionHint")}</p>
               <div className="collectionGrid">
                 {collectionNames.map((collection) => {
                   const collectionItems = groupedCollections[collection] ?? [];
                   const settings = getCollectionSettings(collection, collectionSettings, items);
+                  const isEditing = editingCollection === collection;
+                  const collectionPinned = appSettings.pinnedCollections.includes(collection);
+                  const isEmpty = collectionItems.length === 0;
                   return (
-                    <article className="collectionCard collectionEditorCard" key={collection} style={{ borderColor: settings.color }}>
+                    <article className={`collectionCard ${isEditing ? "collectionEditorCard isEditing" : "collectionEditorCard"} ${isEmpty ? "emptyCollectionCard" : ""}`} key={collection} style={{ borderColor: settings.color }}>
                       <button className="collectionOpenButton" type="button" onClick={() => filterByCollection(collection)}>
                         <span className="collectionIcon" style={{ color: settings.color }}>
                           {collectionIcons[settings.icon]}
                         </span>
                         <strong>{getCollectionLabel(collection, t)}</strong>
                         <span>{collectionItems.length} {collectionItems.length === 1 ? t("itemSingular") : t("itemPlural")}</span>
-                        <small>{collectionItems.map((item) => getTypeLabel(item.type, t)).join(", ")}</small>
+                        <small>
+                          {isEmpty
+                            ? t("emptyCollectionHint")
+                            : collectionItems.map((item) => getTypeLabel(item.type, t)).join(", ")}
+                        </small>
                       </button>
-                      <div className="collectionEditGrid">
-                        <label>
-                          {t("collectionName")}
-                          <input
-                            defaultValue={collection}
-                            onBlur={(event) => {
-                              if (!renameCollection(collection, event.currentTarget.value)) {
-                                event.currentTarget.value = collection;
-                              }
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.currentTarget.blur();
-                              }
-                            }}
-                          />
-                        </label>
-                        <label>
-                          {t("collectionColor")}
-                          <input
-                            type="color"
-                            value={settings.color}
-                            onChange={(event) => updateCollectionSettings(collection, { color: event.target.value })}
-                          />
-                        </label>
-                        <label>
-                          {t("collectionIcon")}
-                          <select value={settings.icon} onChange={(event) => updateCollectionSettings(collection, { icon: event.target.value as CollectionIcon })}>
-                            {collectionIconOptions.map((icon) => (
-                              <option value={icon} key={icon}>
-                                {t(`collectionIcon${icon[0].toUpperCase()}${icon.slice(1)}` as MessageKey)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                      <div className="collectionCardActions">
+                        <button
+                          className={`pinChipButton ${collectionPinned ? "pinned" : ""}`}
+                          type="button"
+                          aria-pressed={collectionPinned}
+                          aria-label={collectionPinned ? t("unpinCollection") : t("pinCollection")}
+                          title={collectionPinned ? t("unpinCollection") : t("pinCollection")}
+                          onClick={() => pinCollectionToDashboard(collection)}
+                        >
+                          <Star size={14} fill={collectionPinned ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                          className="collectionEditToggle"
+                          type="button"
+                          onClick={() => setEditingCollection(isEditing ? null : collection)}
+                        >
+                          {isEditing ? t("doneEditingCollection") : t("editCollection")}
+                        </button>
+                        {isEmpty && (
+                          <button
+                            className="collectionEditToggle"
+                            type="button"
+                            onClick={() => deleteEmptyCollection(collection)}
+                          >
+                            {t("deleteEmptyCollection")}
+                          </button>
+                        )}
                       </div>
+                      {isEditing && (
+                        <div className="collectionEditGrid">
+                          <label>
+                            {t("collectionName")}
+                            <input
+                              defaultValue={collection}
+                              onBlur={(event) => {
+                                if (!renameCollection(collection, event.currentTarget.value)) {
+                                  event.currentTarget.value = collection;
+                                } else {
+                                  setEditingCollection(event.currentTarget.value.trim() || collection);
+                                }
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          </label>
+                          <label>
+                            {t("collectionColor")}
+                            <input
+                              type="color"
+                              value={settings.color}
+                              onChange={(event) => updateCollectionSettings(collection, { color: event.target.value })}
+                            />
+                          </label>
+                          <label>
+                            {t("collectionIcon")}
+                            <select value={settings.icon} onChange={(event) => updateCollectionSettings(collection, { icon: event.target.value as CollectionIcon })}>
+                              {collectionIconOptions.map((icon) => (
+                                <option value={icon} key={icon}>
+                                  {t(`collectionIcon${icon[0].toUpperCase()}${icon.slice(1)}` as MessageKey)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      )}
                     </article>
                   );
                 })}
@@ -1989,12 +2816,27 @@ function App() {
               <div className="tagCloud">
                 {Object.entries(groupedTags)
                   .sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0]))
-                  .map(([tag, tagItems]) => (
-                    <button type="button" key={tag} onClick={() => filterByTag(tag)}>
-                      <strong>#{getTagLabel(tag, t)}</strong>
-                      <span>{tagItems.length} {tagItems.length === 1 ? t("itemSingular") : t("itemPlural")}</span>
-                    </button>
-                  ))}
+                  .map(([tag, tagItems]) => {
+                    const tagPinned = appSettings.pinnedTags.includes(tag);
+                    return (
+                      <div className="tagCloudItem" key={tag}>
+                        <button type="button" onClick={() => filterByTag(tag)}>
+                          <strong>#{getTagLabel(tag, t)}</strong>
+                          <span>{tagItems.length} {tagItems.length === 1 ? t("itemSingular") : t("itemPlural")}</span>
+                        </button>
+                        <button
+                          className={`pinChipButton ${tagPinned ? "pinned" : ""}`}
+                          type="button"
+                          aria-pressed={tagPinned}
+                          aria-label={tagPinned ? t("unpinTag") : t("pinTag")}
+                          title={tagPinned ? t("unpinTag") : t("pinTag")}
+                          onClick={() => pinTagToDashboard(tag)}
+                        >
+                          <Star size={13} fill={tagPinned ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 {Object.keys(groupedTags).length === 0 && <p className="emptyText">{t("noTags")}</p>}
               </div>
             </section>
@@ -2025,11 +2867,15 @@ function App() {
             language={language}
             itemCount={items.length}
             collectionCount={collectionNames.length}
+            duplicateGroups={duplicateGroups}
             t={t}
             onAppSettingsChange={setAppSettings}
             onThemeChange={setTheme}
             onLanguageChange={setLanguage}
             onExportData={exportData}
+            onRestoreFile={(file, mode) => void restoreFromFile(file, mode)}
+            onOpenDuplicate={(itemId) => navigateToView("library", itemId)}
+            onKeepDuplicate={(keepId, groupIds) => void keepDuplicateItem(keepId, groupIds)}
           />
         )}
 
@@ -2037,6 +2883,18 @@ function App() {
           <GuidePanel t={t} onAddContent={() => setIsAddOpen(true)} onOpenCustomize={() => navigatePrimaryView("customize")} />
         )}
       </main>
+
+      <input
+        ref={bookmarkInputRef}
+        type="file"
+        accept=".html,.htm,.json,text/html,application/json"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void importBookmarksFile(file);
+        }}
+      />
 
       {isAddOpen && (
         <AddContentModal
@@ -2051,6 +2909,7 @@ function App() {
           onFile={importFile}
           onNativeFile={addNativeFile}
           onNativeFolder={addNativeFolder}
+          onImportBookmarks={() => bookmarkInputRef.current?.click()}
           onClose={() => setIsAddOpen(false)}
         />
       )}
@@ -2064,6 +2923,12 @@ function updateItem(setItems: React.Dispatch<React.SetStateAction<ContentItem[]>
       item.id === itemId ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item,
     ),
   );
+}
+
+function getLinkPlatformLabel(platform: LinkPlatform, t: (key: MessageKey) => string) {
+  if (platform === "youtube-music") return t("youtubeMusicLinkLabel");
+  if (platform === "youtube") return t("youtubeLinkLabel");
+  return t("webLinkLabel");
 }
 
 function ShelfCard({
@@ -2098,8 +2963,14 @@ function ShelfCard({
     }
   }
 
+  const platform = item.type === "link" ? detectLinkPlatform(item.location) : null;
+  const previewSrc =
+    item.previewImage ?? (item.type === "link" ? faviconUrlFor(item.location) : null);
+  const platformClass =
+    platform === "youtube-music" ? "ytMusicCard" : platform === "youtube" ? "youtubeCard" : "";
+
   return (
-    <article className={`contentCard ${variant} ${selected ? "selected" : ""}`}>
+    <article className={`contentCard ${variant} ${selected ? "selected" : ""} ${platformClass}`.trim()}>
       <button
         className="cardHitArea"
         type="button"
@@ -2108,10 +2979,15 @@ function ShelfCard({
         onDoubleClick={onOpen}
         onKeyDown={handleCardKeyDown}
       >
+        {previewSrc && (
+          <div className="cardMedia" aria-hidden="true">
+            <img src={previewSrc} alt="" />
+          </div>
+        )}
         <div className="cardHeader">
           <div className="typeBadge" style={{ color: item.accent }}>
-            {typeIcons[item.type]}
-            {getCollectionLabel(item.collection, t)}
+            {platform === "youtube-music" ? <Music2 size={16} /> : typeIcons[item.type]}
+            {platform ? getLinkPlatformLabel(platform, t) : getCollectionLabel(item.collection, t)}
           </div>
           <span className="cardType">{getTypeLabel(item.type, t)}</span>
         </div>
@@ -2154,6 +3030,7 @@ function DetailPanel({
   onPatch,
   onDelete,
   onOpenItem,
+  onRelink,
   onFilterCollection,
   onFilterTag,
 }: {
@@ -2165,6 +3042,7 @@ function DetailPanel({
   onPatch: (patch: Partial<ContentItem>) => void;
   onDelete: () => void;
   onOpenItem?: () => void;
+  onRelink?: () => void;
   onFilterCollection: (collection: string) => void;
   onFilterTag: (tag: string) => void;
 }) {
@@ -2227,11 +3105,24 @@ function DetailPanel({
             {t("openFolder")}
           </button>
         )}
+        {onRelink && (
+          <button type="button" onClick={onRelink}>
+            <FolderOpen size={16} />
+            {t("relinkPath")}
+          </button>
+        )}
         <button className="dangerButton" type="button" onClick={onDelete}>
           <Trash2 size={16} />
           {t("delete")}
         </button>
       </div>
+
+      {item.source === "path" && !pathReady && (
+        <p className="pathBrokenBanner" role="alert">
+          <strong>{t("pathBrokenBanner")}</strong>
+          <span>{t("relinkHint")}</span>
+        </p>
+      )}
 
       <div
         className="readerPreview"
@@ -2243,6 +3134,7 @@ function DetailPanel({
         }}
       >
         <strong>{getItemTitle(item, t)}</strong>
+        <small className="previewLocation">{getItemLocation(item, t)}</small>
         <PreviewBody item={item} t={t} onPatch={onPatch} pathReady={pathReady} />
       </div>
 
@@ -2295,15 +3187,6 @@ function DetailPanel({
             #{getTagLabel(tag, t)}
           </button>
         ))}
-      </div>
-
-      <div className="metaGrid">
-        <span>{t("collection")}</span>
-        <strong>{getCollectionLabel(item.collection, t)}</strong>
-        <span>{t("location")}</span>
-        <strong>{getItemLocation(item, t)}</strong>
-        <span>{t("tags")}</span>
-        <strong>{item.tags.map((tag) => `#${getTagLabel(tag, t)}`).join(" ") || t("none")}</strong>
       </div>
     </div>
   );
@@ -2980,7 +3863,17 @@ function PreviewBody({
   }
 
   if (item.type === "link") {
-    return <p>{item.location}</p>;
+    const platform = detectLinkPlatform(item.location);
+    const previewSrc = item.previewImage ?? faviconUrlFor(item.location);
+    return (
+      <div className={`linkPreviewBody ${platform === "youtube" || platform === "youtube-music" ? "linkPreviewMedia" : ""}`}>
+        {previewSrc && <img className="linkPreviewThumb" src={previewSrc} alt="" />}
+        <div>
+          <p className="linkPlatformLabel">{getLinkPlatformLabel(platform, t)}</p>
+          <p className="linkPreviewUrl">{item.location}</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -3216,23 +4109,34 @@ function SettingsPanel({
   language,
   itemCount,
   collectionCount,
+  duplicateGroups,
   t,
   onAppSettingsChange,
   onThemeChange,
   onLanguageChange,
   onExportData,
+  onRestoreFile,
+  onOpenDuplicate,
+  onKeepDuplicate,
 }: {
   appSettings: AppSettings;
   theme: ThemeSettings;
   language: Language;
   itemCount: number;
   collectionCount: number;
+  duplicateGroups: Array<{ key: string; items: ContentItem[] }>;
   t: (key: MessageKey) => string;
   onAppSettingsChange: (settings: AppSettings) => void;
   onThemeChange: (theme: ThemeSettings) => void;
   onLanguageChange: (language: Language) => void;
   onExportData: () => void;
+  onRestoreFile: (file: File, mode: ShelfRestoreMode) => void;
+  onOpenDuplicate: (itemId: string) => void;
+  onKeepDuplicate: (keepId: string, groupIds: string[]) => void;
 }) {
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const restoreModeRef = useRef<ShelfRestoreMode>("merge");
+
   return (
     <section className="settingsWorkspace">
       <div className="customizeHeader">
@@ -3313,10 +4217,83 @@ function SettingsPanel({
             <span>{itemCount} {t("items")} / {collectionCount} {t("groups")}</span>
           </div>
           <p className="groupDescription">{t("settingsDataHint")}</p>
-          <button className="settingsActionButton" type="button" onClick={onExportData}>
-            <Download size={16} />
-            {t("exportData")}
-          </button>
+          <p className="groupDescription">{t("settingsDataMergeHint")}</p>
+          <p className="groupDescription">{t("settingsDataReplaceHint")}</p>
+          <div className="settingsActionStack">
+            <button className="settingsActionButton" type="button" onClick={onExportData} title={t("exportData")}>
+              <Download size={16} />
+              {t("exportData")}
+            </button>
+            <button
+              className="settingsActionButton"
+              type="button"
+              title={t("settingsDataMergeHint")}
+              onClick={() => {
+                restoreModeRef.current = "merge";
+                restoreInputRef.current?.click();
+              }}
+            >
+              <Upload size={16} />
+              {t("restoreMerge")}
+            </button>
+            <button
+              className="settingsActionButton"
+              type="button"
+              title={t("settingsDataReplaceHint")}
+              onClick={() => {
+                restoreModeRef.current = "replace";
+                restoreInputRef.current?.click();
+              }}
+            >
+              <Upload size={16} />
+              {t("restoreReplace")}
+            </button>
+          </div>
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) onRestoreFile(file, restoreModeRef.current);
+            }}
+          />
+        </section>
+
+        <section className="settingsGroup">
+          <div className="groupHeading">
+            <h2>{t("duplicatesTitle")}</h2>
+            <span>{duplicateGroups.length}</span>
+          </div>
+          <p className="groupDescription">{t("duplicatesHint")}</p>
+          {duplicateGroups.length === 0 ? (
+            <p className="emptyText">{t("duplicatesNone")}</p>
+          ) : (
+            <div className="duplicateGroupList">
+              {duplicateGroups.map((group) => (
+                <div className="duplicateGroup" key={group.key}>
+                  <small>{group.items[0]?.location}</small>
+                  {group.items.map((item) => (
+                    <div className="duplicateRow" key={item.id}>
+                      <button type="button" className="duplicateOpenButton" onClick={() => onOpenDuplicate(item.id)}>
+                        <strong>{getItemTitle(item, t)}</strong>
+                        <span>{getCollectionLabel(item.collection, t)}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="primaryButton"
+                        onClick={() => onKeepDuplicate(item.id, group.items.map((entry) => entry.id))}
+                      >
+                        {t("duplicatesKeep")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="settingsGroup">
@@ -3379,11 +4356,15 @@ function GuidePanel({
 
       <section className="guideGrid">
         <GuideCard icon={<FilePlus2 size={20} />} title={t("guideAddTitle")} text={t("guideAddText")} />
+        <GuideCard icon={<ClipboardPaste size={20} />} title={t("guideCaptureTitle")} text={t("guideCaptureText")} />
+        <GuideCard icon={<Download size={20} />} title={t("guideTopbarTitle")} text={t("guideTopbarText")} />
         <GuideCard icon={<Library size={20} />} title={t("guideLibraryTitle")} text={t("guideLibraryText")} />
         <GuideCard icon={<MousePointerHint />} title={t("guideOpenTitle")} text={t("guideOpenText")} />
         <GuideCard icon={<Tags size={20} />} title={t("guideOrganizeTitle")} text={t("guideOrganizeText")} />
+        <GuideCard icon={<Search size={20} />} title={t("guideSearchTitle")} text={t("guideSearchText")} />
         <GuideCard icon={<Paintbrush size={20} />} title={t("guideCustomizeTitle")} text={t("guideCustomizeText")} />
         <GuideCard icon={<Settings2 size={20} />} title={t("guideSettingsTitle")} text={t("guideSettingsText")} />
+        <GuideCard icon={<Upload size={20} />} title={t("guideDataTitle")} text={t("guideDataText")} />
       </section>
     </section>
   );

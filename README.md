@@ -152,10 +152,19 @@ npm run build
 
 ## Roadmap
 
+Supported now:
+
+- Drag-and-drop link/file capture.
+- Clipboard URL quick add (`Ctrl+Shift+V`).
+- Browser bookmark HTML/JSON import.
+- Relink broken local paths.
+- URL/path duplicate detection.
+- Inbox-first quick capture.
+- Library multi-select bulk organize.
+- JSON backup merge/replace restore.
+
 Near-term improvements:
 
-- Drag-and-drop content registration.
-- Clipboard URL detection.
 - Better add-content form UX.
 - Sorting UI for name, recently used, added date, and type.
 - Home section visibility controls.
@@ -168,7 +177,5 @@ Longer-term ideas:
 
 - EPUB/PDF support.
 - Subtitle support for video.
-- Browser bookmark import.
-- Backup/restore import flow.
 - AI-assisted summary and tag suggestions.
 - Plugin-style extension points.

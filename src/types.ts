@@ -22,6 +22,7 @@ export interface ContentItem {
   textContent?: string;
   textEncoding?: TextEncoding;
   objectUrl?: string;
+  previewImage?: string;
   folderEntries?: FolderEntry[];
   isFavorite: boolean;
   openCount: number;
@@ -63,6 +64,9 @@ export interface CollectionSettings {
 export interface AppSettings {
   resetSearchOnNavigation: boolean;
   searchEnterBehavior: SearchEnterBehavior;
+  pinnedTypes: ContentType[];
+  pinnedCollections: string[];
+  pinnedTags: string[];
 }
 
 export interface ThemeSettings {

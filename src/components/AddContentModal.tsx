@@ -39,6 +39,7 @@ interface AddContentModalProps {
   onFile: (file: File) => void;
   onNativeFile: () => void;
   onNativeFolder: () => void;
+  onImportBookmarks: () => void;
   onClose: () => void;
 }
 
@@ -54,6 +55,7 @@ export function AddContentModal({
   onFile,
   onNativeFile,
   onNativeFolder,
+  onImportBookmarks,
   onClose,
 }: AddContentModalProps) {
   const dialogRef = useRef<HTMLElement>(null);
@@ -85,7 +87,7 @@ export function AddContentModal({
           </button>
         </div>
 
-        <div className="filterRow">
+        <div className="filterRow addModeRow">
           <button className={mode === "manual" ? "active" : ""} type="button" disabled={isSubmitting} onClick={() => onModeChange("manual")}>
             {t("manual")}
           </button>
@@ -94,6 +96,7 @@ export function AddContentModal({
           </button>
           <button type="button" disabled={isSubmitting} onClick={onNativeFile}>{t("nativeFile")}</button>
           <button type="button" disabled={isSubmitting} onClick={onNativeFolder}>{t("nativeFolder")}</button>
+          <button type="button" disabled={isSubmitting} onClick={onImportBookmarks}>{t("importBookmarks")}</button>
         </div>
 
         {mode === "upload" ? (
@@ -163,7 +166,7 @@ export function AddContentModal({
               {t("tagsComma")}
               <input value={draft.tags} onChange={(event) => onDraftChange({ ...draft, tags: event.target.value })} />
             </label>
-            <label>
+            <label className="accentField">
               {t("accent")}
               <input type="color" value={draft.accent} onChange={(event) => onDraftChange({ ...draft, accent: event.target.value })} />
             </label>
@@ -181,7 +184,7 @@ export function AddContentModal({
                 />
               </label>
             )}
-              <button className="primaryButton spanTwo" type="submit">{t("addToShelf")}</button>
+              <button className="primaryButton spanTwo addSubmitButton" type="submit">{t("addToShelf")}</button>
             </fieldset>
           </form>
         )}

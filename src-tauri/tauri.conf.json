@@ -22,8 +22,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' shelf-content: http://shelf-content.localhost blob: data:; media-src 'self' shelf-content: http://shelf-content.localhost blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:",
-      "devCsp": "default-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420; img-src 'self' shelf-content: http://shelf-content.localhost blob: data:; media-src 'self' shelf-content: http://shelf-content.localhost blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+      "csp": "default-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://www.youtube.com https://youtube.com https://noembed.com; img-src 'self' shelf-content: http://shelf-content.localhost blob: data: https://i.ytimg.com https://img.youtube.com https://www.google.com https://icons.duckduckgo.com; media-src 'self' shelf-content: http://shelf-content.localhost blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:",
+      "devCsp": "default-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420 https://www.youtube.com https://youtube.com https://noembed.com; img-src 'self' shelf-content: http://shelf-content.localhost blob: data: https://i.ytimg.com https://img.youtube.com https://www.google.com https://icons.duckduckgo.com; media-src 'self' shelf-content: http://shelf-content.localhost blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
     }
   },
   "bundle": {
