@@ -2,6 +2,8 @@ import type {
   AppSettings,
   CollectionSettings,
   ContentItem,
+  ContentSource,
+  ContentType,
   DashboardLayoutItem,
   ThemeSettings,
 } from "../types";
@@ -16,6 +18,7 @@ export interface ShelfExportPayload {
   dashboardLayouts?: DashboardLayoutItem[];
   collectionSettings?: Record<string, CollectionSettings>;
   appSettings?: AppSettings;
+  skippedInvalidItems?: number;
 }
 
 export type ShelfRestoreMode = "merge" | "replace";
@@ -31,8 +34,102 @@ export interface ShelfRestoreResult {
   skippedCount: number;
 }
 
+const contentTypes = new Set<ContentType>(["document", "video", "audio", "image", "link", "folder"]);
+const contentSources = new Set<ContentSource>(["path", "url", "note", "upload"]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+export function sanitizeShelfItem(value: unknown): ContentItem | null {
+  if (!isRecord(value)) return null;
+
+  const id = asString(value.id).trim();
+  const title = asString(value.title).trim() || "Untitled";
+  const type = asString(value.type) as ContentType;
+  const source = asString(value.source) as ContentSource;
+  const location = asString(value.location).trim();
+
+  if (!id || !contentTypes.has(type) || !contentSources.has(source)) {
+    return null;
+  }
+  if (source !== "note" && !location) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  return {
+    id,
+    title,
+    type,
+    source,
+    location: location || "No location yet",
+    fileName: typeof value.fileName === "string" ? value.fileName : undefined,
+    sizeBytes: typeof value.sizeBytes === "number" ? value.sizeBytes : undefined,
+    modifiedAt: typeof value.modifiedAt === "string" ? value.modifiedAt : undefined,
+    collection: asString(value.collection).trim() || "Inbox",
+    tags: asStringArray(value.tags),
+    accent: asString(value.accent).trim() || "#2563eb",
+    summary: typeof value.summary === "string" ? value.summary : undefined,
+    textContent: typeof value.textContent === "string" ? value.textContent : undefined,
+    textEncoding:
+      value.textEncoding === "auto" ||
+      value.textEncoding === "utf-8" ||
+      value.textEncoding === "cp949" ||
+      value.textEncoding === "utf-16le" ||
+      value.textEncoding === "utf-16be"
+        ? value.textEncoding
+        : undefined,
+    previewImage: typeof value.previewImage === "string" ? value.previewImage : undefined,
+    folderEntries: Array.isArray(value.folderEntries) ? (value.folderEntries as ContentItem["folderEntries"]) : undefined,
+    isFavorite: asBoolean(value.isFavorite, true),
+    openCount: asNumber(value.openCount, 0),
+    lastOpenedAt: typeof value.lastOpenedAt === "string" ? value.lastOpenedAt : undefined,
+    readerProgress: asNumber(value.readerProgress, 0),
+    readerScrollTop: asNumber(value.readerScrollTop, 0),
+    mediaPosition: asNumber(value.mediaPosition, 0),
+    createdAt: asString(value.createdAt).trim() || now,
+    updatedAt: asString(value.updatedAt).trim() || now,
+  };
+}
+
+export function sanitizeShelfItems(values: unknown[]): { items: ContentItem[]; skippedInvalidItems: number } {
+  const items: ContentItem[] = [];
+  let skippedInvalidItems = 0;
+  for (const value of values) {
+    const item = sanitizeShelfItem(value);
+    if (!item) {
+      skippedInvalidItems += 1;
+      continue;
+    }
+    items.push(item);
+  }
+  return { items, skippedInvalidItems };
 }
 
 export function parseShelfExport(raw: string): ShelfExportPayload {
@@ -47,8 +144,14 @@ export function parseShelfExport(raw: string): ShelfExportPayload {
     throw new Error("Shelf export must include an items array.");
   }
 
+  const sanitized = sanitizeShelfItems(parsed.items);
+  if (sanitized.items.length === 0 && parsed.items.length > 0) {
+    throw new Error("Shelf export did not contain any valid items.");
+  }
+
   return {
-    items: parsed.items as ContentItem[],
+    items: sanitized.items,
+    skippedInvalidItems: sanitized.skippedInvalidItems,
     theme: parsed.theme as ThemeSettings | undefined,
     language: parsed.language === "ko" || parsed.language === "en" ? parsed.language : undefined,
     dashboardLayouts: Array.isArray(parsed.dashboardLayouts)
@@ -75,17 +178,7 @@ export function restoreShelfState(
   payload: ShelfExportPayload,
   mode: ShelfRestoreMode,
 ): ShelfRestoreResult {
-  const incomingItems = prepareItemsForPersistence(
-    payload.items.map((item) => ({
-      ...item,
-      tags: item.tags ?? [],
-      collection: item.collection || "Inbox",
-      isFavorite: Boolean(item.isFavorite),
-      openCount: item.openCount ?? 0,
-      createdAt: item.createdAt ?? new Date().toISOString(),
-      updatedAt: item.updatedAt ?? new Date().toISOString(),
-    })),
-  );
+  const incomingItems = prepareItemsForPersistence(payload.items);
 
   if (mode === "replace") {
     return {
@@ -98,13 +191,13 @@ export function restoreShelfState(
         ? normalizeAppSettings(payload.appSettings)
         : current.appSettings,
       addedCount: incomingItems.length,
-      skippedCount: 0,
+      skippedCount: payload.skippedInvalidItems ?? 0,
     };
   }
 
   const existingIds = new Set(current.items.map((item) => item.id));
   const toAdd = incomingItems.filter((item) => !existingIds.has(item.id));
-  const skippedCount = incomingItems.length - toAdd.length;
+  const skippedCount = incomingItems.length - toAdd.length + (payload.skippedInvalidItems ?? 0);
 
   return {
     items: [...toAdd, ...current.items],

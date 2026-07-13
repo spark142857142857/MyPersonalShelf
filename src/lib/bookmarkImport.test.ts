@@ -20,6 +20,20 @@ describe("parseNetscapeBookmarkHtml", () => {
     ]);
     expect(result.skippedInvalid).toBe(1);
   });
+
+  it("decodes HTML entities in HREF query strings", () => {
+    const result = parseNetscapeBookmarkHtml(`<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+  <DT><A HREF="https://example.com/watch?v=1&amp;list=abc">Encoded</A>
+</DL>`);
+    expect(result.bookmarks).toEqual([
+      {
+        title: "Encoded",
+        url: "https://example.com/watch?v=1&list=abc",
+        collection: "Inbox",
+      },
+    ]);
+  });
 });
 
 describe("parseChromeBookmarksJson", () => {

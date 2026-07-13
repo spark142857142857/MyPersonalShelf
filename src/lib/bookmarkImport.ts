@@ -72,7 +72,7 @@ export function parseNetscapeBookmarkHtml(html: string): BookmarkImportResult {
 
     const attrs = match[2] ?? "";
     const hrefMatch = attrs.match(/\bHREF\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-    const href = hrefMatch?.[1] ?? hrefMatch?.[2] ?? hrefMatch?.[3] ?? "";
+    const href = decodeHtmlEntities(hrefMatch?.[1] ?? hrefMatch?.[2] ?? hrefMatch?.[3] ?? "");
     const title = decodeHtmlEntities((match[3] ?? "").replace(/<[^>]+>/g, "")).trim();
     const collection = folderStack[folderStack.length - 1] ?? "Inbox";
     pushBookmark(bookmarks, skipped, title, href, collection);

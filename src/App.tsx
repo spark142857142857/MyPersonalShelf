@@ -638,28 +638,41 @@ function App() {
   const enrichLinkItems = useCallback((linkItems: ContentItem[]) => {
     for (const item of linkItems) {
       if (item.type !== "link") continue;
+      const capturedAccent = item.accent;
+      const capturedPreviewImage = item.previewImage;
       void (async () => {
         try {
           const preview = await fetchLinkPreview(item.location);
-          const patch: Partial<ContentItem> = {
-            tags: buildLinkTags(item.tags, item.location),
-            accent: linkPlatformAccent(preview.platform),
-          };
-          if (preview.previewImage) {
-            patch.previewImage = preview.previewImage;
-          } else {
-            const favicon = faviconUrlFor(item.location);
-            if (favicon) patch.previewImage = favicon;
-          }
-          if (preview.title && isPlaceholderLinkTitle(item.title, item.location)) {
-            patch.title = preview.title;
-          }
           setItems((current) =>
-            current.map((entry) =>
-              entry.id === item.id
-                ? { ...entry, ...patch, updatedAt: new Date().toISOString() }
-                : entry,
-            ),
+            current.map((entry) => {
+              if (entry.id !== item.id || entry.type !== "link") return entry;
+
+              const patch: Partial<ContentItem> = {};
+              const nextTags = buildLinkTags(entry.tags, entry.location);
+              if (nextTags.join("\u0000") !== entry.tags.join("\u0000")) {
+                patch.tags = nextTags;
+              }
+
+              if (entry.accent === capturedAccent) {
+                patch.accent = linkPlatformAccent(preview.platform);
+              }
+
+              if (!entry.previewImage || entry.previewImage === capturedPreviewImage) {
+                if (preview.previewImage) {
+                  patch.previewImage = preview.previewImage;
+                } else {
+                  const favicon = faviconUrlFor(entry.location);
+                  if (favicon) patch.previewImage = favicon;
+                }
+              }
+
+              if (preview.title && isPlaceholderLinkTitle(entry.title, entry.location)) {
+                patch.title = preview.title;
+              }
+
+              if (Object.keys(patch).length === 0) return entry;
+              return { ...entry, ...patch, updatedAt: new Date().toISOString() };
+            }),
           );
         } catch {
           // Offline or blocked — keep local title/URL.

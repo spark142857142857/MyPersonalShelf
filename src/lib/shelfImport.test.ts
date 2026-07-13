@@ -98,4 +98,52 @@ describe("restoreShelfState", () => {
     );
     expect(result.items.map((entry) => entry.id)).toEqual(["ok"]);
   });
+
+  it("sanitizes malformed item fields instead of crashing later", () => {
+    const payload = parseShelfExport(
+      JSON.stringify({
+        items: [
+          {
+            id: "bad-tags",
+            title: "Broken",
+            type: "link",
+            source: "url",
+            location: "https://example.com/broken",
+            collection: "Inbox",
+            tags: "imported,later",
+            accent: "#2563eb",
+            isFavorite: true,
+            openCount: 0,
+            createdAt: "2020-01-01T00:00:00.000Z",
+            updatedAt: "2020-01-01T00:00:00.000Z",
+          },
+          {
+            id: "invalid",
+            title: "Nope",
+            type: "spaceship",
+            source: "url",
+            location: "https://example.com/nope",
+          },
+        ],
+      }),
+    );
+
+    expect(payload.skippedInvalidItems).toBe(1);
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0].tags).toEqual(["imported", "later"]);
+
+    const result = restoreShelfState(
+      {
+        items: [],
+        theme,
+        language: "en",
+        dashboardLayouts: [],
+        collectionSettings: {},
+        appSettings,
+      },
+      payload,
+      "replace",
+    );
+    expect(result.items[0].tags).toEqual(["imported", "later"]);
+  });
 });
