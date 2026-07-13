@@ -34,6 +34,18 @@ describe("parseNetscapeBookmarkHtml", () => {
       "https://example.com/watch?v=3&list=ghi",
     ]);
   });
+
+  it("keeps importing when numeric entities are out of range", () => {
+    const result = parseNetscapeBookmarkHtml(`<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+  <DT><A HREF="https://example.com/ok">Title &#99999999; stays</A>
+  <DT><A HREF="https://example.com/hex">Hex &#x110000; stays</A>
+</DL>`);
+    expect(result.bookmarks).toEqual([
+      { title: "Title &#99999999; stays", url: "https://example.com/ok", collection: "Inbox" },
+      { title: "Hex &#x110000; stays", url: "https://example.com/hex", collection: "Inbox" },
+    ]);
+  });
 });
 
 describe("parseChromeBookmarksJson", () => {
@@ -59,6 +71,25 @@ describe("parseChromeBookmarksJson", () => {
 
     expect(result.bookmarks).toEqual([
       { title: "Video", url: "https://example.com/video", collection: "Media" },
+      { title: "Loose", url: "https://example.com/loose", collection: "Inbox" },
+    ]);
+  });
+
+  it("skips non-array children without aborting the import", () => {
+    const result = parseChromeBookmarksJson(
+      JSON.stringify({
+        roots: {
+          bookmark_bar: {
+            children: { unexpected: true },
+          },
+          other: {
+            children: [{ type: "url", name: "Loose", url: "https://example.com/loose" }],
+          },
+        },
+      }),
+    );
+
+    expect(result.bookmarks).toEqual([
       { title: "Loose", url: "https://example.com/loose", collection: "Inbox" },
     ]);
   });

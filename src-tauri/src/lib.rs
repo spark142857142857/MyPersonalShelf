@@ -429,6 +429,22 @@ fn register_content_path(
 }
 
 #[tauri::command]
+fn unregister_content_paths(
+    window: tauri::WebviewWindow,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    item_ids: Vec<String>,
+) -> Result<(), String> {
+    ensure_main_window(&window)?;
+    for item_id in item_ids {
+        if item_id.is_empty() {
+            continue;
+        }
+        unregister_path(&allowed_paths, &item_id)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn delete_content_item(
     window: tauri::WebviewWindow,
     app: tauri::AppHandle,
@@ -605,6 +621,7 @@ pub fn run() {
             select_file,
             select_folder,
             register_content_path,
+            unregister_content_paths,
             delete_content_item,
             read_text_file,
             list_folder,
@@ -1559,6 +1576,25 @@ mod tests {
         assert!(revived.is_ok());
         assert!(!allowed.0.lock().unwrap().revoked_items.contains("item-1"));
         assert!(allowed.0.lock().unwrap().paths.contains_key("item-1"));
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn unregister_content_paths_removes_stale_registry_entries() {
+        let path = std::env::temp_dir().join(format!(
+            "mypersonalshelf-unregister-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, "unregister test").unwrap();
+        let allowed = AllowedPaths::default();
+        register_path(&allowed, &path, "document", "keep").unwrap();
+        register_path(&allowed, &path, "document", "drop").unwrap();
+
+        unregister_path(&allowed, "drop").unwrap();
+        assert!(!allowed.0.lock().unwrap().paths.contains_key("drop"));
+        assert!(allowed.0.lock().unwrap().paths.contains_key("keep"));
+        assert!(allowed.0.lock().unwrap().revoked_items.contains("drop"));
 
         std::fs::remove_file(path).unwrap();
     }

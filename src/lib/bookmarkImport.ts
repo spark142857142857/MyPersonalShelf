@@ -11,6 +11,17 @@ export interface BookmarkImportResult {
   skippedInvalid: number;
 }
 
+function decodeNumericEntity(raw: string, codePoint: number) {
+  if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+    return raw;
+  }
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return raw;
+  }
+}
+
 function decodeHtmlEntities(value: string) {
   return value
     .replace(/&amp;/gi, "&")
@@ -19,14 +30,12 @@ function decodeHtmlEntities(value: string) {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => {
-      const codePoint = Number.parseInt(hex, 16);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : _;
-    })
-    .replace(/&#(\d+);/g, (_, dec: string) => {
-      const codePoint = Number.parseInt(dec, 10);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : _;
-    });
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex: string) =>
+      decodeNumericEntity(match, Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (match, dec: string) =>
+      decodeNumericEntity(match, Number.parseInt(dec, 10)),
+    );
 }
 
 function pushBookmark(
@@ -112,7 +121,12 @@ function walkChromeNode(
       ? node.name
       : collection;
 
-  for (const child of node.children ?? []) {
+  const children = Array.isArray(node.children) ? node.children : [];
+  for (const child of children) {
+    if (!child || typeof child !== "object") {
+      skipped.count += 1;
+      continue;
+    }
     const childCollection =
       child.type === "folder" || child.children
         ? child.name?.trim() || nextCollection

@@ -88,6 +88,11 @@ export async function registerNativeContentPath(path: string, contentType: Conte
   return invoke<string>("register_content_path", { path, contentType, itemId });
 }
 
+export async function unregisterNativeContentPaths(itemIds: string[]) {
+  if (itemIds.length === 0) return;
+  await invoke("unregister_content_paths", { itemIds });
+}
+
 export async function deleteNativeContentItem(itemId: string) {
   await invoke("delete_content_item", { itemId });
 }

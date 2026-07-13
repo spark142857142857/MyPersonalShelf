@@ -36,6 +36,25 @@ import {
 import { getMessage, languageOptions, type Language, type MessageKey } from "./lib/i18n";
 import { AddContentModal, type AddMode, type DraftItem } from "./components/AddContentModal";
 import { DocumentTextView } from "./components/DocumentTextView";
+import { GuidePanel } from "./components/GuidePanel";
+import { MediaViewerView } from "./components/MediaViewerView";
+import { ReaderView } from "./components/ReaderView";
+import { SettingsPanel } from "./components/SettingsPanel";
+import {
+  canPreviewMediaItem,
+  getCollectionLabel,
+  getEntryTypeLabel,
+  getItemLocation,
+  getItemSummary,
+  getItemTextContent,
+  getItemTitle,
+  getLinkPlatformLabel,
+  getSizeLabel,
+  getSourceLabel,
+  getTagLabel,
+  getTypeLabel,
+  textEncodingOptions,
+} from "./lib/shelfDisplay";
 import {
   closeCurrentNativeWindow,
   deleteNativeContentItem,
@@ -53,6 +72,7 @@ import {
   openNativeUrl,
   readNativeTextFile,
   registerNativeContentPath,
+  unregisterNativeContentPaths,
   saveNativeAppState,
   saveNativeMediaProgress,
   saveNativeReaderProgress,
@@ -61,6 +81,7 @@ import {
   selectNativeFolder,
 } from "./lib/native";
 import { ItemOperationRegistry } from "./lib/itemOperations";
+import { NativeShelfQueue } from "./lib/nativeShelfQueue";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
 import { browserItemStorageKey, prepareItemsForPersistence, saveBrowserItemProgress } from "./lib/persistence";
@@ -101,7 +122,6 @@ import type {
 
 type View = "dashboard" | "library" | "collections" | "customize" | "settings" | "guide" | "reader";
 type NoticeLevel = "info" | "warning" | "danger";
-type ActiveDeletion = { itemId: string; promise: Promise<boolean> };
 const themeStorageKey = "mypersonalshelf.theme.v1";
 const languageStorageKey = "mypersonalshelf.language.v1";
 const dashboardStorageKey = "mypersonalshelf.dashboard.v1";
@@ -166,145 +186,17 @@ const navItems: Array<{ id: View; label: MessageKey; icon: React.ReactNode }> = 
 
 const contentTypes: ContentType[] = ["document", "video", "audio", "image", "link", "folder"];
 const dashboardSizes: DashboardCardSize[] = ["standard", "wide", "tall"];
-const textEncodingOptions: Array<{ value: TextEncoding; label: MessageKey }> = [
-  { value: "auto", label: "encodingAuto" },
-  { value: "utf-8", label: "encodingUtf8" },
-  { value: "cp949", label: "encodingCp949" },
-  { value: "utf-16le", label: "encodingUtf16Le" },
-  { value: "utf-16be", label: "encodingUtf16Be" },
-];
 
-const typeLabelKeys: Record<ContentType, MessageKey> = {
-  document: "typeDocument",
-  video: "typeVideo",
-  audio: "typeAudio",
-  image: "typeImage",
-  link: "typeLink",
-  folder: "typeFolder",
-};
-
-const sourceLabelKeys: Record<ContentSource, MessageKey> = {
-  path: "sourcePath",
-  url: "sourceUrl",
-  note: "sourceNote",
-  upload: "sourceUpload",
-};
-
-const sizeLabelKeys: Record<DashboardCardSize, MessageKey> = {
-  standard: "sizeStandard",
-  wide: "sizeWide",
-  tall: "sizeTall",
-};
-
-const entryTypeLabelKeys: Record<"file" | "folder", MessageKey> = {
-  file: "entryFile",
-  folder: "entryFolder",
-};
-
-const collectionLabelKeys: Record<string, MessageKey> = {
-  Inbox: "collectionInbox",
-  Reading: "collectionReading",
-  Media: "collectionMedia",
-  Folders: "collectionFolders",
-  Novels: "collectionNovels",
-  Lectures: "collectionLectures",
-  Music: "collectionMusic",
-  Links: "collectionLinks",
-};
-
-const tagLabelKeys: Record<string, MessageKey> = {
-  archive: "tagArchive",
-  audio: "typeAudio",
-  document: "typeDocument",
-  focus: "tagFocus",
-  folder: "typeFolder",
-  frontend: "tagFrontend",
-  image: "typeImage",
-  later: "tagLater",
-  lecture: "tagLecture",
-  link: "typeLink",
-  local: "tagLocal",
-  imported: "tagImported",
-  youtube: "tagYoutube",
-  "yt-music": "tagYtMusic",
-  playlist: "tagPlaylist",
-  reading: "tagReading",
-  reference: "tagReference",
-  uploaded: "tagUploaded",
-  video: "typeVideo",
-};
-
-const seedTitleLabelKeys: Record<string, MessageKey> = {
-  "Untitled shelf item": "untitledItem",
-  "Novel reading archive": "seedNovelTitle",
-  "React lecture materials": "seedLectureTitle",
-  "Focus music folder": "seedMusicTitle",
-  "Saved reference links": "seedLinksTitle",
-};
-
-const locationLabelKeys: Record<string, MessageKey> = {
-  "No location yet": "noLocation",
-};
-
-const seedSummaryLabelKeys: Record<string, MessageKey> = {
-  "A long-form reading shelf for novels and text files.": "seedNovelSummary",
-  "Stable lecture videos and notes.": "seedLectureSummary",
-  "Local audio for focus sessions.": "seedMusicSummary",
-  "Links saved outside the browser bookmark bar.": "seedLinksSummary",
-};
-
-const seedTextContentLabelKeys: Record<string, MessageKey> = {
-  "This is a sample reading page. Later, local txt/md/epub files can be opened here with custom width, theme, and line height.":
-    "seedNovelText",
-};
-
-function translateKnown(value: string, labels: Record<string, MessageKey>, t: (key: MessageKey) => string) {
-  const key = labels[value];
-  return key ? t(key) : value;
-}
-
-function getTypeLabel(type: ContentType, t: (key: MessageKey) => string) {
-  return t(typeLabelKeys[type]);
-}
-
-function getSourceLabel(source: ContentSource, t: (key: MessageKey) => string) {
-  return t(sourceLabelKeys[source]);
-}
-
-function getSizeLabel(size: DashboardCardSize, t: (key: MessageKey) => string) {
-  return t(sizeLabelKeys[size]);
-}
-
-function getEntryTypeLabel(entryType: "file" | "folder", t: (key: MessageKey) => string) {
-  return t(entryTypeLabelKeys[entryType]);
-}
-
-function getCollectionLabel(collection: string, t: (key: MessageKey) => string) {
-  return translateKnown(collection, collectionLabelKeys, t);
-}
-
-function getTagLabel(tag: string, t: (key: MessageKey) => string) {
-  return translateKnown(tag, tagLabelKeys, t);
-}
-
-function getItemTitle(item: ContentItem, t: (key: MessageKey) => string) {
-  return translateKnown(item.title, seedTitleLabelKeys, t);
-}
-
-function getItemSummary(item: ContentItem, t: (key: MessageKey) => string) {
-  return item.summary ? translateKnown(item.summary, seedSummaryLabelKeys, t) : t("noSummary");
-}
-
-function getItemLocation(item: ContentItem, t: (key: MessageKey) => string) {
-  return translateKnown(item.location, locationLabelKeys, t);
-}
-
-function getItemTextContent(item: ContentItem, t: (key: MessageKey) => string) {
-  return item.textContent ? translateKnown(item.textContent, seedTextContentLabelKeys, t) : "";
+function readLocalStorageItem(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function loadBrowserShelf(): { items: ContentItem[]; loadFailed: boolean } {
-  const raw = window.localStorage.getItem(browserItemStorageKey);
+  const raw = readLocalStorageItem(browserItemStorageKey);
   if (!raw) {
     return { items: [], loadFailed: false };
   }
@@ -342,7 +234,7 @@ function normalizeItem(item: ContentItem): ContentItem {
 }
 
 function loadTheme(): ThemeSettings {
-  const raw = window.localStorage.getItem(themeStorageKey);
+  const raw = readLocalStorageItem(themeStorageKey);
   if (!raw) {
     return defaultTheme;
   }
@@ -355,12 +247,12 @@ function loadTheme(): ThemeSettings {
 }
 
 function loadLanguage(): Language {
-  const raw = window.localStorage.getItem(languageStorageKey);
+  const raw = readLocalStorageItem(languageStorageKey);
   return raw === "ko" ? "ko" : "en";
 }
 
 function loadDashboardLayouts(): DashboardLayoutItem[] {
-  const raw = window.localStorage.getItem(dashboardStorageKey);
+  const raw = readLocalStorageItem(dashboardStorageKey);
   if (!raw) {
     return [];
   }
@@ -373,7 +265,7 @@ function loadDashboardLayouts(): DashboardLayoutItem[] {
 }
 
 function loadAppSettings(): AppSettings {
-  const raw = window.localStorage.getItem(appSettingsStorageKey);
+  const raw = readLocalStorageItem(appSettingsStorageKey);
   if (!raw) {
     return defaultAppSettings;
   }
@@ -386,7 +278,7 @@ function loadAppSettings(): AppSettings {
 }
 
 function loadCollectionSettings(): Record<string, CollectionSettings> {
-  const raw = window.localStorage.getItem(collectionSettingsStorageKey);
+  const raw = readLocalStorageItem(collectionSettingsStorageKey);
   if (!raw) {
     return {};
   }
@@ -464,15 +356,6 @@ function getTypeFromFile(file: File): ContentType {
   return "document";
 }
 
-function canPreviewMediaItem(item: ContentItem, kind: "video" | "audio") {
-  if (item.source === "upload") {
-    return true;
-  }
-
-  const target = `${item.fileName ?? ""} ${item.location}`.toLowerCase();
-  const extensions = kind === "video" ? ["mp4", "webm", "m4v"] : ["mp3", "wav", "ogg", "m4a"];
-  return extensions.some((extension) => new RegExp(`\\.${extension}(?:$|[?#])`).test(target));
-}
 
 function isViewerContent(item: ContentItem) {
   return item.type === "document" || item.type === "video" || item.type === "audio" || item.type === "image";
@@ -557,8 +440,7 @@ function App() {
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const bookmarkInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const nativeSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const activeDeletionRef = useRef<ActiveDeletion | null>(null);
+  const nativeShelfQueueRef = useRef(new NativeShelfQueue());
   const addInFlightRef = useRef(false);
   const pathRegistrationInFlightRef = useRef<Map<string, Promise<ContentItem>>>(new Map());
   const itemOperationsRef = useRef(new ItemOperationRegistry());
@@ -795,7 +677,7 @@ function App() {
       return;
     }
 
-    if (nativeRuntime && activeDeletionRef.current) {
+    if (nativeRuntime && nativeShelfQueueRef.current.getActiveDeletion()) {
       return;
     }
 
@@ -824,12 +706,9 @@ function App() {
       return;
     }
 
-    nativeSaveQueueRef.current = nativeSaveQueueRef.current
-      .catch(() => undefined)
-      .then(() => saveNativeAppState(state))
-      .catch(() => {
-        setNotice(t("nativeStorageFailed"));
-      });
+    void nativeShelfQueueRef.current.enqueueSave(() => saveNativeAppState(state)).catch(() => {
+      setNotice(t("nativeStorageFailed"));
+    });
   }, [appSettings, collectionSettings, dashboardLayouts, items, language, nativeRuntime, readerItemIdFromUrl, storageLoadFailed, storageReady, t, theme]);
 
   useEffect(() => {
@@ -854,7 +733,7 @@ function App() {
           if (activeViewRef.current === "reader") {
             await readerCloseFlushRef.current();
           }
-          const activeDeletion = activeDeletionRef.current;
+          const activeDeletion = nativeShelfQueueRef.current.getActiveDeletion();
           const deletionSucceeded = activeDeletion
             ? await activeDeletion.promise
             : false;
@@ -870,10 +749,7 @@ function App() {
             dashboardLayouts: normalizeDashboardLayouts(closingItems, latest.dashboardLayouts),
             collectionSettings: latest.collectionSettings,
           };
-          nativeSaveQueueRef.current = nativeSaveQueueRef.current
-            .catch(() => undefined)
-            .then(() => saveNativeAppState(state));
-          await nativeSaveQueueRef.current;
+          await nativeShelfQueueRef.current.enqueueSave(() => saveNativeAppState(state));
         }
         await destroyCurrentNativeWindow();
       } catch {
@@ -1138,10 +1014,7 @@ function App() {
   async function persistItemBeforeOpeningWindow(item: ContentItem) {
     if (!nativeRuntime || readerItemIdFromUrl) return;
 
-    const activeDeletion = activeDeletionRef.current;
-    if (activeDeletion) {
-      await activeDeletion.promise;
-    }
+    await nativeShelfQueueRef.current.awaitActiveDeletion();
 
     const latest = latestAppStateRef.current;
     const itemExists = latest.items.some((candidate) => candidate.id === item.id);
@@ -1157,10 +1030,7 @@ function App() {
       collectionSettings: latest.collectionSettings,
     };
 
-    nativeSaveQueueRef.current = nativeSaveQueueRef.current
-      .catch(() => undefined)
-      .then(() => saveNativeAppState(state));
-    await nativeSaveQueueRef.current;
+    await nativeShelfQueueRef.current.enqueueSave(() => saveNativeAppState(state));
   }
 
   async function openItem(item: ContentItem) {
@@ -1364,17 +1234,11 @@ function App() {
       const operations = itemOperationsRef.current;
       if (!operations.beginDelete(id)) continue;
 
-      const deletionOperation = (async () => {
-        if (!nativeRuntime) return true;
-        if (await isNativeReaderWindowOpen(id)) return false;
-        const deletion = nativeSaveQueueRef.current
-          .catch(() => undefined)
-          .then(() => deleteNativeContentItem(id));
-        nativeSaveQueueRef.current = deletion;
-        await deletion;
-        return true;
-      })();
-      activeDeletionRef.current = { itemId: id, promise: deletionOperation };
+      const deletionOperation = nativeShelfQueueRef.current.runNativeDelete(id, {
+        nativeRuntime,
+        isReaderWindowOpen: isNativeReaderWindowOpen,
+        deleteItem: deleteNativeContentItem,
+      });
 
       try {
         if (!await deletionOperation) {
@@ -1405,7 +1269,7 @@ function App() {
       } catch {
         showNotice(t("pathPermissionReleaseFailed"), "danger");
       } finally {
-        activeDeletionRef.current = null;
+        nativeShelfQueueRef.current.clearActiveDeletion();
         operations.endDelete(id);
       }
     }
@@ -1999,19 +1863,67 @@ function App() {
       );
 
       const nextItems = restored.items.map((item) => normalizeItem(item));
+      const nextTheme =
+        mode === "replace" && restored.theme
+          ? { ...defaultTheme, ...restored.theme }
+          : current.theme;
+      const nextLanguage =
+        mode === "replace" && restored.language ? restored.language : current.language;
+      const nextAppSettings =
+        mode === "replace" && restored.appSettings
+          ? normalizeAppSettings(restored.appSettings)
+          : current.appSettings;
+      const nextDashboardLayouts =
+        mode === "replace"
+          ? normalizeDashboardLayouts(nextItems, restored.dashboardLayouts ?? [])
+          : normalizeDashboardLayouts(nextItems, current.dashboardLayouts);
+      const nextCollectionSettings =
+        mode === "replace"
+          ? normalizeCollectionSettings(restored.collectionSettings ?? {})
+          : current.collectionSettings;
+
       linkEnrichEpochRef.current += 1;
+
+      if (mode === "replace" && nativeRuntime) {
+        const nextIds = new Set(nextItems.map((item) => item.id));
+        const staleIds = new Set<string>();
+        for (const id of registeredPathIds) {
+          if (!nextIds.has(id)) staleIds.add(id);
+        }
+        for (const item of current.items) {
+          if ((item.source === "path" || item.type === "folder") && !nextIds.has(item.id)) {
+            staleIds.add(item.id);
+          }
+        }
+        try {
+          await unregisterNativeContentPaths([...staleIds]);
+        } catch {
+          // Best-effort ACL cleanup; shelf replace still proceeds.
+        }
+      }
+
+      // Keep close/persist saves aligned before React re-renders.
+      latestAppStateRef.current = {
+        items: nextItems,
+        theme: nextTheme,
+        language: nextLanguage,
+        appSettings: nextAppSettings,
+        dashboardLayouts: nextDashboardLayouts,
+        collectionSettings: nextCollectionSettings,
+      };
+
       setItems(nextItems);
       setRegisteredPathIds(new Set());
       clearItemSelection();
 
       if (mode === "replace") {
-        if (restored.theme) setTheme({ ...defaultTheme, ...restored.theme });
-        if (restored.language) setLanguage(restored.language);
-        if (restored.appSettings) setAppSettings(normalizeAppSettings(restored.appSettings));
-        setDashboardLayouts(normalizeDashboardLayouts(nextItems, restored.dashboardLayouts ?? []));
-        setCollectionSettings(normalizeCollectionSettings(restored.collectionSettings ?? {}));
+        if (restored.theme) setTheme(nextTheme);
+        if (restored.language) setLanguage(nextLanguage);
+        if (restored.appSettings) setAppSettings(nextAppSettings);
+        setDashboardLayouts(nextDashboardLayouts);
+        setCollectionSettings(nextCollectionSettings);
       } else {
-        setDashboardLayouts((currentLayouts) => normalizeDashboardLayouts(nextItems, currentLayouts));
+        setDashboardLayouts(nextDashboardLayouts);
       }
 
       setSelectedItemId(nextItems[0]?.id ?? "");
@@ -2075,17 +1987,11 @@ function App() {
       setNotice(t("itemDeleteInProgress"));
       return;
     }
-    const deletionOperation = (async () => {
-      if (!nativeRuntime) return true;
-      if (await isNativeReaderWindowOpen(itemToDelete.id)) return false;
-      const deletion = nativeSaveQueueRef.current
-        .catch(() => undefined)
-        .then(() => deleteNativeContentItem(itemToDelete.id));
-      nativeSaveQueueRef.current = deletion;
-      await deletion;
-      return true;
-    })();
-    activeDeletionRef.current = { itemId: itemToDelete.id, promise: deletionOperation };
+    const deletionOperation = nativeShelfQueueRef.current.runNativeDelete(itemToDelete.id, {
+      nativeRuntime,
+      isReaderWindowOpen: isNativeReaderWindowOpen,
+      deleteItem: deleteNativeContentItem,
+    });
     try {
       if (!await deletionOperation) {
         setItems((current) => [...current]);
@@ -2114,7 +2020,7 @@ function App() {
       setItems((current) => [...current]);
       setNotice(t("pathPermissionReleaseFailed"));
     } finally {
-      activeDeletionRef.current = null;
+      nativeShelfQueueRef.current.clearActiveDeletion();
       operations.endDelete(itemToDelete.id);
     }
   }
@@ -2979,11 +2885,6 @@ function updateItem(setItems: React.Dispatch<React.SetStateAction<ContentItem[]>
   );
 }
 
-function getLinkPlatformLabel(platform: LinkPlatform, t: (key: MessageKey) => string) {
-  if (platform === "youtube-music") return t("youtubeMusicLinkLabel");
-  if (platform === "youtube") return t("youtubeLinkLabel");
-  return t("webLinkLabel");
-}
 
 function ShelfCard({
   item,
@@ -3246,507 +3147,6 @@ function DetailPanel({
   );
 }
 
-function ReaderView({
-  item,
-  theme,
-  t,
-  onBack,
-  onCloseFlushChange,
-  onPatch,
-}: {
-  item: ContentItem;
-  theme: ThemeSettings;
-  t: (key: MessageKey) => string;
-  onBack: () => void;
-  onCloseFlushChange: (handler: (() => Promise<void>) | null) => void;
-  onPatch: (patch: Partial<ContentItem>) => void;
-}) {
-  const documentText = getItemTextContent(item, t) || "";
-  const fallbackText = item.summary ? getItemSummary(item, t) : t("documentEmpty");
-  const onPatchRef = useRef(onPatch);
-  const encodingChangeRef = useRef<Promise<void>>(Promise.resolve());
-  const lastSavedProgressRef = useRef(item.readerProgress ?? 0);
-  const lastSavedScrollTopRef = useRef(0);
-  const latestReaderPositionRef = useRef({
-    progress: item.readerProgress ?? 0,
-    scrollTop: item.readerScrollTop ?? 0,
-    updatedAt: Date.now(),
-  });
-  const canAutoSaveProgressRef = useRef(false);
-  const resumePromptVisibleRef = useRef(false);
-  const [showResumePrompt, setShowResumePrompt] = useState(false);
-  const [savedProgress, setSavedProgress] = useState(item.readerProgress ?? 0);
-  const [savedScrollTop, setSavedScrollTop] = useState(0);
-  const [isChangingEncoding, setIsChangingEncoding] = useState(false);
-  const [encodingError, setEncodingError] = useState("");
-  const hasReadableText = Boolean(documentText);
-  const progressLabel = savedScrollTop > 0 && savedProgress < 1 ? "<1" : String(Math.round(savedProgress));
-
-  useEffect(() => {
-    onPatchRef.current = onPatch;
-  }, [onPatch]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fallbackProgress = item.readerProgress ?? 0;
-    const fallbackScrollTop = item.readerScrollTop ?? 0;
-    canAutoSaveProgressRef.current = false;
-    resumePromptVisibleRef.current = false;
-    lastSavedProgressRef.current = fallbackProgress;
-    lastSavedScrollTopRef.current = fallbackScrollTop;
-    latestReaderPositionRef.current = {
-      progress: fallbackProgress,
-      scrollTop: fallbackScrollTop,
-      updatedAt: Date.now(),
-    };
-    setSavedProgress(fallbackProgress);
-    setSavedScrollTop(fallbackScrollTop);
-    setShowResumePrompt(false);
-    window.scrollTo({ top: 0 });
-
-    if (!hasReadableText) {
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    loadNativeReaderProgress(item.id)
-      .catch(() => ({ progress: fallbackProgress, scrollTop: fallbackScrollTop }))
-      .then((loadedPosition) => {
-        if (!isMounted) {
-          return;
-        }
-
-        const loadedScrollTop =
-          loadedPosition && typeof loadedPosition === "object"
-            ? loadedPosition.scrollTop ?? (loadedPosition as { scroll_top?: number }).scroll_top ?? 0
-            : 0;
-        const nextProgress = typeof loadedPosition === "number" ? loadedPosition : loadedPosition?.progress ?? fallbackProgress;
-        const nextScrollTop = typeof loadedPosition === "number" ? fallbackScrollTop : loadedScrollTop;
-        lastSavedProgressRef.current = nextProgress;
-        lastSavedScrollTopRef.current = nextScrollTop;
-        latestReaderPositionRef.current = {
-          progress: nextProgress,
-          scrollTop: nextScrollTop,
-          updatedAt: Date.now(),
-        };
-        setSavedProgress(nextProgress);
-        setSavedScrollTop(nextScrollTop);
-        onPatchRef.current({ readerProgress: nextProgress, readerScrollTop: nextScrollTop });
-
-        if (hasReadableText && nextScrollTop > 400) {
-          resumePromptVisibleRef.current = true;
-          setShowResumePrompt(true);
-          canAutoSaveProgressRef.current = false;
-          return;
-        }
-
-        canAutoSaveProgressRef.current = true;
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [hasReadableText, item.id]);
-
-  useEffect(() => {
-    if (!hasReadableText || canAutoSaveProgressRef.current || resumePromptVisibleRef.current) {
-      return;
-    }
-
-    const nextScrollTop = item.readerScrollTop ?? 0;
-    if (nextScrollTop <= 400) {
-      return;
-    }
-
-    const nextProgress = item.readerProgress ?? 0;
-    lastSavedProgressRef.current = nextProgress;
-    lastSavedScrollTopRef.current = nextScrollTop;
-    setSavedProgress(nextProgress);
-    setSavedScrollTop(nextScrollTop);
-    resumePromptVisibleRef.current = true;
-    setShowResumePrompt(true);
-  }, [hasReadableText, item.id, item.readerProgress, item.readerScrollTop]);
-
-  useEffect(() => {
-    let frame = 0;
-    let interval = 0;
-
-    function getScrollPosition() {
-      const scrollingElement = document.scrollingElement ?? document.documentElement;
-      const scrollTop = window.scrollY || scrollingElement.scrollTop || document.body.scrollTop || 0;
-      const scrollableHeight = scrollingElement.scrollHeight - window.innerHeight;
-      if (scrollableHeight <= 0) {
-        return null;
-      }
-
-      const position = {
-        progress: Math.min(100, Math.max(0, (scrollTop / scrollableHeight) * 100)),
-        scrollTop,
-      };
-      latestReaderPositionRef.current = { ...position, updatedAt: Date.now() };
-      return position;
-    }
-
-    function saveScrollProgress() {
-      if (!canAutoSaveProgressRef.current || resumePromptVisibleRef.current) {
-        return;
-      }
-
-      const nextPosition = getScrollPosition();
-      if (nextPosition === null) {
-        return;
-      }
-
-      const roundedProgress = Math.round(nextPosition.progress * 10) / 10;
-      const roundedScrollTop = Math.round(nextPosition.scrollTop);
-      if (
-        Math.abs(roundedProgress - lastSavedProgressRef.current) < 1 &&
-        Math.abs(roundedScrollTop - lastSavedScrollTopRef.current) < 300 &&
-        roundedProgress < 99.5
-      ) {
-        return;
-      }
-
-      lastSavedProgressRef.current = roundedProgress;
-      lastSavedScrollTopRef.current = roundedScrollTop;
-      setSavedProgress(roundedProgress);
-      setSavedScrollTop(roundedScrollTop);
-      onPatchRef.current({ readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
-      saveBrowserItemProgress(item.id, { readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
-      saveNativeReaderProgress(
-        item.id,
-        roundedProgress,
-        roundedScrollTop,
-        latestReaderPositionRef.current.updatedAt,
-      ).catch(() => {
-        // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
-      });
-    }
-
-    function handleScroll() {
-      getScrollPosition();
-      if (!frame) {
-        frame = window.requestAnimationFrame(() => {
-          frame = 0;
-          saveScrollProgress();
-        });
-      }
-    }
-
-    async function flushScrollProgress() {
-      await encodingChangeRef.current;
-      if (!canAutoSaveProgressRef.current || resumePromptVisibleRef.current) return;
-      getScrollPosition();
-      const latestPosition = latestReaderPositionRef.current;
-      const roundedProgress = Math.round(latestPosition.progress * 10) / 10;
-      const roundedScrollTop = Math.round(latestPosition.scrollTop);
-      lastSavedProgressRef.current = roundedProgress;
-      lastSavedScrollTopRef.current = roundedScrollTop;
-      onPatchRef.current({ readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
-      saveBrowserItemProgress(item.id, { readerProgress: roundedProgress, readerScrollTop: roundedScrollTop });
-      await saveNativeReaderProgress(item.id, roundedProgress, roundedScrollTop, latestPosition.updatedAt);
-    }
-
-    const handlePageHide = () => {
-      void flushScrollProgress().catch(() => undefined);
-    };
-    onCloseFlushChange(flushScrollProgress);
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("pagehide", handlePageHide);
-    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-    interval = window.setInterval(saveScrollProgress, 900);
-    return () => {
-      void flushScrollProgress().catch(() => undefined);
-      onCloseFlushChange(null);
-      if (frame) {
-        window.cancelAnimationFrame(frame);
-      }
-      if (interval) {
-        window.clearInterval(interval);
-      }
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("pagehide", handlePageHide);
-      document.removeEventListener("scroll", handleScroll, { capture: true });
-    };
-  }, [item.id, onCloseFlushChange]);
-
-  function scrollToPosition(nextScrollTop: number) {
-    const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
-    window.scrollTo({
-      top: Math.min(Math.max(0, nextScrollTop), Math.max(0, scrollableHeight)),
-      behavior: "smooth",
-    });
-  }
-
-  function resumeReading() {
-    resumePromptVisibleRef.current = false;
-    setShowResumePrompt(false);
-    canAutoSaveProgressRef.current = true;
-    window.requestAnimationFrame(() => scrollToPosition(savedScrollTop));
-  }
-
-  function restartReading() {
-    const updatedAt = Date.now();
-    resumePromptVisibleRef.current = false;
-    setShowResumePrompt(false);
-    canAutoSaveProgressRef.current = true;
-    lastSavedProgressRef.current = 0;
-    lastSavedScrollTopRef.current = 0;
-    latestReaderPositionRef.current = { progress: 0, scrollTop: 0, updatedAt };
-    setSavedProgress(0);
-    setSavedScrollTop(0);
-    onPatch({ readerProgress: 0, readerScrollTop: 0 });
-    saveBrowserItemProgress(item.id, { readerProgress: 0, readerScrollTop: 0 });
-    saveNativeReaderProgress(item.id, 0, 0, updatedAt).catch(() => {
-      // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function changeTextEncoding(nextEncoding: TextEncoding) {
-    if (item.source !== "path" || isChangingEncoding) return;
-    const operation = (async () => {
-      setIsChangingEncoding(true);
-      setEncodingError("");
-      try {
-        const textContent = await readNativeTextFile(item.location, item.id, nextEncoding);
-        await saveNativeTextEncoding(item.id, nextEncoding);
-        onPatch({ textContent, textEncoding: nextEncoding });
-      } catch {
-        setEncodingError(t("encodingReadFailed"));
-      } finally {
-        setIsChangingEncoding(false);
-      }
-    })();
-    encodingChangeRef.current = operation;
-    await operation;
-  }
-
-  return (
-    <section className="readerPage">
-      <div className="readerPageHeader">
-        <div>
-          <span className="eyebrow">{getCollectionLabel(item.collection, t)}</span>
-          <h1>{getItemTitle(item, t)}</h1>
-          <p>{t("readerAutoSave")} - {progressLabel}%</p>
-          {item.source === "path" && isNativeRuntime() && (
-            <div className="readerEncodingGroup">
-              <label className="readerEncodingControl">
-                {t("textEncoding")}
-                <select
-                  value={item.textEncoding ?? "auto"}
-                  disabled={isChangingEncoding}
-                  onChange={(event) => void changeTextEncoding(event.target.value as TextEncoding)}
-                >
-                  {textEncodingOptions.map((option) => (
-                    <option value={option.value} key={option.value}>{t(option.label)}</option>
-                  ))}
-                </select>
-              </label>
-              {(item.textEncoding ?? "auto") === "auto" && (
-                <small className="readerEncodingHint">{t("encodingAutoHint")}</small>
-              )}
-            </div>
-          )}
-          {encodingError && <span className="readerEncodingError" role="alert">{encodingError}</span>}
-        </div>
-        <button type="button" onClick={onBack}>{t("backToLibrary")}</button>
-      </div>
-      {showResumePrompt && (
-        <div className="resumePrompt" role="dialog" aria-label={t("resumeReadingTitle")}>
-          <div>
-            <strong>{t("resumeReadingTitle")}</strong>
-            <p>{t("resumeReadingText").replace("{progress}", progressLabel)}</p>
-          </div>
-          <div className="resumeActions">
-            <button type="button" onClick={resumeReading}>{t("resumeYes")}</button>
-            <button type="button" onClick={restartReading}>{t("resumeNo")}</button>
-          </div>
-        </div>
-      )}
-      <article
-        className="readerPageBody"
-        style={{
-          borderColor: item.accent,
-          fontSize: theme.readerFontSize,
-          lineHeight: theme.lineHeight,
-          maxWidth: theme.readerWidth,
-        }}
-      >
-        <DocumentTextView item={item} text={documentText} fallbackText={fallbackText} />
-      </article>
-    </section>
-  );
-}
-
-function MediaViewerView({
-  item,
-  t,
-  onBack,
-  onCloseFlushChange,
-  onPatch,
-}: {
-  item: ContentItem;
-  t: (key: MessageKey) => string;
-  onBack: () => void;
-  onCloseFlushChange: (handler: (() => Promise<void>) | null) => void;
-  onPatch: (patch: Partial<ContentItem>) => void;
-}) {
-  const previewUrl = item.objectUrl ?? (item.source === "path" ? nativeAssetUrl(item.id) : undefined);
-  const canPreviewVideo = item.type === "video" && previewUrl && canPreviewMediaItem(item, "video");
-  const canPreviewAudio = item.type === "audio" && previewUrl && canPreviewMediaItem(item, "audio");
-  const canPreviewImage = item.type === "image" && previewUrl;
-  const mediaElementRef = useRef<HTMLMediaElement | null>(null);
-  const mediaOnPatchRef = useRef(onPatch);
-  const lastSavedMediaPositionRef = useRef(item.mediaPosition ?? 0);
-  const latestMediaPositionRef = useRef({ position: item.mediaPosition ?? 0, updatedAt: Date.now() });
-  const [savedMediaPosition, setSavedMediaPosition] = useState(item.mediaPosition ?? 0);
-
-  useEffect(() => {
-    mediaOnPatchRef.current = onPatch;
-  }, [onPatch]);
-
-  useEffect(() => {
-    async function flushMediaPosition() {
-      if (item.type !== "video" && item.type !== "audio") return;
-      const mediaPosition = mediaElementRef.current?.currentTime;
-      if (typeof mediaPosition === "number" && Number.isFinite(mediaPosition)) {
-        latestMediaPositionRef.current = { position: mediaPosition, updatedAt: Date.now() };
-      }
-      const { position: nextPosition, updatedAt } = latestMediaPositionRef.current;
-      mediaOnPatchRef.current({ mediaPosition: nextPosition });
-      saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
-      await saveNativeMediaProgress(item.id, nextPosition, updatedAt);
-    }
-
-    const handlePageHide = () => {
-      void flushMediaPosition().catch(() => undefined);
-    };
-    onCloseFlushChange(flushMediaPosition);
-
-    window.addEventListener("pagehide", handlePageHide);
-    return () => {
-      void flushMediaPosition().catch(() => undefined);
-      onCloseFlushChange(null);
-      window.removeEventListener("pagehide", handlePageHide);
-    };
-  }, [item.id, item.type, onCloseFlushChange]);
-
-  useEffect(() => {
-    const fallbackPosition = item.mediaPosition ?? 0;
-    lastSavedMediaPositionRef.current = fallbackPosition;
-    latestMediaPositionRef.current = { position: fallbackPosition, updatedAt: Date.now() };
-    setSavedMediaPosition(fallbackPosition);
-
-    if (item.type !== "video" && item.type !== "audio") {
-      return;
-    }
-
-    let isMounted = true;
-    loadNativeMediaProgress(item.id)
-      .then((progress) => {
-        if (!isMounted || !progress) {
-          return;
-        }
-
-        const nextPosition = progress.position ?? fallbackPosition;
-        lastSavedMediaPositionRef.current = nextPosition;
-        latestMediaPositionRef.current = { position: nextPosition, updatedAt: Date.now() };
-        setSavedMediaPosition(nextPosition);
-        onPatch({ mediaPosition: nextPosition });
-        const media = mediaElementRef.current;
-        if (media && nextPosition > 0) {
-          const duration = media.duration;
-          if (!Number.isFinite(duration) || nextPosition < duration - 2) {
-            media.currentTime = nextPosition;
-          }
-        }
-      })
-      .catch(() => {
-        // Browser preview cannot call Tauri commands; item state remains the fallback.
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [item.id, item.type]);
-
-  function attachMediaElement(node: HTMLMediaElement | null) {
-    mediaElementRef.current = node;
-  }
-
-  function restoreMediaPosition(event: React.SyntheticEvent<HTMLMediaElement>) {
-    const position = savedMediaPosition;
-    const duration = event.currentTarget.duration;
-    if (position > 0 && (!Number.isFinite(duration) || position < duration - 2)) {
-      event.currentTarget.currentTime = position;
-    }
-  }
-
-  function saveMediaPosition(nextPosition: number, minimumDelta = 3) {
-    const updatedAt = Date.now();
-    latestMediaPositionRef.current = { position: nextPosition, updatedAt };
-    if (Math.abs(nextPosition - lastSavedMediaPositionRef.current) >= minimumDelta) {
-      lastSavedMediaPositionRef.current = nextPosition;
-      setSavedMediaPosition(nextPosition);
-      onPatch({ mediaPosition: nextPosition });
-      saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
-      saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => {
-        // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
-      });
-    }
-  }
-
-  return (
-    <section className="readerPage">
-      <div className="readerPageHeader">
-        <div>
-          <span className="eyebrow">{getTypeLabel(item.type, t)}</span>
-          <h1>{getItemTitle(item, t)}</h1>
-          {(item.type === "video" || item.type === "audio") && (
-            <p>{t("mediaResume")}: {Math.round(savedMediaPosition)}s</p>
-          )}
-        </div>
-        <button type="button" onClick={onBack}>{t("backToLibrary")}</button>
-      </div>
-
-      <article className="readerPageBody mediaViewerBody" style={{ borderColor: item.accent }}>
-        {canPreviewVideo && (
-          <video
-            src={previewUrl}
-            controls
-            autoPlay
-            ref={attachMediaElement}
-            onLoadedMetadata={restoreMediaPosition}
-            onPause={(event) => saveMediaPosition(event.currentTarget.currentTime, 0)}
-            onTimeUpdate={(event) => saveMediaPosition(event.currentTarget.currentTime)}
-          />
-        )}
-        {canPreviewAudio && (
-          <audio
-            src={previewUrl}
-            controls
-            autoPlay
-            ref={attachMediaElement}
-            onLoadedMetadata={restoreMediaPosition}
-            onPause={(event) => saveMediaPosition(event.currentTarget.currentTime, 0)}
-            onTimeUpdate={(event) => saveMediaPosition(event.currentTarget.currentTime)}
-          />
-        )}
-        {canPreviewImage && <img src={previewUrl} alt={getItemTitle(item, t)} />}
-        {!canPreviewVideo && !canPreviewAudio && !canPreviewImage && (
-          <div className="readerEmptyText">
-            {item.type === "video" && t("videoPathSaved")}
-            {item.type === "audio" && t("audioPathSaved")}
-            {item.type === "image" && t("imagePathSaved")}
-          </div>
-        )}
-      </article>
-    </section>
-  );
-}
 
 function PreviewBody({
   item,
@@ -4157,290 +3557,6 @@ function CustomizePanel({
   );
 }
 
-function SettingsPanel({
-  appSettings,
-  theme,
-  language,
-  itemCount,
-  collectionCount,
-  duplicateGroups,
-  t,
-  onAppSettingsChange,
-  onThemeChange,
-  onLanguageChange,
-  onExportData,
-  onRestoreFile,
-  onOpenDuplicate,
-  onKeepDuplicate,
-}: {
-  appSettings: AppSettings;
-  theme: ThemeSettings;
-  language: Language;
-  itemCount: number;
-  collectionCount: number;
-  duplicateGroups: Array<{ key: string; items: ContentItem[] }>;
-  t: (key: MessageKey) => string;
-  onAppSettingsChange: (settings: AppSettings) => void;
-  onThemeChange: (theme: ThemeSettings) => void;
-  onLanguageChange: (language: Language) => void;
-  onExportData: () => void;
-  onRestoreFile: (file: File, mode: ShelfRestoreMode) => void;
-  onOpenDuplicate: (itemId: string) => void;
-  onKeepDuplicate: (keepId: string, groupIds: string[]) => void;
-}) {
-  const restoreInputRef = useRef<HTMLInputElement>(null);
-  const restoreModeRef = useRef<ShelfRestoreMode>("merge");
-
-  return (
-    <section className="settingsWorkspace">
-      <div className="customizeHeader">
-        <div>
-          <span className="eyebrow">{t("settingsEyebrow")}</span>
-          <h1>{t("settingsTitle")}</h1>
-        </div>
-      </div>
-
-      <div className="settingsPageGrid">
-        <section className="settingsGroup">
-          <div className="groupHeading">
-            <h2>{t("settingsGeneral")}</h2>
-            <span>{t("savedLocalStorage")}</span>
-          </div>
-          <label className="controlRow">
-            <span>{t("language")}</span>
-            <select value={language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
-              {languageOptions.map((option) => (
-                <option value={option.value} key={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </section>
-
-        <section className="settingsGroup">
-          <div className="groupHeading">
-            <h2>{t("settingsOpening")}</h2>
-            <span>{t("readerOpenMode")}</span>
-          </div>
-          <div className="segmentedControl" aria-label={t("readerOpenMode")}>
-            {(["window", "embedded"] as ReaderOpenMode[]).map((mode) => (
-              <button
-                className={theme.readerOpenMode === mode ? "active" : ""}
-                type="button"
-                key={mode}
-                onClick={() => onThemeChange({ ...theme, readerOpenMode: mode })}
-              >
-                {mode === "window" ? t("readerOpenWindow") : t("readerOpenEmbedded")}
-              </button>
-            ))}
-          </div>
-          <p className="groupDescription">{t("readerOpenModeHint")}</p>
-        </section>
-
-        <section className="settingsGroup">
-          <div className="groupHeading">
-            <h2>{t("settingsSearch")}</h2>
-            <span>{t("searchContent")}</span>
-          </div>
-          <label className="toggleRow">
-            <input
-              type="checkbox"
-              checked={appSettings.resetSearchOnNavigation}
-              onChange={(event) => onAppSettingsChange({ ...appSettings, resetSearchOnNavigation: event.target.checked })}
-            />
-            <span>{t("resetSearchOnNavigation")}</span>
-          </label>
-          <label className="controlRow">
-            <span>{t("searchEnterBehavior")}</span>
-            <select
-              value={appSettings.searchEnterBehavior}
-              onChange={(event) =>
-                onAppSettingsChange({ ...appSettings, searchEnterBehavior: event.target.value as SearchEnterBehavior })
-              }
-            >
-              <option value="select">{t("searchEnterSelect")}</option>
-              <option value="open">{t("searchEnterOpen")}</option>
-            </select>
-          </label>
-        </section>
-
-        <section className="settingsGroup">
-          <div className="groupHeading">
-            <h2>{t("settingsData")}</h2>
-            <span>{itemCount} {t("items")} / {collectionCount} {t("groups")}</span>
-          </div>
-          <p className="groupDescription">{t("settingsDataHint")}</p>
-          <p className="groupDescription">{t("settingsDataMergeHint")}</p>
-          <p className="groupDescription">{t("settingsDataReplaceHint")}</p>
-          <div className="settingsActionStack">
-            <button className="settingsActionButton" type="button" onClick={onExportData} title={t("exportData")}>
-              <Download size={16} />
-              {t("exportData")}
-            </button>
-            <button
-              className="settingsActionButton"
-              type="button"
-              title={t("settingsDataMergeHint")}
-              onClick={() => {
-                restoreModeRef.current = "merge";
-                restoreInputRef.current?.click();
-              }}
-            >
-              <Upload size={16} />
-              {t("restoreMerge")}
-            </button>
-            <button
-              className="settingsActionButton"
-              type="button"
-              title={t("settingsDataReplaceHint")}
-              onClick={() => {
-                restoreModeRef.current = "replace";
-                restoreInputRef.current?.click();
-              }}
-            >
-              <Upload size={16} />
-              {t("restoreReplace")}
-            </button>
-          </div>
-          <input
-            ref={restoreInputRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) onRestoreFile(file, restoreModeRef.current);
-            }}
-          />
-        </section>
-
-        <section className="settingsGroup">
-          <div className="groupHeading">
-            <h2>{t("duplicatesTitle")}</h2>
-            <span>{duplicateGroups.length}</span>
-          </div>
-          <p className="groupDescription">{t("duplicatesHint")}</p>
-          {duplicateGroups.length === 0 ? (
-            <p className="emptyText">{t("duplicatesNone")}</p>
-          ) : (
-            <div className="duplicateGroupList">
-              {duplicateGroups.map((group) => (
-                <div className="duplicateGroup" key={group.key}>
-                  <small>{group.items[0]?.location}</small>
-                  {group.items.map((item) => (
-                    <div className="duplicateRow" key={item.id}>
-                      <button type="button" className="duplicateOpenButton" onClick={() => onOpenDuplicate(item.id)}>
-                        <strong>{getItemTitle(item, t)}</strong>
-                        <span>{getCollectionLabel(item.collection, t)}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="primaryButton"
-                        onClick={() => onKeepDuplicate(item.id, group.items.map((entry) => entry.id))}
-                      >
-                        {t("duplicatesKeep")}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="settingsGroup">
-          <div className="groupHeading">
-            <h2>{t("settingsAbout")}</h2>
-            <span>MyPersonalShelf</span>
-          </div>
-          <div className="settingsInfoList">
-            <span>{t("settingsStorage")}</span>
-            <strong>{t("settingsStorageValue")}</strong>
-            <span>{t("settingsAppMode")}</span>
-            <strong>{t("settingsAppModeValue")}</strong>
-          </div>
-        </section>
-      </div>
-    </section>
-  );
-}
-
-function GuidePanel({
-  t,
-  onAddContent,
-  onOpenCustomize,
-}: {
-  t: (key: MessageKey) => string;
-  onAddContent: () => void;
-  onOpenCustomize: () => void;
-}) {
-  return (
-    <section className="guideWorkspace">
-      <div className="customizeHeader guideHero">
-        <div>
-          <span className="eyebrow">{t("guideEyebrow")}</span>
-          <h1>{t("guideTitle")}</h1>
-        </div>
-        <div className="guideHeroActions">
-          <button type="button" onClick={onAddContent}>
-            <FilePlus2 size={17} />
-            {t("addContent")}
-          </button>
-          <button type="button" onClick={onOpenCustomize}>
-            <Paintbrush size={17} />
-            {t("navCustomize")}
-          </button>
-        </div>
-      </div>
-
-      <section className="guideIntroPanel">
-        <div className="guideIllustration">
-          <div className="guideShelfCard"><BookOpen size={20} /> {t("guideVisualDocument")}</div>
-          <div className="guideShelfCard"><Play size={20} /> {t("guideVisualMedia")}</div>
-          <div className="guideShelfCard"><Link size={20} /> {t("guideVisualLink")}</div>
-          <div className="guideShelfCard"><Tags size={20} /> {t("guideVisualTags")}</div>
-        </div>
-        <div>
-          <h2>{t("guideWhatTitle")}</h2>
-          <p>{t("guideWhatText")}</p>
-        </div>
-      </section>
-
-      <section className="guideGrid">
-        <GuideCard icon={<FilePlus2 size={20} />} title={t("guideAddTitle")} text={t("guideAddText")} />
-        <GuideCard icon={<ClipboardPaste size={20} />} title={t("guideCaptureTitle")} text={t("guideCaptureText")} />
-        <GuideCard icon={<Download size={20} />} title={t("guideTopbarTitle")} text={t("guideTopbarText")} />
-        <GuideCard icon={<Library size={20} />} title={t("guideLibraryTitle")} text={t("guideLibraryText")} />
-        <GuideCard icon={<MousePointerHint />} title={t("guideOpenTitle")} text={t("guideOpenText")} />
-        <GuideCard icon={<Tags size={20} />} title={t("guideOrganizeTitle")} text={t("guideOrganizeText")} />
-        <GuideCard icon={<Search size={20} />} title={t("guideSearchTitle")} text={t("guideSearchText")} />
-        <GuideCard icon={<Paintbrush size={20} />} title={t("guideCustomizeTitle")} text={t("guideCustomizeText")} />
-        <GuideCard icon={<Settings2 size={20} />} title={t("guideSettingsTitle")} text={t("guideSettingsText")} />
-        <GuideCard icon={<Upload size={20} />} title={t("guideDataTitle")} text={t("guideDataText")} />
-      </section>
-    </section>
-  );
-}
-
-function GuideCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return (
-    <article className="guideCard">
-      <span>{icon}</span>
-      <h2>{title}</h2>
-      <p>{text}</p>
-    </article>
-  );
-}
-
-function MousePointerHint() {
-  return (
-    <span className="mousePointerHint" aria-hidden="true">
-      <span />
-    </span>
-  );
-}
 
 function ColorControl({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
