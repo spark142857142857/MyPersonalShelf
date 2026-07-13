@@ -2,7 +2,7 @@
 
 MyPersonalShelf is a local-first desktop app for building a personal content shelf from real files, folders, notes, media, and links on your own computer. It is meant to feel like an expanded bookmark manager for stable personal materials: lecture videos, novels, text archives, music folders, reference links, and long-lived study resources.
 
-한국어 문서는 [README.ko.md](README.ko.md)를 참고하세요.
+For Korean documentation, see [README.ko.md](README.ko.md).
 
 ## Why This Exists
 
@@ -19,7 +19,7 @@ The app is intentionally local-first:
 
 The app is organized around a few core pages:
 
-- **Dashboard**: pinned cards, recent items, frequently opened items, and an empty-state start panel.
+- **Dashboard**: pinned cards, recent items, frequently opened items, drag-to-reorder controls, and an empty-state start panel.
 - **Library**: all saved files, links, folders, notes, and media with preview/detail editing.
 - **Collections**: collection cards, collection editing, and a tag overview.
 - **Customize**: visual personalization such as colors, reading comfort, and dashboard card layout.
@@ -42,10 +42,12 @@ The app is organized around a few core pages:
 
 - Shows pinned/favorite content cards.
 - Shows recent items and frequently opened items.
-- Stores card order, size, and hidden/visible state.
-- Supports standard, wide, and tall card sizes.
+- Drag a card's handle to place it before another pinned card.
+- Stores card order, shape, density, and hidden/visible state.
+- Supports standard, wide, and tall card shapes, plus large, normal, and small dashboard density.
+- Clicking a dashboard card takes its selected item to the Library; the Library remains the main detail and opening workspace.
 - Provides an empty-state panel when no content exists.
-- Uses single click for selection and double click or `Ctrl+Enter` for opening.
+- Keeps selection and opening behavior in the Library while the Dashboard stays focused on arranging the shelf.
 
 ### Library, Collections, And Tags
 
@@ -74,8 +76,9 @@ The app is organized around a few core pages:
 
 - Customize background, surface, text, and accent colors.
 - Adjust reader width, line height, and text size.
-- Toggle compact dashboard cards.
-- Edit dashboard card order, size, and visibility with a mini preview.
+- Choose large, normal, or small pinned-card density.
+- Drag dashboard card handles to reorder cards, and use Customize to change shape or visibility.
+- Older saved `compactCards` preferences migrate automatically to the new density setting.
 - Change language between English and Korean.
 - Choose default viewer behavior: separate window or inside app.
 - Configure search behavior, including whether main-tab navigation clears search.
@@ -99,8 +102,10 @@ The app is organized around a few core pages:
 
 MyPersonalShelf follows a desktop-style interaction model:
 
-- **Single click**: select an item and show its preview/detail panel.
-- **Double click**: open the item.
+- **Library single click**: select an item and show its preview/detail panel.
+- **Dashboard single click**: move the selected item into the Library workspace.
+- **Library double click**: open the item.
+- **Dashboard drag handle**: reorder pinned cards without triggering file/link capture.
 - **Ctrl+Enter**: open the selected item.
 - **Search Enter**: select or open the first result depending on settings.
 - **Mouse side buttons**: navigate backward/forward through app history.
@@ -140,9 +145,10 @@ npm install
 npm run dev
 npm run tauri dev
 npm run build
+npm test
 ```
 
-`npm run dev` runs the Vite browser preview. `npm run tauri dev` runs the full desktop app with native file/folder access.
+`npm run dev` runs the Vite browser preview. `npm run tauri dev` runs the full desktop app with native file/folder access. `npm test` runs the frontend regression suite.
 
 ## Project Notes
 
