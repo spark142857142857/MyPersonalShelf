@@ -383,8 +383,9 @@ fn select_file(window: tauri::WebviewWindow) -> Result<Option<NativeContentSelec
         .add_filter(
             "Supported content",
             &[
-                "txt", "md", "markdown", "log", "csv", "mp4", "webm", "m4v", "mp3", "wav", "ogg",
-                "m4a", "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg",
+                "txt", "md", "markdown", "log", "csv", "pdf", "doc", "docx", "odt", "rtf", "xls",
+                "xlsx", "ods", "ppt", "pptx", "odp", "epub", "hwp", "hwpx", "mp4", "webm", "m4v",
+                "mp3", "wav", "ogg", "m4a", "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg",
             ],
         )
         .pick_file()
@@ -547,6 +548,50 @@ fn open_folder(
 }
 
 #[tauri::command]
+fn open_path(
+    window: tauri::WebviewWindow,
+    allowed_paths: tauri::State<'_, AllowedPaths>,
+    path: String,
+    item_id: String,
+) -> Result<(), String> {
+    ensure_main_window(&window)?;
+    let path = require_allowed_path(&allowed_paths, &item_id, Path::new(&path))?;
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("Selected path is not a file.".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let path = path_without_verbatim_prefix(&path);
+        Command::new("rundll32")
+            .arg("url.dll,FileProtocolHandler")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+}
+
+#[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     let url = normalize_external_url(&url)
         .ok_or_else(|| "Only valid http and https links can be opened.".to_string())?;
@@ -626,6 +671,7 @@ pub fn run() {
             read_text_file,
             list_folder,
             open_folder,
+            open_path,
             open_url,
             request_current_window_close,
             destroy_current_window,
@@ -1329,7 +1375,25 @@ fn content_type_for_path(path: &Path) -> &'static str {
         .to_lowercase()
         .as_str()
     {
-        "txt" | "md" | "markdown" | "log" | "csv" => "document",
+        "txt"
+        | "md"
+        | "markdown"
+        | "log"
+        | "csv"
+        | "pdf"
+        | "doc"
+        | "docx"
+        | "odt"
+        | "rtf"
+        | "xls"
+        | "xlsx"
+        | "ods"
+        | "ppt"
+        | "pptx"
+        | "odp"
+        | "epub"
+        | "hwp"
+        | "hwpx" => "document",
         "mp4" | "webm" | "m4v" => "video",
         "mp3" | "wav" | "ogg" | "m4a" => "audio",
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg" => "image",
@@ -1368,6 +1432,20 @@ fn is_supported_content_path(path: &Path) -> bool {
             | "markdown"
             | "log"
             | "csv"
+            | "pdf"
+            | "doc"
+            | "docx"
+            | "odt"
+            | "rtf"
+            | "xls"
+            | "xlsx"
+            | "ods"
+            | "ppt"
+            | "pptx"
+            | "odp"
+            | "epub"
+            | "hwp"
+            | "hwpx"
             | "mp4"
             | "webm"
             | "m4v"
@@ -1760,7 +1838,10 @@ mod tests {
         assert!(!is_supported_content_path(Path::new("movie.avi")));
         assert!(!is_supported_content_path(Path::new("track.flac")));
         assert!(!is_supported_content_path(Path::new("installer.exe")));
-        assert!(!is_supported_content_path(Path::new("document.pdf")));
+        assert!(is_supported_content_path(Path::new("document.pdf")));
+        assert!(is_supported_content_path(Path::new("report.DOCX")));
+        assert!(is_supported_content_path(Path::new("notes.hwp")));
+        assert!(!is_supported_text_path(Path::new("document.pdf")));
     }
 
     #[test]

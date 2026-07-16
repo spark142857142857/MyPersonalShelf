@@ -6,6 +6,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  ExternalLink,
   FilePlus2,
   FolderOpen,
   Grid3X3,
@@ -71,6 +72,7 @@ import {
   onNativeCloseRequested,
   onNativeTextEncodingChanged,
   openNativeFolder,
+  openNativePath,
   openNativeReaderWindow,
   openNativeUrl,
   readNativeTextFile,
@@ -84,6 +86,7 @@ import {
   selectNativeFolder,
 } from "./lib/native";
 import { ItemOperationRegistry } from "./lib/itemOperations";
+import { isExternalDocumentItem } from "./lib/documentOpen";
 import { NativeShelfQueue } from "./lib/nativeShelfQueue";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
@@ -353,6 +356,7 @@ function isViewerContent(item: ContentItem) {
 
 function canOpenSeparateViewerWindow(item: ContentItem) {
   if (item.source === "upload") return false;
+  if (isExternalDocumentItem(item)) return false;
   return item.type === "document" || ((item.type === "video" || item.type === "audio" || item.type === "image") && item.source === "path");
 }
 
@@ -1078,6 +1082,19 @@ function App() {
         return;
       }
       setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
+      return;
+    }
+
+    if (isExternalDocumentItem(targetItem)) {
+      setSelectedItemId(targetItem.id);
+      markItemOpened(targetItem);
+      try {
+        await openNativePath(targetItem.location, targetItem.id);
+      } catch {
+        setNotice(t("nativeUnavailable"));
+        return;
+      }
+      setNotice(`${getItemTitle(targetItem, t)} ${t("openedExternally")}`);
       return;
     }
 
@@ -3174,8 +3191,22 @@ function DetailPanel({
         </button>
         {isViewerContent(item) && onOpenItem && (
           <button type="button" onClick={onOpenItem}>
-            {item.type === "document" ? <BookOpen size={16} /> : typeIcons[item.type]}
-            {item.type === "document" ? t("openReader") : t("open")}
+            {isExternalDocumentItem(item) ? (
+              <>
+                <ExternalLink size={16} />
+                {t("openExternal")}
+              </>
+            ) : item.type === "document" ? (
+              <>
+                <BookOpen size={16} />
+                {t("openReader")}
+              </>
+            ) : (
+              <>
+                {typeIcons[item.type]}
+                {t("open")}
+              </>
+            )}
           </button>
         )}
         {item.type === "link" && (
@@ -3391,6 +3422,14 @@ function PreviewBody({
   }
 
   if (item.type === "document") {
+    if (isExternalDocumentItem(item)) {
+      return (
+        <div>
+          <p className="groupDescription">{t("externalDocumentHint")}</p>
+        </div>
+      );
+    }
+
     const documentText = getItemTextContent(item, t);
     const fallbackText = item.summary ? getItemSummary(item, t) : t("documentEmpty");
 

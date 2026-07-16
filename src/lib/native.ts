@@ -123,6 +123,10 @@ export async function openNativeFolder(path: string, itemId: string) {
   await invoke("open_folder", { path, itemId });
 }
 
+export async function openNativePath(path: string, itemId: string) {
+  await invoke("open_path", { path, itemId });
+}
+
 export async function openNativeUrl(url: string) {
   await invoke("open_url", { url });
 }
