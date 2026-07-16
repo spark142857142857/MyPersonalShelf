@@ -32,6 +32,7 @@ The app is organized around a few core pages:
 
 - Add local files with the Tauri file dialog.
 - Add local folders with the Tauri folder dialog.
+- Register text, PDF, Office, EPUB, and Korean document files without copying the originals.
 - Add web links manually.
 - Add notes and text snippets manually.
 - Upload files for browser-session previews.
@@ -62,9 +63,10 @@ The app is organized around a few core pages:
 
 ### Viewers And Opening Behavior
 
-- Reads `txt`, `md`, `markdown`, `log`, and other text-like documents through Tauri.
+- Reads `txt`, `md`, `markdown`, `log`, and `csv` documents through Tauri.
 - Renders Markdown into readable HTML-like blocks instead of showing raw Markdown.
-- Opens documents in a reading view.
+- Opens readable text documents in the in-app reading view, with progress and text encoding support.
+- Opens PDF, EPUB, Office (`docx`, `xlsx`, `pptx`, and related formats), and HWP/HWPX documents in the computer's default app.
 - Opens video, audio, and images through Tauri asset URLs.
 - Saves document reading progress.
 - Saves video/audio resume position.
@@ -168,6 +170,7 @@ Supported now:
 - Inbox-first quick capture.
 - Library multi-select bulk organize.
 - JSON backup merge/replace restore.
+- Local PDF, Office, EPUB, and HWP/HWPX registration with default-app opening.
 
 Near-term improvements:
 
@@ -181,7 +184,7 @@ Near-term improvements:
 
 Longer-term ideas:
 
-- EPUB/PDF support.
+- In-app EPUB/PDF reader support.
 - Subtitle support for video.
 - AI-assisted summary and tag suggestions.
 - Plugin-style extension points.
