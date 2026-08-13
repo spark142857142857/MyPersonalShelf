@@ -2,30 +2,30 @@
 
 .dashboardShortcutGrid {
   display: grid;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .shortcutCardRow {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .shortcutCard {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: stretch;
-  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, rgba(55, 64, 78, 0.12));
-  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, var(--line-strong));
+  border-radius: var(--radius-md);
   background: var(--app-surface);
   overflow: hidden;
 }
 
 .shortcutCardMain {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
   border: 0;
   background: transparent;
   color: var(--app-text);
@@ -33,7 +33,7 @@
 }
 
 .shortcutCardMain:hover {
-  background: color-mix(in srgb, var(--app-accent) 8%, transparent);
+  background: var(--accent-wash);
 }
 
 .shortcutCardIcon {
@@ -41,21 +41,23 @@
 }
 
 .shortcutCardMain strong {
-  font-size: 0.98rem;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }
 
 .shortcutCardMain span {
   color: var(--app-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .shortcutCardUnpin {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: var(--control-sm);
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--app-muted) 18%, transparent);
+  border-left: 1px solid var(--line-strong);
   background: transparent;
   color: var(--app-accent);
 }

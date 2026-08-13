@@ -3,33 +3,33 @@
 .contentCard,
 .libraryPanel,
 .readerPanel {
-  border: 1px solid rgba(31, 41, 37, 0.09);
-  border-radius: 8px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
   background: var(--app-surface);
-  box-shadow: 0 3px 14px rgba(31, 41, 37, 0.045);
+  box-shadow: var(--shadow-2);
 }
 
 .contentCard {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 17px;
+  padding: var(--space-4);
   color: inherit;
   cursor: pointer;
   text-align: left;
   transition:
-    transform 150ms ease,
-    box-shadow 150ms ease,
-    border-color 150ms ease;
+    transform var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
 }
 
 .cardHitArea {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
   width: 100%;
   padding: 0;
@@ -40,16 +40,18 @@
   text-align: left;
 }
 
+/* The favourite and drag controls keep their literal colours: they are status
+ * markers rather than theme surfaces, and phase 2 decides where those live. */
 .favoriteButton {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: var(--space-3);
+  right: var(--space-3);
   display: grid;
   width: 32px;
   height: 32px;
   place-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: #a8680c;
   background: color-mix(in srgb, var(--app-surface) 86%, #fff4dc);
 }
@@ -57,16 +59,16 @@
 .cardDragHandle {
   position: absolute;
   z-index: 2;
-  right: 12px;
-  bottom: 12px;
+  right: var(--space-3);
+  bottom: var(--space-3);
   left: auto;
   top: auto;
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   place-items: center;
-  border: 1px solid rgba(55, 64, 78, 0.12);
-  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   color: var(--app-muted);
   background: color-mix(in srgb, var(--app-surface) 94%, #dfe7ea);
   cursor: grab;
@@ -76,7 +78,7 @@
 }
 
 .contentCard:has(.cardDragHandle) .tagRow {
-  padding-right: 48px;
+  padding-right: var(--space-7);
 }
 
 .cardDragHandle:hover,
@@ -102,54 +104,60 @@
   outline-offset: 2px;
 }
 
+/* Density steps down the scale rather than shaving a pixel or two, so the
+ * three settings stay tellable apart now that every value is on the grid. */
 .density-normal .dashboardGrid {
   grid-auto-rows: minmax(150px, auto);
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .density-small .dashboardGrid {
   grid-auto-rows: minmax(118px, auto);
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .density-normal .contentCard {
-  gap: 9px;
-  padding: 12px;
+  gap: var(--space-2);
+  padding: var(--space-3);
 }
 
 .density-small .contentCard {
-  gap: 7px;
-  padding: 10px;
+  gap: var(--space-1);
+  padding: var(--space-2);
 }
 
+/* Each density drops a full step of the scale. Snapping the old 18/16/15 to the
+ * nearest token would have put large and normal both on 17px and made the two
+ * settings indistinguishable; 17/15/13 keeps them a step apart and keeps the
+ * title above the summary inside every one of them. */
 .density-normal .contentCard h2 {
-  font-size: 16px;
+  font-size: var(--text-base);
   -webkit-line-clamp: 2;
 }
 
 .density-small .contentCard h2 {
-  font-size: 15px;
+  font-size: var(--text-sm);
   -webkit-line-clamp: 1;
 }
 
-.density-normal .contentCard p,
-.density-small .contentCard p {
-  font-size: 12px;
+.density-normal .contentCard p {
+  font-size: var(--text-sm);
   -webkit-line-clamp: 2;
 }
 
 .density-small .contentCard p {
+  font-size: var(--text-xs);
   -webkit-line-clamp: 1;
 }
 
 .density-normal .cardMedia {
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
   max-height: 88px;
   aspect-ratio: 2 / 1;
 }
 
 .density-small .cardMedia {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
   max-height: 52px;
   aspect-ratio: 2.4 / 1;
 }
@@ -161,17 +169,17 @@
 
 .density-normal .itemPreview,
 .density-small .itemPreview {
-  padding: 8px 10px;
-  font-size: 11px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
 }
 
 .density-small .tagRow {
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .density-small .tagRow button {
-  padding: 3px 7px;
-  font-size: 11px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
 }
 
 .contentCard:hover,
@@ -181,7 +189,7 @@
   border-color: color-mix(in srgb, var(--app-accent) 30%, transparent);
   outline: 2px solid color-mix(in srgb, var(--app-accent) 16%, transparent);
   outline-offset: 1px;
-  box-shadow: 0 8px 22px rgba(31, 41, 37, 0.08);
+  box-shadow: var(--shadow-3);
 }
 
 .contentCard:focus-within {
@@ -206,17 +214,18 @@
 .cardHeader,
 .sectionTitle {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
   justify-content: space-between;
 }
 
 .typeBadge {
   display: inline-flex;
-  gap: 7px;
+  gap: var(--space-2);
   align-items: center;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .contentCard h2,
@@ -228,8 +237,8 @@
 .contentCard h2 {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 18px;
-  line-height: 1.35;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -239,19 +248,19 @@
   overflow: hidden;
   margin: 0;
   color: var(--app-muted);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
 
 .itemPreview {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
   margin-top: auto;
-  padding: 11px 12px;
+  padding: var(--space-3);
   border-left: 2px solid;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-surface) 82%, #edf2f0);
 }
 
@@ -268,22 +277,23 @@
 .listItem small,
 .sectionTitle span {
   color: var(--app-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .tagRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .tagRow button {
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--app-text);
   background: color-mix(in srgb, var(--app-surface) 72%, #e7ece9);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .tagRow button:hover {
@@ -293,5 +303,5 @@
 .lowerGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
-  gap: 16px;
+  gap: var(--space-4);
 }
