@@ -2,6 +2,9 @@
  * rules were originally written: at equal specificity the later file wins,
  * so moving a line here can change what the app looks like. */
 
+/* Definitions first — this one declares custom properties and paints nothing. */
+@import "./tokens.css";
+
 @import "./base.css";
 @import "./shell.css";
 @import "./topbar.css";

@@ -10,16 +10,24 @@
 
 :root {
   /* ---- Family ----------------------------------------------------------
-   * No font ships with the app, so this is the system stack, written out
-   * honestly. Latin faces come first and the Korean ones behind them: a face
-   * without Hangul simply falls through for those characters, so English gets
-   * Segoe UI or SF Pro while Korean gets Malgun Gothic or Apple SD Gothic Neo.
-   * Bundling Pretendard would give one family for both and is the eventual
-   * fix; until then the UI is two typefaces and that is a deliberate choice,
-   * not an oversight. */
+   * No font ships with the app, so this is the system stack written out
+   * honestly. Latin faces first, Korean ones behind them: a face without
+   * Hangul falls through for those characters, so English gets Segoe UI or SF
+   * Pro while Korean gets Malgun Gothic or Apple SD Gothic Neo.
+   *
+   * `system-ui` deliberately does NOT lead. Windows picks its UI font by
+   * locale, so on a Korean install system-ui *is* Malgun Gothic — putting it
+   * first hands English text to Malgun Gothic's Latin glyphs. Measured on this
+   * machine: "Dashboard Library" is 125.06px under system-ui against 121.23px
+   * under Segoe UI, i.e. not the same face. It stays in the list for Linux,
+   * just not at the front.
+   *
+   * Bundling Pretendard would give one family for both scripts and is the
+   * eventual fix; until then the UI is two typefaces by choice, not oversight. */
   --font-sans:
-    system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic",
-    "Noto Sans KR", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, system-ui, "Apple SD Gothic Neo",
+    "Malgun Gothic", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
 
   /* ---- Type ------------------------------------------------------------
    * Sizes are paired with a line height that lands the line box on the 4px
