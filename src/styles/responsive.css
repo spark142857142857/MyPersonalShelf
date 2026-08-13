@@ -1,0 +1,186 @@
+/* Narrow-viewport overrides. Everything imported after this file wins over it. */
+
+@media (max-width: 1100px) {
+  .appShell {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .brand div:last-child,
+  .navItem {
+    font-size: 0;
+  }
+
+  .navItem {
+    justify-content: center;
+  }
+
+  .sidebarPanel {
+    display: none;
+  }
+
+  .dashboardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heroBand {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboardActivityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .emptyDashboardPanel,
+  .guideIntroPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .guideGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .collectionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lowerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .settingsPageGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .appShell {
+    display: block;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-direction: row;
+    align-items: center;
+    padding: 12px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(55, 64, 78, 0.12);
+  }
+
+  .brandButton {
+    flex: 0 0 42px;
+    width: 42px;
+    gap: 0;
+  }
+
+  .brandButton > div:last-child {
+    display: none;
+  }
+
+  .navList {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .navItem {
+    flex: 0 0 44px;
+    width: 44px;
+    min-height: 44px;
+  }
+
+  .workspace {
+    padding: 16px;
+  }
+
+  .topbar,
+  .pageIntro,
+  .customizeHeader,
+  .readerPageHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pageIntro h1,
+  .customizeHeader h1,
+  .readerPageHeader h1 {
+    font-size: 24px;
+  }
+
+  .readerPageBody {
+    padding: 20px;
+  }
+
+  .readerShell {
+    padding: 16px;
+  }
+
+  .pageIntroStats {
+    justify-content: flex-start;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 44px 44px;
+    width: 100%;
+  }
+
+  .topbarSelect {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .topbarSelect select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .primaryButton {
+    grid-column: 1 / -1;
+    width: 100%;
+    white-space: nowrap;
+  }
+
+  .dashboardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroBand {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .heroStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboardSectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .guideGrid,
+  .guideIllustration {
+    grid-template-columns: 1fr;
+  }
+
+  .collectionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .colorControlGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .contentCard.wide,
+  .contentCard.tall {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}

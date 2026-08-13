@@ -1,0 +1,158 @@
+/* Form fields, modals, and the upload drop box. */
+
+.filterRow button,
+.detailActions button,
+.formGrid button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 68%, #e2e8f0);
+}
+
+.filterRow button.active,
+.filterRow button:hover,
+.detailActions button:hover,
+.formGrid button:hover {
+  background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
+}
+
+.filterRow button:disabled,
+.detailActions button:disabled,
+.formGrid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.detailActions .dangerButton {
+  color: #a32626;
+}
+
+.fieldBlock {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fieldBlock textarea,
+.formGrid textarea,
+.formGrid input,
+.formGrid select {
+  width: 100%;
+  border: 1px solid rgba(55, 64, 78, 0.14);
+  border-radius: 8px;
+  color: var(--app-text);
+  background: var(--app-surface);
+}
+
+.fieldBlock textarea,
+.formGrid textarea {
+  min-height: 96px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.formFieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.formGrid label {
+  display: grid;
+  gap: 7px;
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.formGrid input,
+.formGrid select {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.formGrid input[type="color"] {
+  padding: 4px;
+}
+
+.formGrid .accentField {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+}
+
+.formGrid .accentField input[type="color"] {
+  width: 42px;
+  min-height: 32px;
+  max-width: 42px;
+  padding: 2px;
+}
+
+.spanTwo {
+  grid-column: 1 / -1;
+}
+
+.checkboxField {
+  display: flex !important;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 9px;
+}
+
+.checkboxField input {
+  width: auto;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.modalPanel {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.24);
+}
+
+.uploadBox {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  border: 1px dashed rgba(55, 64, 78, 0.24);
+  border-radius: 8px;
+  color: var(--app-muted);
+  background: color-mix(in srgb, var(--app-surface) 72%, #eef2f6);
+  text-align: center;
+}
+
+.uploadBox input {
+  max-width: 260px;
+}

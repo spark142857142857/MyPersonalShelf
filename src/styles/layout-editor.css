@@ -1,0 +1,157 @@
+/* Dashboard layout editor and the settings action list. */
+
+.dashboardLayoutEditor {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.layoutList {
+  display: grid;
+  gap: 10px;
+}
+
+.layoutItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(55, 64, 78, 0.08);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 76%, #eef2f6);
+}
+
+.layoutItem.muted {
+  background: color-mix(in srgb, var(--app-surface) 86%, #eef2f6);
+}
+
+.layoutItem.muted .layoutMiniCard {
+  opacity: 0.58;
+}
+
+.layoutMiniCard {
+  display: grid;
+  grid-template-columns: 30px 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 76px;
+  padding: 10px;
+  border-left: 4px solid var(--app-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+}
+
+.layoutMiniCard.wide {
+  min-height: 62px;
+  grid-template-columns: 30px 34px minmax(0, 1fr) auto;
+}
+
+.layoutMiniCard.tall {
+  min-height: 118px;
+  align-content: start;
+}
+
+.layoutOrder {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--app-muted);
+  background: color-mix(in srgb, var(--app-surface) 64%, #dce8ef);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.layoutMiniIcon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.layoutMiniText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.layoutMiniText strong,
+.layoutMiniText small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layoutMiniText small {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.layoutBadges {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.layoutMiniCard.wide .layoutBadges {
+  grid-column: auto;
+  justify-content: flex-end;
+}
+
+.layoutBadges b {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 58%, #e2e8f0);
+  font-size: 11px;
+}
+
+.layoutActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.layoutActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 62%, #dce8ef);
+}
+
+.settingsActionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  width: fit-content;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
+  font-weight: 800;
+}
+
+.settingsInfoList {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px 14px;
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.settingsInfoList strong {
+  min-width: 0;
+  color: var(--app-text);
+}

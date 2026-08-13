@@ -1,0 +1,85 @@
+/* List row selection and the bulk edit bar. */
+
+.listItemRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.listItemRow .listItem {
+  width: 100%;
+}
+
+.listItemRow.selected .listItem,
+.listItem.selected {
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(55, 64, 78, 0.12);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent));
+}
+
+.bulkBarIdle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bulkCount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bulkBar input {
+  min-width: 140px;
+  flex: 1 1 140px;
+  padding: 8px 10px;
+  border: 1px solid rgba(55, 64, 78, 0.16);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.bulkBar button {
+  padding: 8px 12px;
+  border: 1px solid rgba(55, 64, 78, 0.16);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  white-space: nowrap;
+}
+
+.bulkBar .primaryButton {
+  border-color: transparent;
+  background: var(--app-accent);
+  color: #fff;
+}
+
+.collectionEditToggle {
+  justify-self: start;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.collectionEditToggle:hover {
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+  color: var(--app-text);
+}
+
+.collectionEditorCard:not(.isEditing) .collectionEditGrid {
+  display: none;
+}

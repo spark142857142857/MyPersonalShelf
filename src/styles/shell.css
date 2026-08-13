@@ -1,0 +1,140 @@
+/* App frame: sidebar, brand, navigation, and the workspace column. */
+
+.appShell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  min-height: 100vh;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-bg) 82%, #f7f9f8);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px 18px;
+  border-right: 1px solid rgba(31, 41, 37, 0.09);
+  background: var(--app-surface);
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.brandButton {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.brandMark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 7px;
+  color: white;
+  background: var(--app-accent);
+  font-weight: 800;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--app-accent) 22%, transparent);
+}
+
+.brand strong,
+.brand span {
+  display: block;
+}
+
+.brand strong {
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.brand span {
+  max-width: 180px;
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.navList {
+  display: grid;
+  gap: 4px;
+}
+
+.navItem,
+.primaryButton,
+.iconButton,
+.customControls button,
+.contentCard,
+.heroStats button,
+.collectionCard,
+.listItem {
+  border: 0;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--app-muted);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.navItem:hover {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
+}
+
+.navItem.active {
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+  box-shadow: inset 3px 0 0 var(--app-accent);
+}
+
+.sidebarPanel {
+  margin-top: auto;
+  padding: 14px;
+  border: 1px solid rgba(31, 41, 37, 0.09);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-accent) 4%, var(--app-surface));
+}
+
+.panelLabel,
+.eyebrow,
+.cardType {
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.sidebarPanel p {
+  margin: 8px 0 0;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 24px 28px 36px;
+}

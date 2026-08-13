@@ -1,0 +1,68 @@
+/* Add-content modal extras and the broken-path banner. */
+
+.previewLocation {
+  display: block;
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 0.86rem;
+  word-break: break-all;
+}
+
+.addModeRow button.active {
+  border-color: color-mix(in srgb, var(--app-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface));
+  color: var(--app-text);
+}
+
+.accentField {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.accentField input[type="color"] {
+  width: 42px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(55, 64, 78, 0.16);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.addSubmitButton {
+  margin-top: 4px;
+  min-height: 44px;
+  border: 0;
+  background: var(--app-accent);
+  color: #fff;
+}
+
+.addSubmitButton:hover {
+  filter: brightness(0.96);
+}
+
+.relinkHint {
+  margin: 0 0 12px;
+  color: var(--app-muted);
+  font-size: 0.92rem;
+}
+
+.pathBrokenBanner {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, #dc2626 55%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, #ef4444 12%, var(--app-surface));
+  color: #7f1d1d;
+  font-size: 0.92rem;
+}
+
+.pathBrokenBanner strong {
+  font-weight: 700;
+}
+
+.pathBrokenBanner span {
+  color: color-mix(in srgb, #7f1d1d 80%, var(--app-muted));
+}

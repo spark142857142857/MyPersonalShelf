@@ -1,0 +1,65 @@
+/* Pinned type and collection shortcut cards on the dashboard. */
+
+.dashboardShortcutGrid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.shortcutCardRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.shortcutCard {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, rgba(55, 64, 78, 0.12));
+  border-radius: 12px;
+  background: var(--app-surface);
+  overflow: hidden;
+}
+
+.shortcutCardMain {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text);
+  text-align: left;
+}
+
+.shortcutCardMain:hover {
+  background: color-mix(in srgb, var(--app-accent) 8%, transparent);
+}
+
+.shortcutCardIcon {
+  display: inline-flex;
+}
+
+.shortcutCardMain strong {
+  font-size: 0.98rem;
+}
+
+.shortcutCardMain span {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+}
+
+.shortcutCardUnpin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--app-muted) 18%, transparent);
+  background: transparent;
+  color: var(--app-accent);
+}
+
+.shortcutCardUnpin:hover {
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+}

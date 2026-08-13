@@ -1,0 +1,279 @@
+/* Customize and settings pages: groups, colour and range controls, segmented toggles. */
+
+.pageIntro {
+  display: flex;
+  gap: 18px;
+  align-items: end;
+  justify-content: space-between;
+  padding: 20px 22px;
+  border: 1px solid rgba(55, 64, 78, 0.1);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 3px 14px rgba(31, 41, 37, 0.04);
+}
+
+.pageIntro h1,
+.customizeHeader h1 {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: var(--app-text);
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.pageIntroStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pageIntroStats span {
+  padding: 8px 10px;
+  border: 1px solid rgba(55, 64, 78, 0.1);
+  border-radius: 8px;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.libraryPanel,
+.readerPanel {
+  padding: 20px;
+}
+
+.activityPanel {
+  min-height: 190px;
+}
+
+.activityPanel .sectionTitle h2 {
+  font-size: 18px;
+}
+
+.activityPanel .itemList {
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.activityPanel .listItem {
+  padding: 8px;
+  background: transparent;
+}
+
+.activityPanel .listItem:hover {
+  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
+}
+
+.customizeWorkspace {
+  display: grid;
+  gap: 18px;
+}
+
+.customizeHeader {
+  display: flex;
+  gap: 18px;
+  align-items: end;
+  justify-content: space-between;
+  padding: 20px 22px;
+  border-radius: 8px;
+  color: var(--app-text);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 12%, transparent), transparent 58%),
+    color-mix(in srgb, var(--app-surface) 78%, transparent);
+}
+
+.customizeHeader button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-text);
+  background: var(--app-surface);
+}
+
+.customizeControls {
+  display: grid;
+  gap: 14px;
+  max-width: 920px;
+}
+
+.settingsWorkspace {
+  display: grid;
+  gap: 16px;
+}
+
+.settingsPageGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.settingsGroup {
+  border: 1px solid rgba(55, 64, 78, 0.1);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 84%, transparent);
+  box-shadow: 0 18px 50px rgba(49, 57, 70, 0.07);
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.groupHeading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.groupHeading h2 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 18px;
+}
+
+.groupHeading span {
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.groupDescription {
+  margin: -4px 0 0;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.controlRow,
+.rangeControl,
+.toggleRow,
+.colorControl {
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.controlRow {
+  display: grid;
+  gap: 7px;
+}
+
+.controlRow select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid rgba(55, 64, 78, 0.14);
+  border-radius: 8px;
+  color: var(--app-text);
+  background: var(--app-surface);
+}
+
+.colorControlGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.colorControl {
+  display: grid;
+  grid-template-columns: minmax(58px, 1fr) 34px minmax(68px, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(55, 64, 78, 0.09);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 70%, #eef2f6);
+}
+
+.colorControl input {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.colorControl strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.colorControl span,
+.colorControl strong {
+  white-space: nowrap;
+}
+
+.rangeControl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.rangeControl input {
+  grid-column: 1 / -1;
+}
+
+.rangeControl strong {
+  color: var(--app-text);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.toggleRow input {
+  width: 16px;
+  height: 16px;
+}
+
+.segmentedControl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 62%, #dce8ef);
+}
+
+.segmentedControl button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-muted);
+  background: transparent;
+  font-weight: 700;
+}
+
+.segmentedControl button.active {
+  color: #fff;
+  background: var(--app-accent);
+}
+
+.segmentedControl.densityControl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.readerSample {
+  padding: 16px;
+  border-left: 3px solid var(--app-accent);
+  border-radius: 8px;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 72%, #f3efe8);
+}
+
+.readerSample strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.readerSample p {
+  margin: 0;
+  color: var(--app-muted);
+}

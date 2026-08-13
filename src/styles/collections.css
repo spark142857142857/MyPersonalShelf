@@ -1,0 +1,228 @@
+/* Collection grid and editor, tag cloud, detail metadata, and pin chips. */
+
+.collectionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.collectionCard {
+  display: grid;
+  gap: 8px;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, rgba(55, 64, 78, 0.12));
+  border-radius: 14px;
+  color: var(--app-text);
+  background: var(--app-surface);
+  text-align: left;
+  box-shadow: 0 1px 0 rgba(31, 41, 37, 0.04);
+}
+
+.collectionCard:hover {
+  background: color-mix(in srgb, var(--app-surface) 92%, #e8eef2);
+}
+
+.collectionCard strong {
+  font-size: 18px;
+}
+
+.collectionCard span {
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.collectionEditorCard {
+  align-content: start;
+  gap: 10px;
+}
+
+.collectionOpenButton {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 5px 10px;
+  width: 100%;
+  padding: 4px;
+  margin: 0;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.collectionOpenButton:hover {
+  background: color-mix(in srgb, var(--app-accent) 8%, transparent);
+}
+
+.collectionOpenButton:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.collectionOpenButton strong,
+.collectionOpenButton span,
+.collectionOpenButton small {
+  grid-column: 2;
+}
+
+.collectionOpenButton small {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.collectionIcon {
+  display: grid;
+  grid-row: 1 / span 3;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+}
+
+.collectionEditGrid,
+.organizeEditor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.collectionEditGrid label {
+  display: grid;
+  gap: 6px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.collectionEditGrid label:first-child {
+  grid-column: 1 / -1;
+}
+
+.collectionEditGrid input,
+.collectionEditGrid select,
+.fieldBlock input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(55, 64, 78, 0.14);
+  border-radius: 8px;
+  color: var(--app-text);
+  background: var(--app-surface);
+}
+
+.collectionEditGrid input[type="color"] {
+  padding: 4px;
+}
+
+.quickFilterRow,
+.tagCloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.quickFilterRow button,
+.tagCloud button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 68%, #e2e8f0);
+}
+
+.tagCloud button span {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.quickFilterRow button:hover,
+.tagCloud button:hover {
+  background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px 14px;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.metaGrid span {
+  color: var(--app-muted);
+}
+
+.metaGrid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filterRow,
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.filterChipGroup {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.filterChipGroup > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.pinChipButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-muted);
+  background: color-mix(in srgb, var(--app-surface) 68%, #e2e8f0);
+}
+
+.filterChipGroup .pinChipButton {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.pinChipButton.pinned,
+.pinChipButton:hover {
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
+}
+
+.collectionCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.collectionCardActions .pinChipButton {
+  min-height: 30px;
+  min-width: 30px;
+  background: transparent;
+}

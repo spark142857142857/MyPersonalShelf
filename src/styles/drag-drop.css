@@ -1,0 +1,25 @@
+/* Whole-window file drop target. */
+
+.appShell.dragOver::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  border: 2px dashed var(--app-accent);
+}
+
+.dropOverlay {
+  position: absolute;
+  z-index: 41;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}

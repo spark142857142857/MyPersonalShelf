@@ -1,0 +1,40 @@
+/* The plain item list shared by the library, activity panel, and collections. */
+
+.itemList {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.listItem {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  color: inherit;
+  background: color-mix(in srgb, var(--app-surface) 78%, #edf2f0);
+  text-align: left;
+}
+
+.listItem:hover,
+.listItem.selected {
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
+  outline: 1px solid color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.listIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.listItem span:last-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
