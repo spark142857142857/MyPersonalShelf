@@ -1,0 +1,133 @@
+/* Design tokens. Every value the rest of the stylesheet is allowed to use.
+ *
+ * Nothing here draws anything — adding this file changes no pixels. It exists so
+ * that the next person changing a card's padding picks from eight spacing steps
+ * instead of inventing a ninth. The audit that prompted it found 28 font sizes,
+ * 20 shadows and 69 hardcoded colours across 2,865 lines.
+ *
+ * Direction: a quiet reading room. Hierarchy comes from size, not weight, and
+ * surfaces sit on warm paper rather than cool grey. */
+
+:root {
+  /* ---- Family ----------------------------------------------------------
+   * No font ships with the app, so this is the system stack, written out
+   * honestly. Latin faces come first and the Korean ones behind them: a face
+   * without Hangul simply falls through for those characters, so English gets
+   * Segoe UI or SF Pro while Korean gets Malgun Gothic or Apple SD Gothic Neo.
+   * Bundling Pretendard would give one family for both and is the eventual
+   * fix; until then the UI is two typefaces and that is a deliberate choice,
+   * not an oversight. */
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic",
+    "Noto Sans KR", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+
+  /* ---- Type ------------------------------------------------------------
+   * Sizes are paired with a line height that lands the line box on the 4px
+   * grid, so a paragraph and a card next to it still align. Body moves from
+   * today's 13px up to 15px: the old scale bunched everything between 12 and
+   * 13px, which is why nothing on screen reads as more important than
+   * anything else. */
+  --text-xs: 11px;
+  --leading-xs: 16px;
+
+  --text-sm: 13px;
+  --leading-sm: 20px;
+
+  --text-base: 15px;
+  --leading-base: 24px;
+
+  --text-md: 17px;
+  --leading-md: 24px;
+
+  --text-lg: 21px;
+  --leading-lg: 28px;
+
+  --text-xl: 27px;
+  --leading-xl: 36px;
+
+  --text-2xl: 34px;
+  --leading-2xl: 40px;
+
+  /* ---- Weight ----------------------------------------------------------
+   * Named rather than numbered so the values can be retuned in one place once
+   * a font is bundled — at which point medium becomes ~550 and bold ~680 here
+   * and nowhere else.
+   *
+   * Only two of these should be reached for while the app runs on system
+   * fonts. Malgun Gothic ships Regular and Bold and nothing between, so
+   * `--weight-medium` resolves to Bold in Korean while Segoe UI gives it a
+   * genuine Semibold in English — the same token, two different results in one
+   * sentence. `font-synthesis: none` in base.css means nothing is faked to
+   * paper over it. Use normal and bold; keep medium for a bundled-font future.
+   *
+   * This costs less than it sounds: the direction is hierarchy by size, not by
+   * weight, so the type scale above is meant to be carrying that work. */
+  --weight-normal: 400;
+  --weight-medium: 600;
+  --weight-bold: 700;
+
+  /* ---- Space -----------------------------------------------------------
+   * A 4px grid. Today 52% of the small px values sit off it — 7, 11, 13, 17,
+   * 22, 34, 38 — which is what makes the layout feel subtly unsettled. The
+   * scale runs further than the old file needed (48, 64) because a reading
+   * room wants more air between sections than the current 8px/12px habit. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ---- Radius ----------------------------------------------------------
+   * Three plus a pill, down from eleven. Cards go from 8px to 10px: softer
+   * suits paper, and it separates them clearly from the 6px chips sitting
+   * inside them. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  /* ---- Elevation -------------------------------------------------------
+   * Four steps from one ink colour. The old file mixed a warm neutral
+   * (31, 41, 37) with two cool ones (55, 64, 78 and 49, 57, 70) at random, so
+   * shadows changed temperature between screens. This is the warm one, pushed
+   * slightly browner to read as paper. */
+  --shadow-ink: 28, 25, 23;
+
+  --shadow-1: 0 1px 2px rgba(var(--shadow-ink), 0.05);
+  --shadow-2: 0 2px 8px rgba(var(--shadow-ink), 0.06);
+  --shadow-3: 0 8px 24px rgba(var(--shadow-ink), 0.08);
+  --shadow-4: 0 24px 64px rgba(var(--shadow-ink), 0.14);
+
+  /* ---- Motion ----------------------------------------------------------
+   * Fast enough not to be waited on. The curve decelerates hard so things
+   * settle rather than drift. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Tokens derived from the theme the user picked.
+ *
+ * These cannot live in :root. A custom property holding `var(--app-text)` is
+ * substituted where it is *declared*, and App.tsx sets --app-text as an inline
+ * style on .appShell — so at :root it would resolve to nothing. Declaring them
+ * on the same element as the theme colours is what makes them follow it.
+ *
+ * Deriving borders from the text colour rather than hardcoding a grey is what
+ * lets phase 2 swap in a dark theme without every divider staying pale. */
+.appShell {
+  --line-subtle: color-mix(in srgb, var(--app-text) 8%, transparent);
+  --line-strong: color-mix(in srgb, var(--app-text) 14%, transparent);
+
+  /* A recess in the page — search fields, empty states, code blocks. */
+  --surface-sunken: color-mix(in srgb, var(--app-text) 3%, var(--app-surface));
+
+  /* The accent at strengths that stay legible on any surface: a wash behind a
+   * selected row, a tint for a hovered control, the focus ring. */
+  --accent-wash: color-mix(in srgb, var(--app-accent) 8%, transparent);
+  --accent-tint: color-mix(in srgb, var(--app-accent) 14%, transparent);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--app-accent) 22%, transparent);
+}
