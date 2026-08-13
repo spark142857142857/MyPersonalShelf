@@ -2,7 +2,7 @@
 
 .guideWorkspace {
   display: grid;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .guideHero {
@@ -12,24 +12,24 @@
 .guideHeroActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
 .guideIntroPanel,
 .guideCard {
-  border: 1px solid rgba(55, 64, 78, 0.1);
-  border-radius: 8px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-surface) 84%, transparent);
-  box-shadow: 0 18px 50px rgba(49, 57, 70, 0.07);
+  box-shadow: var(--shadow-2);
 }
 
 .guideIntroPanel {
   display: grid;
   grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1fr);
-  gap: 22px;
+  gap: var(--space-5);
   align-items: center;
-  padding: 22px;
+  padding: var(--space-5);
 }
 
 .guideIntroPanel h2,
@@ -40,20 +40,21 @@
 
 .guideIntroPanel p,
 .guideCard p {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--app-muted);
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }
 
 .guideIllustration {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding: 14px;
-  border-radius: 8px;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 12%, transparent), transparent 60%),
-    color-mix(in srgb, var(--app-surface) 78%, #eef2f6);
+    var(--surface-sunken);
 }
 
 .compactGuideIllustration {
@@ -62,16 +63,17 @@
 
 .guideShelfCard {
   display: grid;
-  gap: 9px;
+  gap: var(--space-2);
   min-height: 86px;
   align-content: center;
-  padding: 12px;
+  padding: var(--space-3);
   border-left: 3px solid var(--app-accent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: color-mix(in srgb, var(--app-surface) 88%, transparent);
-  font-size: 13px;
-  font-weight: 900;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .guideShelfCard svg {
@@ -81,13 +83,13 @@
 .guideGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .guideCard {
   display: grid;
-  gap: 10px;
-  padding: 18px;
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 
 .guideCard > span:first-child,
@@ -96,11 +98,12 @@
   width: 40px;
   height: 40px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-accent);
   background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
 }
 
+/* A drawing of a mouse, not a control — these numbers are the shape itself. */
 .mousePointerHint span {
   width: 16px;
   height: 22px;
