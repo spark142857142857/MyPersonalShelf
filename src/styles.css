@@ -2838,6 +2838,14 @@ button {
   font-weight: 600;
 }
 
+/* Secondary "YouTube Music" note beside the Track/Album/Playlist label. */
+.linkPlatformSource {
+  margin-left: 6px;
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 .linkPreviewUrl {
   margin: 0;
   word-break: break-all;

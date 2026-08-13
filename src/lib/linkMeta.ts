@@ -1,5 +1,11 @@
 import { getSafeExternalUrl } from "./urlSafety";
 import { titleFromUrl } from "./quickCapture";
+import {
+  parseYoutubeLink,
+  youtubeLinkTags,
+  youtubeLinkThumbnail,
+  type YoutubeLinkKind,
+} from "./youtubeLinks";
 
 export type LinkPlatform = "youtube" | "youtube-music" | "web";
 
@@ -7,6 +13,8 @@ export interface LinkPreview {
   platform: LinkPlatform;
   title?: string;
   previewImage?: string;
+  /** What the address points at, when it is a YouTube address. */
+  youtubeKind?: YoutubeLinkKind;
 }
 
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"]);
@@ -49,6 +57,34 @@ export function linkPlatformTags(platform: LinkPlatform): string[] {
   if (platform === "youtube-music") return ["yt-music", "youtube"];
   if (platform === "youtube") return ["youtube"];
   return [];
+}
+
+/**
+ * The thumbnail a YouTube address implies. The URL is built locally, but
+ * fetching it tells Google which video is on the shelf, so it stays behind the
+ * same switch as every other outbound lookup.
+ */
+export function localLinkThumbnail(rawUrl: string): string | null {
+  if (!remoteLinkMetadataAllowed) return null;
+  const info = parseYoutubeLink(rawUrl);
+  return info ? youtubeLinkThumbnail(info) : null;
+}
+
+/** What a YouTube address points at, or null for anything else. */
+export function linkYoutubeKind(rawUrl: string): YoutubeLinkKind | null {
+  return parseYoutubeLink(rawUrl)?.kind ?? null;
+}
+
+/**
+ * The image a card is allowed to load. Preview images saved earlier are remote
+ * addresses, and loading one still tells that host what sits on the shelf — so
+ * they are withheld while lookups are off, not just skipped for new items.
+ * Locally produced `blob:` and `data:` images are unaffected.
+ */
+export function displayableImageSrc(src: string | null | undefined): string | null {
+  if (!src) return null;
+  if (remoteLinkMetadataAllowed) return src;
+  return /^https?:/i.test(src) ? null : src;
 }
 
 export function linkPlatformAccent(platform: LinkPlatform): string {
@@ -104,32 +140,52 @@ export async function fetchLinkPreview(rawUrl: string, signal?: AbortSignal): Pr
     return { platform: "web" };
   }
 
+  const youtubeInfo = parseYoutubeLink(url);
+  const youtubeKind = youtubeInfo?.kind;
+
   if (!remoteLinkMetadataAllowed) {
-    return { platform: detectLinkPlatform(url) };
+    return { platform: detectLinkPlatform(url), youtubeKind };
   }
 
   const platform = detectLinkPlatform(url);
   const favicon = faviconUrlFor(url) ?? undefined;
+  // A YouTube address carries its own still image, so a card can show artwork
+  // even when the oEmbed lookup fails or the link is not embeddable.
+  const youtubeThumbnail = youtubeInfo ? youtubeLinkThumbnail(youtubeInfo) ?? undefined : undefined;
 
   try {
     if (platform === "youtube" || platform === "youtube-music") {
       const youtube = await fetchYoutubeOEmbed(url, signal);
-      if (youtube) return { ...youtube, platform };
+      if (youtube) {
+        return {
+          ...youtube,
+          platform,
+          youtubeKind,
+          previewImage: youtube.previewImage ?? youtubeThumbnail ?? favicon,
+        };
+      }
     } else {
       const embedded = await fetchNoEmbed(url, signal);
       if (embedded) return embedded;
     }
   } catch {
-    // Offline or blocked — fall through to favicon-only preview.
+    // Offline or blocked — fall through to the locally derived preview.
+  }
+
+  if (youtubeThumbnail) {
+    return { platform, previewImage: youtubeThumbnail, youtubeKind };
   }
 
   return {
     platform,
     previewImage: favicon,
+    youtubeKind,
   };
 }
 
 export function buildLinkTags(existing: string[] | undefined, url: string): string[] {
   const platformTags = linkPlatformTags(detectLinkPlatform(url));
-  return [...new Set([...(existing ?? []), ...platformTags])];
+  const info = parseYoutubeLink(url);
+  const kindTags = info ? youtubeLinkTags(info) : [];
+  return [...new Set([...(existing ?? []), ...platformTags, ...kindTags])];
 }

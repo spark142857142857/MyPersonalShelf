@@ -1,12 +1,12 @@
 import type React from "react";
 import { FilePlus2, Star } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
-import { detectLinkPlatform } from "../lib/linkMeta";
+import { detectLinkPlatform, displayableImageSrc } from "../lib/linkMeta";
 import {
   getCollectionLabel,
   getItemLocation,
   getItemTitle,
-  getLinkPlatformLabel,
+  getLinkKindLabel,
   getTypeLabel,
 } from "../lib/shelfDisplay";
 import type { ContentItem, ContentType } from "../types";
@@ -205,8 +205,8 @@ export function LibraryView({
                     onKeyDown={(event) => handleItemKeyDown(event, item)}
                   >
                     <span className="listIcon" style={{ color: item.accent }}>
-                      {item.type === "link" && item.previewImage ? (
-                        <img className="listFavicon" src={item.previewImage} alt="" />
+                      {item.type === "link" && displayableImageSrc(item.previewImage) ? (
+                        <img className="listFavicon" src={displayableImageSrc(item.previewImage) ?? ""} alt="" />
                       ) : (
                         typeIcons[item.type]
                       )}
@@ -215,7 +215,7 @@ export function LibraryView({
                       <strong>{getItemTitle(item, t)}</strong>
                       <small>
                         {item.type === "link"
-                          ? `${getLinkPlatformLabel(detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
+                          ? `${getLinkKindLabel(item.location, detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
                           : `${getCollectionLabel(item.collection, t)} / ${getItemLocation(item, t)}`}
                       </small>
                     </span>

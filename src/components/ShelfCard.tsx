@@ -2,13 +2,18 @@ import type React from "react";
 import { useRef } from "react";
 import { GripVertical, Music2, Star } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
-import { detectLinkPlatform, faviconUrlFor } from "../lib/linkMeta";
+import {
+  detectLinkPlatform,
+  displayableImageSrc,
+  faviconUrlFor,
+  localLinkThumbnail,
+} from "../lib/linkMeta";
 import {
   getCollectionLabel,
   getItemLocation,
   getItemSummary,
   getItemTitle,
-  getLinkPlatformLabel,
+  getLinkKindLabel,
   getSourceLabel,
   getTagLabel,
   getTypeLabel,
@@ -100,8 +105,10 @@ export function ShelfCard({
   }
 
   const platform = item.type === "link" ? detectLinkPlatform(item.location) : null;
-  const previewSrc =
-    item.previewImage ?? (item.type === "link" ? faviconUrlFor(item.location) : null);
+  const previewSrc = displayableImageSrc(
+    item.previewImage ??
+      (item.type === "link" ? localLinkThumbnail(item.location) ?? faviconUrlFor(item.location) : null),
+  );
   const platformClass =
     platform === "youtube-music" ? "ytMusicCard" : platform === "youtube" ? "youtubeCard" : "";
 
@@ -126,7 +133,7 @@ export function ShelfCard({
         <div className="cardHeader">
           <div className="typeBadge" style={{ color: item.accent }}>
             {platform === "youtube-music" ? <Music2 size={16} /> : typeIcons[item.type]}
-            {platform ? getLinkPlatformLabel(platform, t) : getCollectionLabel(item.collection, t)}
+            {platform ? getLinkKindLabel(item.location, platform, t) : getCollectionLabel(item.collection, t)}
           </div>
           <span className="cardType">{getTypeLabel(item.type, t)}</span>
         </div>

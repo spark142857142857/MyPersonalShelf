@@ -173,6 +173,7 @@ Supported now:
 - Library multi-select bulk organize.
 - JSON backup merge/replace restore.
 - Local PDF, Office, EPUB, and HWP/HWPX registration with default-app opening.
+- YouTube and YouTube Music link handling: tracks, albums, playlists, and artists are told apart from the address alone, tagged accordingly, and shown with their thumbnail.
 
 Near-term improvements:
 
@@ -181,7 +182,7 @@ Near-term improvements:
 - Home section visibility controls.
 - Reading theme presets and document font selection.
 - Web link preview cards with favicon and page title.
-- YouTube/YouTube Music link handling.
+- Importing your own YouTube Music playlists through the official YouTube Data API.
 - Command palette UI with autocomplete.
 
 Longer-term ideas:

@@ -171,6 +171,7 @@ npm run lint
 - 라이브러리 멀티선택 일괄 정리.
 - JSON 백업 병합/교체 복원.
 - PDF, 오피스, EPUB, HWP/HWPX 로컬 파일 등록과 기본 앱 열기.
+- YouTube/YouTube Music 링크 처리: 주소만 보고 곡·앨범·플레이리스트·아티스트를 구분해 태그를 붙이고 썸네일을 보여줍니다.
 
 가까운 개선:
 
@@ -179,7 +180,7 @@ npm run lint
 - 홈 섹션 표시/숨김 선택.
 - 읽기 테마 프리셋과 문서 글꼴 선택.
 - favicon과 페이지 제목이 있는 웹 링크 미리보기 카드.
-- YouTube/YouTube Music 링크 전용 처리.
+- 공식 YouTube Data API로 내 YouTube Music 플레이리스트 가져오기.
 - 자동완성이 있는 명령 팔레트 UI.
 
 장기 아이디어:

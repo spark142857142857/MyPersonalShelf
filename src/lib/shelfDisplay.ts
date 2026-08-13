@@ -1,5 +1,6 @@
 import type { MessageKey } from "./i18n";
-import type { LinkPlatform } from "./linkMeta";
+import { linkYoutubeKind, type LinkPlatform } from "./linkMeta";
+import type { YoutubeLinkKind } from "./youtubeLinks";
 import type {
   ContentItem,
   ContentSource,
@@ -69,6 +70,10 @@ const tagLabelKeys: Record<string, MessageKey> = {
   imported: "tagImported",
   youtube: "tagYoutube",
   "yt-music": "tagYtMusic",
+  "yt-track": "tagYtTrack",
+  "yt-album": "tagYtAlbum",
+  "yt-playlist": "tagYtPlaylist",
+  "yt-artist": "tagYtArtist",
   playlist: "tagPlaylist",
   reading: "tagReading",
   reference: "tagReference",
@@ -127,6 +132,31 @@ export function getCollectionLabel(collection: string, t: (key: MessageKey) => s
 
 export function getTagLabel(tag: string, t: (key: MessageKey) => string) {
   return translateKnown(tag, tagLabelKeys, t);
+}
+
+const youtubeKindLabelKeys: Record<YoutubeLinkKind, MessageKey> = {
+  track: "ytKindTrack",
+  album: "ytKindAlbum",
+  playlist: "ytKindPlaylist",
+  artist: "ytKindArtist",
+  video: "ytKindVideo",
+  unknown: "ytKindUnknown",
+};
+
+/**
+ * Names what a link points at: "Track", "Album", and so on. Falls back to the
+ * plain platform name for addresses the parser cannot classify.
+ */
+export function getLinkKindLabel(
+  location: string,
+  platform: LinkPlatform,
+  t: (key: MessageKey) => string,
+) {
+  const kind = linkYoutubeKind(location);
+  if (!kind || kind === "unknown") {
+    return getLinkPlatformLabel(platform, t);
+  }
+  return t(youtubeKindLabelKeys[kind]);
 }
 
 export function getItemTitle(item: ContentItem, t: (key: MessageKey) => string) {

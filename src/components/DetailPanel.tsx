@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { BookOpen, ExternalLink, FolderOpen, Link, Star, Trash2 } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { isExternalDocumentItem } from "../lib/documentOpen";
-import { detectLinkPlatform, faviconUrlFor } from "../lib/linkMeta";
+import {
+  detectLinkPlatform,
+  displayableImageSrc,
+  faviconUrlFor,
+  localLinkThumbnail,
+} from "../lib/linkMeta";
 import { loadNativeMediaProgress, nativeAssetUrl, saveNativeMediaProgress } from "../lib/native";
 import { saveBrowserItemProgress } from "../lib/persistence";
 import {
@@ -13,6 +18,7 @@ import {
   getItemSummary,
   getItemTextContent,
   getItemTitle,
+  getLinkKindLabel,
   getLinkPlatformLabel,
   getTagLabel,
   getTypeLabel,
@@ -406,12 +412,18 @@ export function PreviewBody({
 
   if (item.type === "link") {
     const platform = detectLinkPlatform(item.location);
-    const previewSrc = item.previewImage ?? faviconUrlFor(item.location);
+    const previewSrc = displayableImageSrc(
+      item.previewImage ?? localLinkThumbnail(item.location) ?? faviconUrlFor(item.location),
+    );
+    const isYoutube = platform === "youtube" || platform === "youtube-music";
     return (
-      <div className={`linkPreviewBody ${platform === "youtube" || platform === "youtube-music" ? "linkPreviewMedia" : ""}`}>
+      <div className={`linkPreviewBody ${isYoutube ? "linkPreviewMedia" : ""}`}>
         {previewSrc && <img className="linkPreviewThumb" src={previewSrc} alt="" />}
         <div>
-          <p className="linkPlatformLabel">{getLinkPlatformLabel(platform, t)}</p>
+          <p className="linkPlatformLabel">
+            {getLinkKindLabel(item.location, platform, t)}
+            {isYoutube && <span className="linkPlatformSource">{getLinkPlatformLabel(platform, t)}</span>}
+          </p>
           <p className="linkPreviewUrl">{item.location}</p>
         </div>
       </div>
