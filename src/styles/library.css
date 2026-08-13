@@ -2,77 +2,83 @@
 
 .folderEntryList {
   display: grid;
-  gap: 6px;
-  margin: 10px 0 0;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
   padding: 0;
   list-style: none;
 }
 
+/* Was rgba(255, 255, 255, 0.48) — a literal white wash, which would glow on a
+ * dark theme. The sunken token is the same idea expressed against the theme. */
 .folderEntryList li {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
-  gap: 8px;
-  padding: 7px 9px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.48);
-  font-size: 13px;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .folderEntryList span {
   color: var(--app-muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   text-transform: uppercase;
 }
 
 .progressControl {
   display: grid;
-  gap: 8px;
-  margin-top: 16px;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 700;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  color: var(--app-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .customControls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .customControls button {
-  padding: 9px 11px;
-  border-radius: 8px;
-  color: #334155;
-  background: #edf1f5;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--app-text);
+  background: var(--surface-sunken);
 }
 
 .customControls button:hover {
-  background: #dde6ee;
+  background: color-mix(in srgb, var(--app-text) 7%, var(--app-surface));
 }
 
 .createCollectionRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .createCollectionRow input {
   flex: 1;
   min-width: 180px;
-  min-height: 40px;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--app-muted) 28%, transparent);
-  border-radius: 10px;
+  min-height: var(--control-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   background: var(--app-surface);
   color: var(--app-text);
 }
 
 .collectionCreateHint {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--app-muted);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .emptyCollectionCard {
@@ -84,24 +90,27 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--app-accent) 28%, rgba(55, 64, 78, 0.12));
-  border-radius: 12px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--app-accent) 28%, var(--line-strong));
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-accent) 8%, var(--app-surface));
 }
 
 .cleanupBanner p {
   margin: 0;
   color: var(--app-text);
-  font-size: 0.92rem;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }
 
 .compactCleanupBanner {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 
+/* The 2px here is a seam between two halves of one control, not spacing, so it
+ * stays off the scale — 4px would read as two separate buttons. */
 .tagCloudItem {
   display: inline-flex;
   align-items: stretch;
@@ -121,16 +130,16 @@
 
 .duplicateGroupList {
   display: grid;
-  gap: 12px;
-  margin-top: 10px;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .duplicateGroup {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--app-muted) 22%, transparent);
-  border-radius: 12px;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-surface) 88%, transparent);
 }
 
@@ -142,19 +151,19 @@
 .duplicateRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   justify-content: space-between;
 }
 
 .duplicateOpenButton {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   flex: 1;
   min-width: 160px;
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--app-text);
   text-align: left;
@@ -166,30 +175,34 @@
 
 .duplicateOpenButton span {
   color: var(--app-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .statusStrip {
-  min-height: 34px;
-  padding: 8px 12px;
-  border: 1px solid rgba(31, 41, 37, 0.07);
-  border-radius: 7px;
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: color-mix(in srgb, var(--app-surface) 78%, transparent);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
+/* Warning and danger are semantic colours rather than theme surfaces, so the
+ * hues wait for phase 2; only the neutral they mix against becomes a token. */
 .statusStrip--warning {
-  border-color: color-mix(in srgb, #b45309 45%, rgba(31, 41, 37, 0.08));
+  border-color: color-mix(in srgb, #b45309 45%, var(--line-subtle));
   background: color-mix(in srgb, #f59e0b 14%, var(--app-surface));
   color: #7c2d12;
 }
 
 .statusStrip--danger {
-  border-color: color-mix(in srgb, #dc2626 50%, rgba(31, 41, 37, 0.08));
+  border-color: color-mix(in srgb, #dc2626 50%, var(--line-subtle));
   background: color-mix(in srgb, #ef4444 16%, var(--app-surface));
   color: #7f1d1d;
-  font-weight: 600;
+  font-weight: var(--weight-medium);
 }
 
 .statusNotice {

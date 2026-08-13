@@ -3,50 +3,54 @@
 .collectionGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
+/* Radius comes down from 14px to match the content cards these sit beside;
+ * two card shapes on one screen read as an accident. */
 .collectionCard {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 120px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, rgba(55, 64, 78, 0.12));
-  border-radius: 14px;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, var(--line-strong));
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: var(--app-surface);
   text-align: left;
-  box-shadow: 0 1px 0 rgba(31, 41, 37, 0.04);
+  box-shadow: var(--shadow-1);
 }
 
 .collectionCard:hover {
-  background: color-mix(in srgb, var(--app-surface) 92%, #e8eef2);
+  background: color-mix(in srgb, var(--app-text) 4%, var(--app-surface));
 }
 
 .collectionCard strong {
-  font-size: 18px;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
 }
 
 .collectionCard span {
   color: var(--app-muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .collectionEditorCard {
   align-content: start;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .collectionOpenButton {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
-  gap: 5px 10px;
+  gap: var(--space-1) var(--space-3);
   width: 100%;
-  padding: 4px;
+  padding: var(--space-1);
   margin: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: inherit;
   background: transparent;
   box-shadow: none;
@@ -55,7 +59,7 @@
 }
 
 .collectionOpenButton:hover {
-  background: color-mix(in srgb, var(--app-accent) 8%, transparent);
+  background: var(--accent-wash);
 }
 
 .collectionOpenButton:focus-visible {
@@ -69,9 +73,11 @@
   grid-column: 2;
 }
 
+/* Name, then count, then description — each a step below the last. */
 .collectionOpenButton small {
   color: var(--app-muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
 }
 
 .collectionIcon {
@@ -81,7 +87,7 @@
   height: 34px;
   place-items: center;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
 }
 
@@ -89,61 +95,65 @@
 .organizeEditor {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .collectionEditGrid label {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
   color: var(--app-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-bold);
 }
 
 .collectionEditGrid label:first-child {
   grid-column: 1 / -1;
 }
 
+/* Inputs inside a dense editor grid take the small control height; the
+ * standalone ones (createCollectionRow) take the full 44px. */
 .collectionEditGrid input,
 .collectionEditGrid select,
 .fieldBlock input {
   width: 100%;
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid rgba(55, 64, 78, 0.14);
-  border-radius: 8px;
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: var(--app-surface);
 }
 
 .collectionEditGrid input[type="color"] {
-  padding: 4px;
+  padding: var(--space-1);
 }
 
 .quickFilterRow,
 .tagCloud {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .quickFilterRow button,
 .tagCloud button {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 8px 11px;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 68%, #e2e8f0);
+  background: color-mix(in srgb, var(--app-text) 6%, var(--app-surface));
 }
 
 .tagCloud button span {
   color: var(--app-muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
 }
 
 .quickFilterRow button:hover,
@@ -154,9 +164,10 @@
 .metaGrid {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
-  gap: 10px 14px;
-  margin-top: 16px;
-  font-size: 13px;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .metaGrid span {
@@ -175,10 +186,11 @@
 .detailActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
+/* Seam between the two halves of a joined control — see tagCloudItem. */
 .filterChipGroup {
   display: inline-flex;
   align-items: stretch;
@@ -195,12 +207,12 @@
   align-items: center;
   justify-content: center;
   min-width: 32px;
-  min-height: 38px;
-  padding: 0 8px;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-2);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-surface) 68%, #e2e8f0);
+  background: color-mix(in srgb, var(--app-text) 6%, var(--app-surface));
 }
 
 .filterChipGroup .pinChipButton {
@@ -218,7 +230,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .collectionCardActions .pinChipButton {
