@@ -1,8 +1,11 @@
 # Dashboard pins (items + types + collections) — Design
 
 Date: 2026-07-13  
-Status: draft for review  
+Status: **shipped** — this is the design that was built, kept as a record of why it works this way  
 Approach: **B** — keep item favorites as-is; add pinned types/collections in app settings
+
+Where it lives now: `pinnedTypes` / `pinnedCollections` on `AppSettings` in `src/types.ts`,
+normalized in `src/lib/appSettings.ts`, rendered by `src/components/DashboardView.tsx`.
 
 ## Goal
 
