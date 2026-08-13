@@ -9,3 +9,4 @@ dist-ssr
 src-tauri/target
 src-tauri/gen/schemas
 backups/
+.claude/
