@@ -141,16 +141,45 @@ MyPersonalShelf는 내 컴퓨터의 실제 파일, 폴더, 문서, 영상, 음�
 
 ### 명령어
 
+의존성 설치는 처음 한 번만:
+
 ```bash
 npm install
-npm run dev
+```
+
+**앱을 실행할 때는 둘 중 하나만 고르세요.** 순서대로 실행하는 게 아니라 서로 대체재입니다.
+
+```bash
 npm run tauri dev
-npm run build
-npm test
+```
+
+실제 앱입니다. 로컬 파일과 폴더에 접근할 수 있는 데스크톱 앱이고, 특별한 이유가 없다면 이걸 쓰면 됩니다.
+
+```bash
+npm run dev
+```
+
+`localhost:1420`에 뜨는 브라우저 미리보기입니다. 더 빨리 켜지고 UI 작업에는 충분하지만, 로컬 경로를 다루는 기능은 전부 동작하지 않고 선반 데이터도 앱 DB가 아니라 브라우저 저장소에 들어갑니다.
+
+**커밋 전에:**
+
+```bash
 npm run lint
 ```
 
-`npm run dev`는 Vite 브라우저 미리보기입니다. `npm run tauri dev`는 네이티브 파일/폴더 접근이 가능한 전체 데스크톱 앱입니다. `npm test`는 프론트엔드 회귀 테스트를 실행합니다. `npm run lint`는 React 훅 의존성 규칙을 포함한 ESLint를 실행합니다. Rust 쪽은 `src-tauri`에서 `cargo test`로 검증합니다.
+```bash
+npm test
+```
+
+ESLint(React 훅 의존성 규칙 포함)와 프론트엔드 테스트입니다. `src-tauri` 쪽을 건드렸다면 거기서 `cargo test`도 돌리세요.
+
+**배포용으로 묶을 때:**
+
+```bash
+npm run tauri build
+```
+
+프론트엔드를 빌드해서 설치 파일까지 만듭니다. `npm run build`는 타입 검사 후 `dist/`에 웹 번들만 만드는 명령이고, Tauri가 알아서 호출하므로 직접 실행할 일은 거의 없습니다.
 
 ## 프로젝트 메모
 

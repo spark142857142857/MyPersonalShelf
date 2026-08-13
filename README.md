@@ -143,16 +143,45 @@ MyPersonalShelf follows a desktop-style interaction model:
 
 ### Commands
 
+Install dependencies once:
+
 ```bash
 npm install
-npm run dev
+```
+
+**To run the app, pick one.** They are alternatives, not steps:
+
+```bash
 npm run tauri dev
-npm run build
-npm test
+```
+
+The real thing — the desktop app, with access to local files and folders. Start here unless you have a reason not to.
+
+```bash
+npm run dev
+```
+
+A browser preview on `localhost:1420`. It starts faster and is enough for UI work, but nothing that touches a local path works and the shelf lives in browser storage instead of the app's database.
+
+**Before you commit:**
+
+```bash
 npm run lint
 ```
 
-`npm run dev` runs the Vite browser preview. `npm run tauri dev` runs the full desktop app with native file/folder access. `npm test` runs the frontend regression suite. `npm run lint` runs ESLint, including the React hook dependency rules. The Rust side is covered by `cargo test` inside `src-tauri`.
+```bash
+npm test
+```
+
+ESLint (including the React hook dependency rules) and the frontend test suite. If you changed anything under `src-tauri`, also run `cargo test` there.
+
+**To package a release:**
+
+```bash
+npm run tauri build
+```
+
+That builds the frontend and wraps it into an installer. `npm run build` on its own only type-checks and writes the web bundle to `dist/` — Tauri calls it for you, so you rarely need to run it directly.
 
 ## Project Notes
 
