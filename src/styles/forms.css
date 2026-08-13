@@ -6,13 +6,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 8px 12px;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 68%, #e2e8f0);
+  background: var(--fill-subtle);
 }
 
 .filterRow button.active,
@@ -35,11 +35,12 @@
 
 .fieldBlock {
   display: grid;
-  gap: 8px;
-  margin-top: 16px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
   color: var(--app-muted);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .fieldBlock textarea,
@@ -47,8 +48,8 @@
 .formGrid input,
 .formGrid select {
   width: 100%;
-  border: 1px solid rgba(55, 64, 78, 0.14);
-  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: var(--app-surface);
 }
@@ -56,15 +57,15 @@
 .fieldBlock textarea,
 .formGrid textarea {
   min-height: 96px;
-  padding: 10px;
+  padding: var(--space-3);
   resize: vertical;
 }
 
 .formGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .formFieldset {
@@ -76,20 +77,21 @@
 
 .formGrid label {
   display: grid;
-  gap: 7px;
+  gap: var(--space-2);
   color: var(--app-muted);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .formGrid input,
 .formGrid select {
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
 }
 
 .formGrid input[type="color"] {
-  padding: 4px;
+  padding: var(--space-1);
 }
 
 .formGrid .accentField {
@@ -113,7 +115,7 @@
   display: flex !important;
   grid-column: 1 / -1;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-2);
 }
 
 .checkboxField input {
@@ -126,30 +128,31 @@
   z-index: 30;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: var(--space-5);
   background: rgba(17, 24, 39, 0.45);
 }
 
+/* The one thing in the app that genuinely floats above everything else. */
 .modalPanel {
   width: min(760px, 100%);
   max-height: min(760px, calc(100vh - 48px));
   overflow: auto;
-  padding: 20px;
-  border-radius: 8px;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
   background: var(--app-surface);
-  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.24);
+  box-shadow: var(--shadow-4);
 }
 
 .uploadBox {
   display: grid;
   min-height: 220px;
   place-items: center;
-  gap: 12px;
-  margin-top: 16px;
-  border: 1px dashed rgba(55, 64, 78, 0.24);
-  border-radius: 8px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
   color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-surface) 72%, #eef2f6);
+  background: var(--surface-sunken);
   text-align: center;
 }
 

@@ -147,7 +147,7 @@
   border: 0;
   border-radius: var(--radius-full);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-text) 6%, var(--app-surface));
+  background: var(--fill-subtle);
 }
 
 .tagCloud button span {
@@ -212,7 +212,7 @@
   border: 0;
   border-radius: var(--radius-md);
   color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-text) 6%, var(--app-surface));
+  background: var(--fill-subtle);
 }
 
 .filterChipGroup .pinChipButton {

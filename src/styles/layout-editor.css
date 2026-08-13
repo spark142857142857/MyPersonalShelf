@@ -2,27 +2,27 @@
 
 .dashboardLayoutEditor {
   display: grid;
-  gap: 12px;
-  margin-top: 22px;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
 }
 
 .layoutList {
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .layoutItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid rgba(55, 64, 78, 0.08);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 76%, #eef2f6);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 
 .layoutItem.muted {
-  background: color-mix(in srgb, var(--app-surface) 86%, #eef2f6);
+  background: color-mix(in srgb, var(--app-text) 1.5%, var(--app-surface));
 }
 
 .layoutItem.muted .layoutMiniCard {
@@ -32,12 +32,12 @@
 .layoutMiniCard {
   display: grid;
   grid-template-columns: 30px 34px minmax(0, 1fr);
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   min-height: 76px;
-  padding: 10px;
+  padding: var(--space-3);
   border-left: 4px solid var(--app-accent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-surface) 88%, transparent);
 }
 
@@ -56,11 +56,12 @@
   width: 26px;
   height: 26px;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-surface) 64%, #dce8ef);
-  font-size: 12px;
-  font-weight: 900;
+  background: var(--fill-strong);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-bold);
 }
 
 .layoutMiniIcon {
@@ -68,13 +69,13 @@
   width: 34px;
   height: 34px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--app-surface);
 }
 
 .layoutMiniText {
   display: grid;
-  gap: 3px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -87,14 +88,15 @@
 
 .layoutMiniText small {
   color: var(--app-muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
 }
 
 .layoutBadges {
   display: flex;
   grid-column: 1 / -1;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .layoutMiniCard.wide .layoutBadges {
@@ -103,52 +105,54 @@
 }
 
 .layoutBadges b {
-  padding: 4px 7px;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 58%, #e2e8f0);
-  font-size: 11px;
+  background: var(--fill-strong);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
 }
 
 .layoutActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
 .layoutActions button {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   min-height: 32px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 62%, #dce8ef);
+  background: var(--fill-strong);
 }
 
 .settingsActionButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 40px;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
   width: fit-content;
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
-  font-weight: 800;
+  font-weight: var(--weight-bold);
 }
 
 .settingsInfoList {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr);
-  gap: 10px 14px;
+  gap: var(--space-3) var(--space-4);
   color: var(--app-muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .settingsInfoList strong {

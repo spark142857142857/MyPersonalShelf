@@ -141,6 +141,14 @@
   /* A recess in the page — search fields, empty states, code blocks. */
   --surface-sunken: color-mix(in srgb, var(--app-text) 3%, var(--app-surface));
 
+  /* Filled neutral controls: chips, secondary buttons, badges, the track
+   * behind a segmented control. These replace a scatter of one-off mixes
+   * (`surface 68%, #e2e8f0`, `surface 62%, #dce8ef`, `surface 58%, #e2e8f0`)
+   * whose cool greys sat oddly on a warm surface and would not survive a dark
+   * theme. Three depths are enough for everything the app fills. */
+  --fill-subtle: color-mix(in srgb, var(--app-text) 6%, var(--app-surface));
+  --fill-strong: color-mix(in srgb, var(--app-text) 10%, var(--app-surface));
+
   /* The accent at strengths that stay legible on any surface: a wash behind a
    * selected row, a tint for a hovered control, the focus ring. */
   --accent-wash: color-mix(in srgb, var(--app-accent) 8%, transparent);

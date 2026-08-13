@@ -2,45 +2,46 @@
 
 .pageIntro {
   display: flex;
-  gap: 18px;
+  gap: var(--space-4);
   align-items: end;
   justify-content: space-between;
-  padding: 20px 22px;
-  border: 1px solid rgba(55, 64, 78, 0.1);
-  border-radius: 8px;
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
   background: var(--app-surface);
-  box-shadow: 0 3px 14px rgba(31, 41, 37, 0.04);
+  box-shadow: var(--shadow-2);
 }
 
 .pageIntro h1,
 .customizeHeader h1 {
   max-width: 760px;
-  margin: 6px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--app-text);
-  font-size: 28px;
-  line-height: 1.2;
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
 }
 
 .pageIntroStats {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
 .pageIntroStats span {
-  padding: 8px 10px;
-  border: 1px solid rgba(55, 64, 78, 0.1);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
   color: var(--app-muted);
   background: var(--app-surface);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-bold);
 }
 
 .libraryPanel,
 .readerPanel {
-  padding: 20px;
+  padding: var(--space-5);
 }
 
 .activityPanel {
@@ -48,16 +49,17 @@
 }
 
 .activityPanel .sectionTitle h2 {
-  font-size: 18px;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
 }
 
 .activityPanel .itemList {
-  gap: 5px;
-  margin-top: 12px;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
 }
 
 .activityPanel .listItem {
-  padding: 8px;
+  padding: var(--space-2);
   background: transparent;
 }
 
@@ -67,16 +69,16 @@
 
 .customizeWorkspace {
   display: grid;
-  gap: 18px;
+  gap: var(--space-4);
 }
 
 .customizeHeader {
   display: flex;
-  gap: 18px;
+  gap: var(--space-4);
   align-items: end;
   justify-content: space-between;
-  padding: 20px 22px;
-  border-radius: 8px;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 12%, transparent), transparent 58%),
@@ -84,45 +86,47 @@
 }
 
 .customizeHeader button {
-  min-height: 38px;
-  padding: 8px 12px;
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: var(--app-surface);
 }
 
 .customizeControls {
   display: grid;
-  gap: 14px;
+  gap: var(--space-4);
   max-width: 920px;
 }
 
 .settingsWorkspace {
   display: grid;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .settingsPageGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(280px, 1fr));
-  gap: 16px;
+  gap: var(--space-4);
   align-items: start;
 }
 
+/* Was a 50px-blur drop shadow on a panel that does not float; --shadow-2 is
+ * what a resting surface gets everywhere else. */
 .settingsGroup {
-  border: 1px solid rgba(55, 64, 78, 0.1);
-  border-radius: 8px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--app-surface) 84%, transparent);
-  box-shadow: 0 18px 50px rgba(49, 57, 70, 0.07);
+  box-shadow: var(--shadow-2);
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: var(--space-4);
+  padding: var(--space-4);
 }
 
 .groupHeading {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
   justify-content: space-between;
 }
@@ -130,20 +134,22 @@
 .groupHeading h2 {
   margin: 0;
   color: var(--app-text);
-  font-size: 18px;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
 }
 
 .groupHeading span {
   color: var(--app-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-bold);
 }
 
 .groupDescription {
-  margin: -4px 0 0;
+  margin: calc(var(--space-1) * -1) 0 0;
   color: var(--app-muted);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .controlRow,
@@ -151,20 +157,21 @@
 .toggleRow,
 .colorControl {
   color: var(--app-muted);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-bold);
 }
 
 .controlRow {
   display: grid;
-  gap: 7px;
+  gap: var(--space-2);
 }
 
 .controlRow select {
-  min-height: 40px;
-  padding: 8px 10px;
-  border: 1px solid rgba(55, 64, 78, 0.14);
-  border-radius: 8px;
+  min-height: var(--control-sm);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   color: var(--app-text);
   background: var(--app-surface);
 }
@@ -172,18 +179,18 @@
 .colorControlGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .colorControl {
   display: grid;
   grid-template-columns: minmax(58px, 1fr) 34px minmax(68px, auto);
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 10px;
-  border: 1px solid rgba(55, 64, 78, 0.09);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 70%, #eef2f6);
+  padding: var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 
 .colorControl input {
@@ -191,15 +198,16 @@
   height: 34px;
   padding: 2px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
 }
 
 .colorControl strong {
   overflow: hidden;
   color: var(--app-text);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-bold);
   text-overflow: ellipsis;
 }
 
@@ -211,7 +219,7 @@
 .rangeControl {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .rangeControl input {
@@ -225,7 +233,7 @@
 .toggleRow {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-2);
 }
 
 .toggleRow input {
@@ -236,19 +244,19 @@
 .segmentedControl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  padding: 5px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--app-surface) 62%, #dce8ef);
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--fill-strong);
 }
 
 .segmentedControl button {
-  min-height: 38px;
+  min-height: var(--control-sm);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--app-muted);
   background: transparent;
-  font-weight: 700;
+  font-weight: var(--weight-bold);
 }
 
 .segmentedControl button.active {
@@ -261,16 +269,16 @@
 }
 
 .readerSample {
-  padding: 16px;
+  padding: var(--space-4);
   border-left: 3px solid var(--app-accent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 72%, #f3efe8);
+  background: var(--surface-sunken);
 }
 
 .readerSample strong {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .readerSample p {
