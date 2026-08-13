@@ -159,6 +159,7 @@ npm run lint
 - The display name is isolated in `src/lib/appConfig.ts` so the project can be renamed later without immediately changing package internals.
 - The initial shelf intentionally starts empty. The built-in guide replaces fake sample content.
 - The current implementation favors practical local use over cloud sync or account-based workflows.
+- Signing in to YouTube to import your own YouTube Music playlists was considered and deliberately left out. It is technically workable — you would create your own Google Cloud OAuth client, publish it, and get a long-lived token — but it costs a one-time console setup and an unverified-app warning, cannot reach the "Liked Music" playlist at all, and only imports metadata. Pasting a link already covers that for anyone who is not managing dozens of playlists, so YouTube support stops at reading the address.
 
 ## Roadmap
 
@@ -182,7 +183,6 @@ Near-term improvements:
 - Home section visibility controls.
 - Reading theme presets and document font selection.
 - Web link preview cards with favicon and page title.
-- Importing your own YouTube Music playlists through the official YouTube Data API.
 - Command palette UI with autocomplete.
 
 Longer-term ideas:
