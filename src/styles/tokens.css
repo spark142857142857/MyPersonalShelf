@@ -128,13 +128,20 @@
 /* Tokens derived from the theme the user picked.
  *
  * These cannot live in :root. A custom property holding `var(--app-text)` is
- * substituted where it is *declared*, and App.tsx sets --app-text as an inline
- * style on .appShell — so at :root it would resolve to nothing. Declaring them
- * on the same element as the theme colours is what makes them follow it.
+ * substituted where it is *declared*, and App.tsx sets the theme colours as an
+ * inline style on a root element — so at :root they would resolve to nothing.
+ * They have to be declared on that same element.
+ *
+ * `.themeRoot` is the class App.tsx puts on every element carrying that inline
+ * style, and there are four: the app shell, the reader window, and the loading
+ * and storage-error screens. Keying off a class rather than `.appShell` is not
+ * tidiness — the reader window is not inside the app shell, so its borders fell
+ * back to opaque currentColor until this existed. A fifth root would need the
+ * class too.
  *
  * Deriving borders from the text colour rather than hardcoding a grey is what
  * lets phase 2 swap in a dark theme without every divider staying pale. */
-.appShell {
+.themeRoot {
   --line-subtle: color-mix(in srgb, var(--app-text) 8%, transparent);
   --line-strong: color-mix(in srgb, var(--app-text) 14%, transparent);
 

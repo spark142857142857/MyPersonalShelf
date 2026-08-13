@@ -2042,7 +2042,7 @@ function App() {
 
   if (!storageReady) {
     return (
-      <div className="loadingShell" style={shellStyle}>
+      <div className="themeRoot loadingShell" style={shellStyle}>
         <div className="brandMark">S</div>
         <strong>{appConfig.displayName}</strong>
         <span>{t("loadingShelf")}</span>
@@ -2052,7 +2052,7 @@ function App() {
 
   if (storageLoadFailed) {
     return (
-      <div className="loadingShell storageErrorShell" style={shellStyle}>
+      <div className="themeRoot loadingShell storageErrorShell" style={shellStyle}>
         <div className="brandMark">S</div>
         <strong>{t("storageLoadFailed")}</strong>
         <span>{t("storageLoadFailedHint")}</span>
@@ -2071,7 +2071,7 @@ function App() {
     };
 
     return (
-      <div className="readerShell" style={shellStyle}>
+      <div className="themeRoot readerShell" style={shellStyle}>
         {closeError && (
           <div className="closeErrorBanner" role="alert">
             <span>{closeError}</span>
@@ -2105,7 +2105,7 @@ function App() {
 
   return (
     <div
-      className={`appShell density-${theme.dashboardCardDensity} ${isDraggingOver ? "dragOver" : ""}`}
+      className={`themeRoot appShell density-${theme.dashboardCardDensity} ${isDraggingOver ? "dragOver" : ""}`}
       style={shellStyle}
       onDragOver={handleShellDragOver}
       onDragLeave={handleShellDragLeave}
