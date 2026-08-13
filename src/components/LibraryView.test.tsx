@@ -46,7 +46,7 @@ function renderLibrary(props: Partial<Parameters<typeof LibraryView>[0]> = {}) {
     onAddContent: vi.fn(),
   };
 
-  render(
+  const view = render(
     <LibraryView
       t={(key: MessageKey) => key}
       items={[item()]}
@@ -69,7 +69,7 @@ function renderLibrary(props: Partial<Parameters<typeof LibraryView>[0]> = {}) {
     />,
   );
 
-  return handlers;
+  return { ...handlers, container: view.container };
 }
 
 describe("LibraryView", () => {
@@ -118,6 +118,23 @@ describe("LibraryView", () => {
     expect(screen.queryByRole("button", { name: "selectAllVisible" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "applyBulk" }));
     expect(handlers.onApplyBulkEdits).toHaveBeenCalledOnce();
+  });
+
+  it("shows a link icon even when the row has no saved preview", () => {
+    // Rows used to read item.previewImage alone, so a link saved before
+    // previews existed showed artwork on its card but a bare type icon here.
+    const { container } = renderLibrary({
+      items: [
+        item({
+          type: "link",
+          source: "url",
+          location: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        }),
+      ],
+    });
+
+    const icon = container.querySelector("img.listFavicon");
+    expect(icon?.getAttribute("src")).toBe("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
   });
 
   it("reports type filter changes without touching the pin control", async () => {

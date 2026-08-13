@@ -2,14 +2,10 @@ import type React from "react";
 import { useRef } from "react";
 import { GripVertical, Music2, Star } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
-import {
-  detectLinkPlatform,
-  displayableImageSrc,
-  faviconUrlFor,
-  localLinkThumbnail,
-} from "../lib/linkMeta";
+import { detectLinkPlatform } from "../lib/linkMeta";
 import {
   getCollectionLabel,
+  getItemImageSrc,
   getItemLocation,
   getItemSummary,
   getItemTitle,
@@ -105,10 +101,7 @@ export function ShelfCard({
   }
 
   const platform = item.type === "link" ? detectLinkPlatform(item.location) : null;
-  const previewSrc = displayableImageSrc(
-    item.previewImage ??
-      (item.type === "link" ? localLinkThumbnail(item.location) ?? faviconUrlFor(item.location) : null),
-  );
+  const previewSrc = getItemImageSrc(item);
   const platformClass =
     platform === "youtube-music" ? "ytMusicCard" : platform === "youtube" ? "youtubeCard" : "";
 

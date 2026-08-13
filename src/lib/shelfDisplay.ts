@@ -1,5 +1,11 @@
 import type { MessageKey } from "./i18n";
-import { linkYoutubeKind, type LinkPlatform } from "./linkMeta";
+import {
+  displayableImageSrc,
+  faviconUrlFor,
+  linkYoutubeKind,
+  localLinkThumbnail,
+  type LinkPlatform,
+} from "./linkMeta";
 import type { YoutubeLinkKind } from "./youtubeLinks";
 import type {
   ContentItem,
@@ -173,6 +179,18 @@ export function getItemLocation(item: ContentItem, t: (key: MessageKey) => strin
 
 export function getItemTextContent(item: ContentItem, t: (key: MessageKey) => string) {
   return item.textContent ? translateKnown(item.textContent, seedTextContentLabelKeys, t) : "";
+}
+
+/**
+ * The image standing in for an item: the preview saved with it, or failing
+ * that whatever its address implies. Cards, list rows, and the detail panel all
+ * read it from here, so a link cannot end up with artwork in one view and a
+ * bare type icon in another. The result is already filtered by the link preview
+ * setting, so callers can render it as-is.
+ */
+export function getItemImageSrc(item: ContentItem): string | null {
+  const derived = item.type === "link" ? localLinkThumbnail(item.location) ?? faviconUrlFor(item.location) : null;
+  return displayableImageSrc(item.previewImage ?? derived);
 }
 
 export function canPreviewMediaItem(item: ContentItem, kind: "video" | "audio") {

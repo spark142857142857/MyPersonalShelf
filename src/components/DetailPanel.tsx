@@ -3,17 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { BookOpen, ExternalLink, FolderOpen, Link, Star, Trash2 } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { isExternalDocumentItem } from "../lib/documentOpen";
-import {
-  detectLinkPlatform,
-  displayableImageSrc,
-  faviconUrlFor,
-  localLinkThumbnail,
-} from "../lib/linkMeta";
+import { detectLinkPlatform } from "../lib/linkMeta";
 import { loadNativeMediaProgress, nativeAssetUrl, saveNativeMediaProgress } from "../lib/native";
 import { saveBrowserItemProgress } from "../lib/persistence";
 import {
   canPreviewMediaItem,
   getEntryTypeLabel,
+  getItemImageSrc,
   getItemLocation,
   getItemSummary,
   getItemTextContent,
@@ -412,9 +408,7 @@ export function PreviewBody({
 
   if (item.type === "link") {
     const platform = detectLinkPlatform(item.location);
-    const previewSrc = displayableImageSrc(
-      item.previewImage ?? localLinkThumbnail(item.location) ?? faviconUrlFor(item.location),
-    );
+    const previewSrc = getItemImageSrc(item);
     const isYoutube = platform === "youtube" || platform === "youtube-music";
     return (
       <div className={`linkPreviewBody ${isYoutube ? "linkPreviewMedia" : ""}`}>

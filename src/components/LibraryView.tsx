@@ -1,9 +1,10 @@
 import type React from "react";
 import { FilePlus2, Star } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
-import { detectLinkPlatform, displayableImageSrc } from "../lib/linkMeta";
+import { detectLinkPlatform } from "../lib/linkMeta";
 import {
   getCollectionLabel,
+  getItemImageSrc,
   getItemLocation,
   getItemTitle,
   getLinkKindLabel,
@@ -189,39 +190,42 @@ export function LibraryView({
                 )}
               </div>
             ) : (
-              items.map((item) => (
-                <div className={`listItemRow ${selectedItemId === item.id ? "selected" : ""}`} key={item.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.has(item.id)}
-                    aria-label={getItemTitle(item, t)}
-                    onChange={(event) => onToggleItemSelection(item.id, event.target.checked)}
-                  />
-                  <button
-                    className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
-                    type="button"
-                    onClick={() => onSelectItem(item)}
-                    onDoubleClick={() => onOpenItem(item)}
-                    onKeyDown={(event) => handleItemKeyDown(event, item)}
-                  >
-                    <span className="listIcon" style={{ color: item.accent }}>
-                      {item.type === "link" && displayableImageSrc(item.previewImage) ? (
-                        <img className="listFavicon" src={displayableImageSrc(item.previewImage) ?? ""} alt="" />
-                      ) : (
-                        typeIcons[item.type]
-                      )}
-                    </span>
-                    <span>
-                      <strong>{getItemTitle(item, t)}</strong>
-                      <small>
-                        {item.type === "link"
-                          ? `${getLinkKindLabel(item.location, detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
-                          : `${getCollectionLabel(item.collection, t)} / ${getItemLocation(item, t)}`}
-                      </small>
-                    </span>
-                  </button>
-                </div>
-              ))
+              items.map((item) => {
+                const listIconSrc = getItemImageSrc(item);
+                return (
+                  <div className={`listItemRow ${selectedItemId === item.id ? "selected" : ""}`} key={item.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.has(item.id)}
+                      aria-label={getItemTitle(item, t)}
+                      onChange={(event) => onToggleItemSelection(item.id, event.target.checked)}
+                    />
+                    <button
+                      className={`listItem ${selectedItemId === item.id ? "selected" : ""}`}
+                      type="button"
+                      onClick={() => onSelectItem(item)}
+                      onDoubleClick={() => onOpenItem(item)}
+                      onKeyDown={(event) => handleItemKeyDown(event, item)}
+                    >
+                      <span className="listIcon" style={{ color: item.accent }}>
+                        {listIconSrc ? (
+                          <img className="listFavicon" src={listIconSrc} alt="" />
+                        ) : (
+                          typeIcons[item.type]
+                        )}
+                      </span>
+                      <span>
+                        <strong>{getItemTitle(item, t)}</strong>
+                        <small>
+                          {item.type === "link"
+                            ? `${getLinkKindLabel(item.location, detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
+                            : `${getCollectionLabel(item.collection, t)} / ${getItemLocation(item, t)}`}
+                        </small>
+                      </span>
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
