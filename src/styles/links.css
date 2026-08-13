@@ -2,10 +2,10 @@
 
 .cardMedia {
   overflow: hidden;
-  margin: 0 0 10px;
-  border-radius: 10px;
+  margin: 0 0 var(--space-3);
+  border-radius: var(--radius-md);
   aspect-ratio: 16 / 9;
-  background: color-mix(in srgb, var(--app-muted) 12%, var(--app-surface));
+  background: var(--fill-strong);
 }
 
 .cardMedia img {
@@ -17,13 +17,15 @@
 
 .contentCard.youtubeCard,
 .contentCard.ytMusicCard {
-  border-color: color-mix(in srgb, #dc2626 28%, rgba(55, 64, 78, 0.12));
+  border-color: color-mix(in srgb, #dc2626 28%, var(--line-strong));
 }
 
 .contentCard.ytMusicCard {
-  border-color: color-mix(in srgb, #e11d48 30%, rgba(55, 64, 78, 0.12));
+  border-color: color-mix(in srgb, #e11d48 30%, var(--line-strong));
 }
 
+/* Stays at 4px: a favicon is 18px square, and the 6px chip radius would round
+ * a third of it away. */
 .listFavicon {
   width: 18px;
   height: 18px;
@@ -34,17 +36,17 @@
 .linkPreviewBody {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: start;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 
 .linkPreviewThumb {
   width: 72px;
   height: 72px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   object-fit: cover;
-  background: color-mix(in srgb, var(--app-muted) 12%, var(--app-surface));
+  background: var(--fill-strong);
 }
 
 .linkPreviewMedia .linkPreviewThumb {
@@ -53,34 +55,39 @@
 }
 
 .linkPlatformLabel {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-1);
   color: var(--app-accent);
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-medium);
 }
 
 /* Secondary "YouTube Music" note beside the Track/Album/Playlist label. */
 .linkPlatformSource {
-  margin-left: 6px;
+  margin-left: var(--space-2);
   color: var(--app-muted);
-  font-size: 0.78rem;
-  font-weight: 500;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-normal);
 }
 
+/* Was 0.9rem, a step *above* the label it sits under. Now a step below it. */
 .linkPreviewUrl {
   margin: 0;
   word-break: break-all;
   color: var(--app-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .modalHint {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
   color: var(--app-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .settingsActionStack {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }

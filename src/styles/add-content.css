@@ -2,9 +2,10 @@
 
 .previewLocation {
   display: block;
-  margin-top: 4px;
+  margin-top: var(--space-1);
   color: var(--app-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   word-break: break-all;
 }
 
@@ -16,7 +17,7 @@
 
 .accentField {
   display: flex;
-  gap: 10px;
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -24,14 +25,14 @@
   width: 42px;
   height: 32px;
   padding: 0;
-  border: 1px solid rgba(55, 64, 78, 0.16);
-  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   background: transparent;
 }
 
 .addSubmitButton {
-  margin-top: 4px;
-  min-height: 44px;
+  margin-top: var(--space-1);
+  min-height: var(--control-md);
   border: 0;
   background: var(--app-accent);
   color: #fff;
@@ -42,25 +43,28 @@
 }
 
 .relinkHint {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
   color: var(--app-muted);
-  font-size: 0.92rem;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }
 
+/* Danger colours stay literal until phase 2 decides where semantic hues live. */
 .pathBrokenBanner {
   display: grid;
-  gap: 4px;
-  margin: 0 0 12px;
-  padding: 10px 12px;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
   border: 1px solid color-mix(in srgb, #dc2626 55%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, #ef4444 12%, var(--app-surface));
   color: #7f1d1d;
-  font-size: 0.92rem;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }
 
 .pathBrokenBanner strong {
-  font-weight: 700;
+  font-weight: var(--weight-bold);
 }
 
 .pathBrokenBanner span {
