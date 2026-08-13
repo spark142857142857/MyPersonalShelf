@@ -2,6 +2,8 @@
 
 :root {
   font-family: var(--font-sans);
+  /* These two are the colours before the app mounts and .appShell supplies the
+   * user's theme, so they stay literal until phase 2 gives them a home. */
   color: #1d2430;
   background: #f4f6f5;
   font-synthesis: none;
@@ -33,27 +35,29 @@ button {
   min-height: 100vh;
   place-content: center;
   justify-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   color: var(--app-text);
   background: var(--app-bg);
 }
 
 .loadingShell strong {
-  margin-top: 4px;
-  font-size: 18px;
+  margin-top: var(--space-1);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
 }
 
 .loadingShell span {
   color: var(--app-muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .storageErrorShell button {
-  min-height: 38px;
-  margin-top: 8px;
-  padding: 8px 13px;
+  min-height: var(--control-sm);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: #fff;
   background: var(--app-accent);
 }

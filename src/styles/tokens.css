@@ -88,6 +88,14 @@
   --space-7: 48px;
   --space-8: 64px;
 
+  /* ---- Control height --------------------------------------------------
+   * Buttons, inputs and selects, which are sized rather than spaced and so do
+   * not belong on the spacing scale. Two heights replace the four that were in
+   * use: the top bar currently stands a 46px search box next to a 44px button
+   * next to a 38px select, which is why that row never quite lines up. */
+  --control-sm: 36px;
+  --control-md: 44px;
+
   /* ---- Radius ----------------------------------------------------------
    * Three plus a pill, down from eleven. Cards go from 8px to 10px: softer
    * suits paper, and it separates them clearly from the 6px chips sitting
