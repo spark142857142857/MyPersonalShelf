@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MessageKey } from "../lib/i18n";
 import {
-  isNativeRuntime,
   loadNativeMediaProgress,
   nativeAssetUrl,
   saveNativeMediaProgress,
@@ -100,6 +99,9 @@ export function MediaViewerView({
     return () => {
       isMounted = false;
     };
+    // Loads the stored position once per item; including onPatch or the position
+    // it writes would restart the load on every save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id, item.type]);
 
   function attachMediaElement(node: HTMLMediaElement | null) {

@@ -85,6 +85,7 @@ MyPersonalShelf는 내 컴퓨터의 실제 파일, 폴더, 문서, 영상, 음�
 - 기본 뷰어 열기 방식은 별도 창/앱 안에서 중 선택할 수 있습니다.
 - 메인 탭 이동 시 검색 초기화 여부를 설정할 수 있습니다.
 - 검색창 Enter 동작을 첫 결과 선택/첫 결과 바로 열기 중 선택할 수 있습니다.
+- 링크 미리보기 조회를 켜고 끌 수 있습니다. 켜면 저장한 링크 주소가 제목·썸네일 조회를 위해 YouTube, noembed.com, 구글 파비콘 서비스로 전송되고, 끄면 링크 주소가 이 컴퓨터 밖으로 나가지 않으며 제목은 주소에서 가져옵니다.
 - 현재 앱 데이터를 JSON으로 내보낼 수 있습니다.
 
 ### 검색과 빠른 실행
@@ -146,9 +147,10 @@ npm run dev
 npm run tauri dev
 npm run build
 npm test
+npm run lint
 ```
 
-`npm run dev`는 Vite 브라우저 미리보기입니다. `npm run tauri dev`는 네이티브 파일/폴더 접근이 가능한 전체 데스크톱 앱입니다. `npm test`는 프론트엔드 회귀 테스트를 실행합니다.
+`npm run dev`는 Vite 브라우저 미리보기입니다. `npm run tauri dev`는 네이티브 파일/폴더 접근이 가능한 전체 데스크톱 앱입니다. `npm test`는 프론트엔드 회귀 테스트를 실행합니다. `npm run lint`는 React 훅 의존성 규칙을 포함한 ESLint를 실행합니다. Rust 쪽은 `src-tauri`에서 `cargo test`로 검증합니다.
 
 ## 프로젝트 메모
 

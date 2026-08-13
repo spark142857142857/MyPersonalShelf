@@ -24,6 +24,11 @@ describe("normalizeAppSettings", () => {
       pinnedTags: ["later", "youtube"],
     });
   });
+
+  it("keeps link previews on for shelves saved before the setting existed", () => {
+    expect(normalizeAppSettings({}).fetchLinkPreviews).toBe(true);
+    expect(normalizeAppSettings({ fetchLinkPreviews: false }).fetchLinkPreviews).toBe(false);
+  });
 });
 
 describe("pin toggles", () => {

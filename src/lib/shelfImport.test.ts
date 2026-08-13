@@ -18,6 +18,7 @@ const theme: ThemeSettings = {
 const appSettings: AppSettings = {
   resetSearchOnNavigation: true,
   searchEnterBehavior: "select",
+  fetchLinkPreviews: true,
   pinnedTypes: [],
   pinnedCollections: [],
   pinnedTags: [],

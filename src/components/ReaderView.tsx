@@ -113,6 +113,9 @@ export function ReaderView({
     return () => {
       isMounted = false;
     };
+    // Hydrates saved progress once per item; the item's own progress fields are
+    // the output of this effect, so depending on them would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasReadableText, item.id]);
 
   useEffect(() => {

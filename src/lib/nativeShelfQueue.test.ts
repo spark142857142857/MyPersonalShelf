@@ -18,6 +18,71 @@ describe("NativeShelfQueue", () => {
     expect(order).toEqual([1, 2]);
   });
 
+  it("collapses queued state saves down to the newest snapshot", async () => {
+    const queue = new NativeShelfQueue();
+    const written: string[] = [];
+    let releaseFirst = () => {};
+    const firstStarted = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    // Occupy the queue so the following writes have to wait behind it.
+    const blocking = queue.enqueueSave(async () => {
+      await firstStarted;
+      written.push("blocking");
+    });
+
+    const stale = queue.enqueueStateSave(async () => {
+      written.push("stale");
+    });
+    const newer = queue.enqueueStateSave(async () => {
+      written.push("newer");
+    });
+    const newest = queue.enqueueStateSave(async () => {
+      written.push("newest");
+    });
+
+    releaseFirst();
+    await Promise.all([blocking, stale, newer, newest]);
+
+    expect(written).toEqual(["blocking", "newest"]);
+  });
+
+  it("keeps state saves ordered against deletes", async () => {
+    const queue = new NativeShelfQueue();
+    const order: string[] = [];
+
+    const save = queue.enqueueStateSave(async () => {
+      await Promise.resolve();
+      order.push("save");
+    });
+    const deletion = queue.runNativeDelete("item-1", {
+      nativeRuntime: true,
+      isReaderWindowOpen: async () => false,
+      deleteItem: async () => {
+        order.push("delete");
+      },
+    });
+
+    await Promise.all([save, deletion]);
+    queue.clearActiveDeletion();
+    expect(order).toEqual(["save", "delete"]);
+  });
+
+  it("runs a later state save after an earlier batch has drained", async () => {
+    const queue = new NativeShelfQueue();
+    const written: string[] = [];
+
+    await queue.enqueueStateSave(async () => {
+      written.push("first");
+    });
+    await queue.enqueueStateSave(async () => {
+      written.push("second");
+    });
+
+    expect(written).toEqual(["first", "second"]);
+  });
+
   it("exposes active deletion until cleared", async () => {
     const queue = new NativeShelfQueue();
     const deleteItem = vi.fn(async () => undefined);

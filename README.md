@@ -85,6 +85,7 @@ The app is organized around a few core pages:
 - Choose default viewer behavior: separate window or inside app.
 - Configure search behavior, including whether main-tab navigation clears search.
 - Configure whether search Enter selects or opens the first result.
+- Turn link preview lookups on or off. When on, saved link addresses are sent to YouTube, noembed.com, and Google's favicon service to fetch titles and thumbnails; when off, no link address leaves the machine and titles come from the address itself.
 - Export current app data as JSON.
 
 ### Search And Quick Actions
@@ -148,9 +149,10 @@ npm run dev
 npm run tauri dev
 npm run build
 npm test
+npm run lint
 ```
 
-`npm run dev` runs the Vite browser preview. `npm run tauri dev` runs the full desktop app with native file/folder access. `npm test` runs the frontend regression suite.
+`npm run dev` runs the Vite browser preview. `npm run tauri dev` runs the full desktop app with native file/folder access. `npm test` runs the frontend regression suite. `npm run lint` runs ESLint, including the React hook dependency rules. The Rust side is covered by `cargo test` inside `src-tauri`.
 
 ## Project Notes
 

@@ -12,6 +12,22 @@ export interface LinkPreview {
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"]);
 const YOUTUBE_MUSIC_HOSTS = new Set(["music.youtube.com"]);
 
+/**
+ * Every outbound lookup in this module goes through this switch, so the
+ * "fetch link previews" setting is enforced in one place instead of at each of
+ * the call sites that ask for a favicon or a title. A missed call site would
+ * leak a URL, which is exactly what the setting exists to prevent.
+ */
+let remoteLinkMetadataAllowed = true;
+
+export function setRemoteLinkMetadataAllowed(allowed: boolean) {
+  remoteLinkMetadataAllowed = allowed;
+}
+
+export function isRemoteLinkMetadataAllowed() {
+  return remoteLinkMetadataAllowed;
+}
+
 function hostnameOf(url: string): string | null {
   try {
     return new URL(url).hostname.toLowerCase();
@@ -42,6 +58,7 @@ export function linkPlatformAccent(platform: LinkPlatform): string {
 }
 
 export function faviconUrlFor(rawUrl: string): string | null {
+  if (!remoteLinkMetadataAllowed) return null;
   const safe = getSafeExternalUrl(rawUrl);
   if (!safe) return null;
   const host = hostnameOf(safe);
@@ -85,6 +102,10 @@ export async function fetchLinkPreview(rawUrl: string, signal?: AbortSignal): Pr
   const url = getSafeExternalUrl(rawUrl);
   if (!url) {
     return { platform: "web" };
+  }
+
+  if (!remoteLinkMetadataAllowed) {
+    return { platform: detectLinkPlatform(url) };
   }
 
   const platform = detectLinkPlatform(url);

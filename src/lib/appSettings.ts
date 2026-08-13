@@ -14,6 +14,7 @@ const contentTypeSet = new Set<string>(CONTENT_TYPES);
 export const defaultAppSettings: AppSettings = {
   resetSearchOnNavigation: true,
   searchEnterBehavior: "select",
+  fetchLinkPreviews: true,
   pinnedTypes: [],
   pinnedCollections: [],
   pinnedTags: [],
@@ -59,6 +60,7 @@ export function normalizeAppSettings(settings: Partial<AppSettings> = {}): AppSe
   return {
     resetSearchOnNavigation: settings.resetSearchOnNavigation ?? defaultAppSettings.resetSearchOnNavigation,
     searchEnterBehavior: normalizeSearchEnterBehavior(settings.searchEnterBehavior),
+    fetchLinkPreviews: settings.fetchLinkPreviews ?? defaultAppSettings.fetchLinkPreviews,
     pinnedTypes: normalizePinnedTypes(settings.pinnedTypes),
     pinnedCollections: normalizePinnedCollections(settings.pinnedCollections),
     pinnedTags: normalizePinnedTags(settings.pinnedTags),

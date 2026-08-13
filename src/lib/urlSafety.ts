@@ -1,3 +1,6 @@
+// Matching control characters is the point here: they are stripped from URLs
+// before parsing so they cannot smuggle line breaks into an external open.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const HTTP_SCHEME_PATTERN = /^https?:\/\//i;

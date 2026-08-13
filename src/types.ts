@@ -65,6 +65,12 @@ export interface CollectionSettings {
 export interface AppSettings {
   resetSearchOnNavigation: boolean;
   searchEnterBehavior: SearchEnterBehavior;
+  /**
+   * When false, no link metadata leaves the machine: titles and thumbnails are
+   * derived from the URL alone instead of being fetched from YouTube, noembed,
+   * or the favicon service.
+   */
+  fetchLinkPreviews: boolean;
   pinnedTypes: ContentType[];
   pinnedCollections: string[];
   pinnedTags: string[];

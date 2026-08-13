@@ -248,6 +248,9 @@ export const messages = {
     searchEnterBehavior: "Search Enter action",
     searchEnterSelect: "Select first result",
     searchEnterOpen: "Open first result",
+    fetchLinkPreviews: "Fetch link titles and thumbnails",
+    fetchLinkPreviewsHint:
+      "When on, saved link addresses are sent to YouTube, noembed.com, and Google's favicon service to look up titles and thumbnails. Turn it off to keep every link on this machine; titles are then taken from the address itself.",
     identityAndMood: "Identity and mood",
     readingComfort: "Reading feel",
     readerPreview: "Reader sample",
@@ -617,6 +620,9 @@ export const messages = {
     searchEnterBehavior: "검색 Enter 동작",
     searchEnterSelect: "첫 결과 선택",
     searchEnterOpen: "첫 결과 바로 열기",
+    fetchLinkPreviews: "링크 제목·썸네일 가져오기",
+    fetchLinkPreviewsHint:
+      "켜면 저장한 링크 주소가 제목과 썸네일 조회를 위해 YouTube, noembed.com, 구글 파비콘 서비스로 전송돼요. 끄면 링크가 이 컴퓨터 밖으로 나가지 않고, 제목은 주소에서 그대로 가져와요.",
     identityAndMood: "분위기와 색",
     readingComfort: "읽기 감각",
     readerPreview: "읽기 샘플",

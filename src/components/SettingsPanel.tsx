@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Download, Upload } from "lucide-react";
 import { languageOptions, type Language, type MessageKey } from "../lib/i18n";
 import type { ShelfRestoreMode } from "../lib/shelfImport";
-import { getCollectionLabel, getItemLocation, getItemTitle } from "../lib/shelfDisplay";
+import { getCollectionLabel, getItemTitle } from "../lib/shelfDisplay";
 import type { AppSettings, ContentItem, ReaderOpenMode, SearchEnterBehavior, ThemeSettings } from "../types";
 
 export function SettingsPanel({
@@ -111,6 +111,15 @@ export function SettingsPanel({
               <option value="open">{t("searchEnterOpen")}</option>
             </select>
           </label>
+          <label className="controlRow">
+            <input
+              type="checkbox"
+              checked={appSettings.fetchLinkPreviews}
+              onChange={(event) => onAppSettingsChange({ ...appSettings, fetchLinkPreviews: event.target.checked })}
+            />
+            <span>{t("fetchLinkPreviews")}</span>
+          </label>
+          <p className="groupDescription">{t("fetchLinkPreviewsHint")}</p>
         </section>
 
         <section className="settingsGroup">
