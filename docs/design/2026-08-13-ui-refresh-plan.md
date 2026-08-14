@@ -1,7 +1,8 @@
 # UI/UX refresh — plan
 
 Date: 2026-08-13
-Status: phases 1 to 4 shipped, plus a review pass — see *What the review found*
+Status: phases 1 to 4 shipped, plus two review passes — see *What the review found*
+and *What the second review found*
 
 Direction: **a quiet reading room** — Things 3 / Bear rather than Linear or Plex.
 Generous whitespace, hierarchy carried by size rather than weight, restrained colour.
@@ -578,6 +579,51 @@ synthesize a key press that activates a button — an untouched nav button behav
 the same way — so keyboard paths belong in jsdom tests, not the preview. And a
 cloned row is only worth measuring if you check its *computed* style: reading
 `display` off the badge is what turned "inline-flex is wrong" into the real answer.
+
+---
+
+## What the second review found
+
+A second read of the whole app, this time weighted toward the light presets,
+which is what the shelf is actually used on. Tests, types and lint were clean
+throughout again. Eight findings, and the two largest are regressions — both the
+same shape: something was removed and the thing that pointed at it was not.
+
+**A rule lost its declarations and the selectors above it ran on into the next
+one.** `.panelLabel, .eyebrow, .cardType` shared one block. Removing `.cardType`
+took the block with it, leaving the other two welded onto `.workspace` — a page
+column. All seven of them are `<span>`s naming the block below, and each was laid
+out as a flex column with 24px of padding above and 32px either side: a one-line
+label standing 77px tall, its text 32px right of the heading it names, at 16px in
+the body colour with no capitals. The sidebar's label ate 77px of a 252px column;
+the guide's header measured 205px.
+
+**A grid was still counting a control that had moved.** Below 720px `.actions`
+was `1fr` plus two button widths, and the `1fr` held the language select, which
+now lives on the settings page. Three icon buttons and a primary go through it
+now, so the first icon sat alone in a 556px column with 512px of nothing before
+its neighbours and the primary wrapped to a second row. `.topbarSelect` was still
+styled in two files.
+
+The other six were each a place where a rule had never been written. Customize,
+settings and the guide never got phase 3 — they kept the gradient hero band and
+the swapped pair, page name in the small-caps label and a sentence about the page
+as the `<h1>`, so the settings page's heading read "Choose how the shelf opens…"
+and the word "Settings" appeared nowhere at full size. Thirteen headings set a
+colour and no size and fell through to the browser's 24px, which is not on the
+scale and landed 3px under the page title above them; eleven of those are the
+guide, which is every heading on it. Selects and textareas were never told to
+inherit type, so the add-content modal set one form in Segoe UI, Arial and
+monospace at two sizes — and Arial has no Hangul, so the Korean build's selects
+left the stack tokens.css chose script by script. Placeholders were the browser's
+grey rather than the theme's. Every transition in the app ran regardless of
+`prefers-reduced-motion`. And the export released its blob url on the line after
+the click.
+
+The pattern worth keeping: **a deletion is not finished until the references are
+gone.** Both regressions passed tests, types and lint, and both were visible on
+the default screen the whole time — the first review missed them because it went
+looking for colour, and these are shape.
 
 ---
 
