@@ -278,6 +278,16 @@
   color: var(--app-text);
 }
 
+/* Names a section inside a page, so it sits a step under the page's own 34px
+ * name and matches .dashboardSectionHeading, which does the same job. It had
+ * no size at all and fell through to the browser's 24px, which is not on the
+ * scale and left it 3px under the h1 above it. The dashboard's activity
+ * panels override this to --text-md and still do. */
+.sectionTitle h2 {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
 .contentCard h2 {
   display: -webkit-box;
   overflow: hidden;

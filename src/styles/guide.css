@@ -27,6 +27,20 @@
   color: var(--app-text);
 }
 
+/* Neither of these had a size, so all eleven headings on the page fell through
+ * to the browser's 24px -- off the scale, and 3px under the page's own title.
+ * The intro panel is a section, the cards are cards, so they take the sizes
+ * their equivalents elsewhere take: 21 and 17 over 15px body. */
+.guideIntroPanel h2 {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.guideCard h2 {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
 .guideIntroPanel p,
 .guideCard p {
   margin: var(--space-2) 0 0;
