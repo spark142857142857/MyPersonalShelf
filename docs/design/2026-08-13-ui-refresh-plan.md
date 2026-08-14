@@ -1,7 +1,7 @@
 # UI/UX refresh — plan
 
 Date: 2026-08-13
-Status: phase 1, 2 and 3 shipped; phase 4 not started
+Status: phases 1 to 4 shipped
 
 Direction: **a quiet reading room** — Things 3 / Bear rather than Linear or Plex.
 Generous whitespace, hierarchy carried by size rather than weight, restrained colour.
@@ -342,7 +342,44 @@ in Korean; that needs a formatter on the i18n side.
 
 - ~~virtualise the item list so 5,000 items behave like 50~~ — done
 - ~~surface dead links and let them be fixed or dropped in one pass~~ — done
-- give the dashboard a reason to be returned to rather than a static grid
+- ~~give the dashboard a reason to be returned to rather than a static grid~~ — done
+
+### A reason to return — done
+
+The diagnosis was easier than expected once written down. Every section on the
+dashboard answered a question about what its reader had already done: pinned
+cards change when dragged, the activity lists when something is opened, and
+frequently-opened barely changes at all, being ordered by a count that only
+grows. The dashboard was a mirror of its own reader's past actions, so opening
+it could not tell them anything.
+
+What earns a return is either something unfinished or something that changed
+without them. The app tracked both and surfaced neither here:
+
+- `readerProgress`, persisted all along, shown only inside the reader — after
+  the item had been found and opened
+- the startup path scan, which announces itself once on the status strip and is
+  then gone; and `findDuplicateGroups`, computed in App.tsx and shown only in
+  Settings
+
+The first became **Pick up where you left off**, above the pinned grid. Nothing
+new is stored.
+
+Documents only. Nothing writes an end-of-playback marker and an item has no
+duration, so a video watched to the end keeps its position there and would sit
+in the list permanently — the media viewer avoids this by comparing against the
+duration it has loaded, which is not available outside it. Storing a duration
+would let media join. A list with items in it that do not belong is worse than
+no list.
+
+Two edges, both from how the reader derives its number: it is NaN for a
+document too short to scroll, which passes a plain `> 0` test and renders as
+"0%"; and scrolling to the bottom does not reliably reach 100, so the last few
+per cent count as finished.
+
+The shelf-health line — broken paths, Inbox, duplicates in one place — is the
+other half and is not built. It is a chore rather than an invitation, which is
+why it came second.
 
 ### Virtualising the list — done
 
