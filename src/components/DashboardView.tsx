@@ -18,6 +18,7 @@ export function DashboardView({
   favoriteItems,
   recentItems,
   frequentItems,
+  unfinishedItems,
   collectionCount,
   dashboardCards,
   selectedItemId,
@@ -41,6 +42,7 @@ export function DashboardView({
   favoriteItems: ContentItem[];
   recentItems: ContentItem[];
   frequentItems: ContentItem[];
+  unfinishedItems: ContentItem[];
   collectionCount: number;
   dashboardCards: DashboardCardEntry[];
   selectedItemId: string;
@@ -95,6 +97,51 @@ export function DashboardView({
           </button>
         </div>
       </header>
+
+      {/* The one section here that is not a mirror of what its reader already
+        * did. Pinned cards change when they are dragged, and the activity
+        * lists when something is opened; this changes as a book is read, and
+        * it is the reason to come back rather than a record of having been.
+        *
+        * Absent entirely when nothing is part-read — a heading over an empty
+        * list would be the standing copy this refresh spent phase 3 removing. */}
+      {unfinishedItems.length > 0 && (
+        <section className="continuePanel" aria-label={t("continueReading")}>
+          <div className="dashboardSectionHeading">
+            <h2>
+              {t("continueReading")}
+              <span>{unfinishedItems.length}</span>
+            </h2>
+            <p>{t("continueReadingHint")}</p>
+          </div>
+          <div className="itemList">
+            {unfinishedItems.map((item) => {
+              const progress = Math.round(item.readerProgress ?? 0);
+              return (
+                <button
+                  className="listItem continueRow"
+                  type="button"
+                  key={item.id}
+                  onClick={() => onOpenItem(item)}
+                >
+                  <span className="listIcon" style={{ color: item.accent }}>
+                    {typeIcons[item.type]}
+                  </span>
+                  <span>
+                    <strong>{getItemTitle(item, t)}</strong>
+                    {/* The bar carries the same number as the text beside it,
+                      * so it is decoration to a screen reader. */}
+                    <span className="continueMeter" aria-hidden="true">
+                      <span style={{ width: `${progress}%` }} />
+                    </span>
+                    <small>{progress}% · {getItemFileName(item, t)}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* On an empty shelf the panel below carries its own heading and its own
         * invitation, so this one would only announce a section of nothing and

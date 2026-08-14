@@ -84,6 +84,7 @@ import { isExternalDocumentItem } from "./lib/documentOpen";
 import { NativeShelfQueue } from "./lib/nativeShelfQueue";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
+import { findUnfinishedItems } from "./lib/continueReading";
 import { collectFailures } from "./lib/pathScan";
 import { browserItemStorageKey, prepareItemsForPersistence } from "./lib/persistence";
 import { buildShelfItem, createShelfItemId, findDuplicate, findDuplicateGroups, mergeShelfItems } from "./lib/duplicates";
@@ -924,6 +925,7 @@ function App() {
     .filter((item) => item.lastOpenedAt)
     .sort((left, right) => (right.lastOpenedAt ?? "").localeCompare(left.lastOpenedAt ?? ""))
     .slice(0, 5);
+  const unfinishedItems = useMemo(() => findUnfinishedItems(items), [items]);
 
   const filteredItems = useMemo(() => {
     const parsedQuery = parseSearchQuery(query);
@@ -2292,6 +2294,7 @@ function App() {
             favoriteItems={favoriteItems}
             recentItems={recentItems}
             frequentItems={frequentItems}
+            unfinishedItems={unfinishedItems}
             collectionCount={Object.keys(groupedCollections).length}
             dashboardCards={visibleDashboardCards}
             selectedItemId={selectedItemId}

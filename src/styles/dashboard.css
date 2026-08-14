@@ -43,6 +43,37 @@
  * with two more hardcoded counts in responsive.css to walk it back down.
  * auto-fill covers the whole range in one rule; the min() keeps a track from
  * outgrowing a container narrower than one card. */
+/* Sits above the pinned grid, so the first thing on the screen is the thing
+ * that changed since last time rather than the arrangement its reader made. */
+.continuePanel {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.continuePanel .itemList {
+  margin-top: 0;
+}
+
+/* The library's rows are one line of title over one of metadata and are
+ * windowed on the assumption that they all match; this row carries a bar as
+ * well, so the extra height is scoped to the class rather than to .listItem. */
+.continueRow .continueMeter {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  max-width: 240px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--fill-strong);
+}
+
+.continueRow .continueMeter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--app-accent);
+}
+
 .dashboardGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
