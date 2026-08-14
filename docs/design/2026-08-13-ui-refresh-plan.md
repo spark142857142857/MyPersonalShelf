@@ -1,7 +1,7 @@
 # UI/UX refresh — plan
 
 Date: 2026-08-13
-Status: phases 1 to 4 shipped
+Status: phases 1 to 4 shipped, plus a review pass — see *What the review found*
 
 Direction: **a quiet reading room** — Things 3 / Bear rather than Linear or Plex.
 Generous whitespace, hierarchy carried by size rather than weight, restrained colour.
@@ -377,9 +377,32 @@ document too short to scroll, which passes a plain `> 0` test and renders as
 "0%"; and scrolling to the bottom does not reliably reach 100, so the last few
 per cent count as finished.
 
-The shelf-health line — broken paths, Inbox, duplicates in one place — is the
-other half and is not built. It is a chore rather than an invitation, which is
-why it came second.
+### The shelf's chores — done
+
+The other half, and the reason it came second: it is a chore rather than an
+invitation. Each of the three was already tracked and each announced itself at a
+volume unrelated to how much it mattered.
+
+| | before | after |
+|---|---|---|
+| broken paths | filter chip in the library | count on the line |
+| duplicates | a Settings section nothing pointed at | count on the line |
+| Inbox | accent-filled banner across two views | count on the line |
+
+One line under the dashboard's counts, built the same way, because it is the same
+kind of statement about the same shelf. Ordered by what each costs its reader:
+broken first — the item will not open at all — then duplicates, then Inbox, which
+is not a fault but a starting point. Zero counts drop out, so a tidy shelf gets
+no line, and only the number takes the warning colour; a row of amber above the
+shelf would read as an alarm.
+
+Both Inbox banners go, with their styles and their message. The library's only
+appeared when you were *not* looking at Inbox — it interrupted every other visit
+and was absent at the one moment it would have helped.
+
+That leaves the library without an Inbox count, deliberately. The dashboard is
+where the shelf reports on itself; the library keeps its broken-paths chip, which
+is a filter rather than a status.
 
 ### Virtualising the list — done
 
@@ -476,6 +499,59 @@ there — the two token base hues, the two brand reds, the reader's code-block
 theme, the pre-mount fallback in base.css — except the cool neutrals in
 dashboard.css and the `#f3efe8` tints in reader.css, which are the last of the
 phase-1 leftovers.
+
+---
+
+## What the review found
+
+A read of the whole app afterwards. Tests, types and lint were clean throughout,
+so everything below is something none of them can see. Two of the eight had a
+cause other than the one first written down, and both are worth keeping.
+
+**The dark presets were not the colour they claimed.** `.appShell` washed the
+background with 18% of a near-white left over from before the palettes existed —
+invisible on the four light presets, and on night it lifted `#171a19` to
+`rgb(63,66,65)`. Muted text fell to 3.99:1, under AA, against 6.91 unmixed. Worse,
+it inverted the depth: a card at `#232725` is lighter than the preset background
+but *darker* than the washed one, so every card and the sidebar read as a hole in
+the page. The presets are measured as whole palettes; nothing may sit between them
+and the screen.
+
+**A broken row was 98px in a list windowed on 61.** Not the badge's `inline-flex`,
+as first assumed — the row's text-column rule was a descendant selector,
+`.listItem span:last-child`, and `:last-child` counts elements and ignores text
+nodes, so the warning was "last" even though the path follows it and was laid out
+as a grid. Scoping to a direct child fixed it. The virtualiser measures the *first*
+row, so a broken row at the top reserved 98px for all of them.
+
+**Nothing on the dashboard could be opened by pointer.** The cards were never
+passed an open handler, but adding one would not have helped: cards and activity
+rows selected on click and opened on double, and selecting navigates away, so the
+first click unmounted the target of the second — `document.body.contains(row)` is
+false immediately after. Every double click and Ctrl+Enter on the page was dead.
+The fix was the other rule: one click, one thing. The dashboard launches; the
+library inspects.
+
+The rest were smaller and each had a single cause: the status strip kept the
+previous message's colour, because half the app called `setNotice`, which sets
+words without a level — a failed path followed by a successful relink reported the
+success in red. Relinking never cleared the broken-path set, so a fixed item went
+on saying "file not found"; deleting never cleared it either, so the chip counted
+items that were gone. Closing the detail panel flushed a media position for
+*any* item type, so walking down a list stamped `updatedAt` on everything walked
+past and forced a full save per click. Deleting the selected row jumped to the top
+of the shelf, through a filter that read as if it avoided the deleted item and in
+fact always returned the first. And six palettes shared one focus ring — Chromium's
+amber — on everything outside the four files that drew their own.
+
+### On measuring in the preview
+
+The browser pane does not composite, so there are no screenshots and
+`requestAnimationFrame` never fires; record synchronously. It also cannot
+synthesize a key press that activates a button — an untouched nav button behaves
+the same way — so keyboard paths belong in jsdom tests, not the preview. And a
+cloned row is only worth measuring if you check its *computed* style: reading
+`display` off the badge is what turned "inline-flex is wrong" into the real answer.
 
 ---
 
