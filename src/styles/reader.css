@@ -1,15 +1,19 @@
 /* Reader and media viewer windows, including rendered Markdown. */
 
-/* The reading surfaces keep their literal paper colours (#f3efe8 and friends).
- * They are a deliberate warm ground for long-form text rather than a theme
- * surface, and phase 2 decides whether a theme gets to repaint them. */
+/* This kept literal paper colours on the argument that a warm ground suits
+ * long-form text, pending phase 2. Phase 2 shipped two dark palettes, and on
+ * those this was a cream block with near-black text sitting inside a
+ * near-black panel. The sunken token is the same idea — a ground a step off
+ * the panel behind it — expressed against whichever palette is in use, and the
+ * warm palettes still make it warm. */
 .readerPreview {
   margin-top: var(--space-4);
   padding: var(--space-5);
-  border-left: 3px solid #b7791f;
+  /* Overridden inline with the item's own accent; the token is the fallback. */
+  border-left: 3px solid var(--app-accent);
   border-radius: var(--radius-md);
-  color: #28313e;
-  background: #f3efe8;
+  color: var(--app-text);
+  background: var(--surface-sunken);
   font-size: var(--reader-font-size);
   line-height: var(--reader-line-height);
 }
@@ -42,7 +46,7 @@
   display: -webkit-box;
   max-height: 9.6em;
   overflow: hidden;
-  color: #28313e;
+  color: var(--app-text);
   white-space: pre-line;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 6;
