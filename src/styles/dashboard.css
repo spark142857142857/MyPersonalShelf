@@ -66,33 +66,10 @@
   line-height: var(--leading-md);
 }
 
+/* The hairline rows this panel introduced are now how every list looks, so all
+ * that is left to say here is that its heading sits closer to them. */
 .activityPanel .itemList {
-  gap: 0;
   margin-top: var(--space-2);
-}
-
-/* Rows sit directly on the page now, so the sunken fill that separated them
- * from the panel would only add a second background. A hairline between rows
- * does the same job with less ink. */
-.activityPanel .listItem {
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  background: transparent;
-}
-
-.activityPanel .listItem + .listItem {
-  box-shadow: inset 0 1px 0 var(--line-subtle);
-}
-
-/* The fill covers the divider above it, so a hovered row reads as one block
- * rather than a block with a line stuck to its top edge. */
-.activityPanel .listItem:hover {
-  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
-  box-shadow: none;
-}
-
-.activityPanel .listItem:hover + .listItem {
-  box-shadow: none;
 }
 
 .emptyDashboardPanel {

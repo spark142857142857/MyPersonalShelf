@@ -1,8 +1,11 @@
 /* The plain item list shared by the library, activity panel, and collections. */
 
+/* A list, not a stack of cards. Every row used to sit in its own sunken pill
+ * with 12px of air around it, which cost 81px per item — on a 720px screen
+ * about four rows of a twelve-item shelf. Rows now meet on a hairline at 62px,
+ * and the fill is kept for the states that mean something. */
 .itemList {
   display: grid;
-  gap: var(--space-3);
   margin-top: var(--space-4);
 }
 
@@ -11,17 +14,29 @@
   grid-template-columns: var(--control-sm) minmax(0, 1fr);
   gap: var(--space-3);
   align-items: center;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
   color: inherit;
-  background: var(--surface-sunken);
+  background: transparent;
   text-align: left;
 }
 
+.listItem + .listItem,
+.listItemRow + .listItemRow .listItem {
+  box-shadow: inset 0 1px 0 var(--line-subtle);
+}
+
+/* The fill covers the divider above it, so a hovered or selected row reads as
+ * one block rather than a block with a line stuck to its top edge. */
 .listItem:hover,
 .listItem.selected {
   background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
-  outline: 1px solid color-mix(in srgb, var(--app-accent) 18%, transparent);
+  box-shadow: none;
+}
+
+.listItemRow:hover + .listItemRow .listItem,
+.listItemRow.selected + .listItemRow .listItem {
+  box-shadow: none;
 }
 
 .listIcon {
