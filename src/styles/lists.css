@@ -57,7 +57,12 @@
   background: var(--app-surface);
 }
 
-.listItem span:last-child {
+/* Direct child, because this is about the row's text column and nothing else.
+ * As a descendant selector it also matched any span that happened to be the
+ * last element inside that column -- :last-child ignores text nodes, so the
+ * warning badge below counted even though the path text follows it -- and
+ * turned it into a grid container. See .listItemMissing for what that cost. */
+.listItem > span:last-child {
   display: grid;
   gap: var(--space-1);
   min-width: 0;
@@ -67,6 +72,15 @@
  * side: the line it prefixes is the path, so the warning reads as a statement
  * about that path. Its own colour, because a row that cannot be opened is not
  * ordinary metadata. */
+/* Staying on one line is load-bearing, not a preference. The library windows
+ * its rows on a single measured height, so every row has to come out the same.
+ * This badge was being caught by the text-column rule above and laid out as a
+ * grid, which took the one-line <small> from 20px to 57px and the row from
+ * 61px to 98px -- but only on rows that had a broken path, so the spacers
+ * either side of the drawn window reserved the wrong height and the list
+ * drifted out of step with the scroll position.
+ *
+ * Anything added to a row from here on has to leave its height alone. */
 .listItemMissing {
   display: inline-flex;
   gap: var(--space-1);
@@ -74,6 +88,8 @@
   margin-right: var(--space-2);
   color: var(--app-danger);
   font-weight: var(--weight-medium);
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .listItemMissing svg {
