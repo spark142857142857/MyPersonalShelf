@@ -1,8 +1,81 @@
-import { ArrowDown, ArrowUp, Eye, EyeOff, Grid3X3 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Grid3X3, TriangleAlert } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { getCollectionLabel, getItemTitle, getSizeLabel } from "../lib/shelfDisplay";
+import {
+  AA_NORMAL_TEXT,
+  applyPreset,
+  checkAccent,
+  onAccentColor,
+  themePresetIds,
+  themePresets,
+  type ThemePresetId,
+} from "../lib/themePresets";
 import type { ContentItem, DashboardLayoutItem, ThemeSettings } from "../types";
 import { typeIcons } from "./icons";
+
+const themePresetLabelKeys: Record<ThemePresetId, MessageKey> = {
+  paper: "themePaper",
+  linen: "themeLinen",
+  sepia: "themeSepia",
+  mist: "themeMist",
+  night: "themeNight",
+  ink: "themeInk",
+};
+
+/**
+ * The accent is still a free choice, so it can still be set to something that
+ * does not read — most easily by keeping a dark accent while switching to a
+ * dark palette. Rather than refusing the colour or silently overwriting it, say
+ * which of its two jobs it fails at and offer the palette's own accent as a
+ * one-click way out.
+ */
+function AccentWarning({
+  theme,
+  t,
+  onChange,
+}: {
+  theme: ThemeSettings;
+  t: (key: MessageKey) => string;
+  onChange: (theme: ThemeSettings) => void;
+}) {
+  const presetId = theme.themePreset === "custom" ? "paper" : theme.themePreset;
+  const preset = themePresets[presetId];
+  const failing = checkAccent(theme.accent, { ...preset, surface: theme.surface }).filter(
+    (check) => !check.passesAA,
+  );
+  if (failing.length === 0) return null;
+
+  const suggestionHelps = checkAccent(preset.suggestedAccent, {
+    ...preset,
+    surface: theme.surface,
+  }).every((check) => check.passesAA);
+
+  return (
+    <p className="accentWarning" role="status">
+      <TriangleAlert size={15} aria-hidden="true" />
+      <span>
+        {failing.some((check) => check.pair === "label on accent")
+          ? t("accentLabelWarning")
+          : t("accentTextWarning")}
+        {` (${failing.map((check) => check.ratio?.toFixed(1) ?? "?").join(", ")} : 1 < ${AA_NORMAL_TEXT})`}
+      </span>
+      {suggestionHelps && (
+        <button
+          type="button"
+          onClick={() => onChange({ ...theme, accent: preset.suggestedAccent })}
+          // Filled with the accent being offered, so its own label colour has to
+          // be computed for that colour rather than the one currently in use.
+          style={{
+            background: preset.suggestedAccent,
+            color: onAccentColor(preset.suggestedAccent),
+          }}
+        >
+          {t("useSuggestedAccent")}
+        </button>
+      )}
+    </p>
+  );
+}
 
 export function CustomizePanel({
   theme,
@@ -44,12 +117,39 @@ export function CustomizePanel({
               <h2>{t("identityAndMood")}</h2>
               <span>{t("savedLocalStorage")}</span>
             </div>
+            <p className="groupDescription">{t("themePresetHint")}</p>
+            <div className="themePresetGrid">
+              {themePresetIds.map((id) => {
+                const preset = themePresets[id];
+                const selected = theme.themePreset === id;
+                return (
+                  <button
+                    className={`themePresetCard ${selected ? "selected" : ""}`}
+                    type="button"
+                    key={id}
+                    aria-pressed={selected}
+                    onClick={() => onChange(applyPreset(theme, id))}
+                  >
+                    <span
+                      className="themePresetSwatch"
+                      aria-hidden="true"
+                      style={{ background: preset.background, borderColor: preset.muted }}
+                    >
+                      <span style={{ background: preset.surface }} />
+                      <span style={{ background: preset.text }} />
+                      <span style={{ background: theme.accent }} />
+                    </span>
+                    <strong>{t(themePresetLabelKeys[id])}</strong>
+                  </button>
+                );
+              })}
+            </div>
+            {theme.themePreset === "custom" && <p className="groupDescription">{t("themePresetCustom")}</p>}
+
             <div className="colorControlGrid">
-              <ColorControl label={t("background")} value={theme.background} onChange={(value) => onChange({ ...theme, background: value })} />
-              <ColorControl label={t("surface")} value={theme.surface} onChange={(value) => onChange({ ...theme, surface: value })} />
-              <ColorControl label={t("text")} value={theme.text} onChange={(value) => onChange({ ...theme, text: value })} />
               <ColorControl label={t("accent")} value={theme.accent} onChange={(value) => onChange({ ...theme, accent: value })} />
             </div>
+            <AccentWarning theme={theme} t={t} onChange={onChange} />
           </section>
 
           <section className="settingsGroup">

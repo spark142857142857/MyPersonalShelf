@@ -176,6 +176,88 @@
   background: var(--app-surface);
 }
 
+/* The palette chooser that replaced the background, surface and text pickers. */
+.themePresetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--space-3);
+}
+
+.themePresetCard {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  color: var(--app-text);
+  background: var(--app-surface);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: left;
+  transition: border-color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
+}
+
+.themePresetCard:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 40%, transparent);
+}
+
+.themePresetCard.selected {
+  border-color: var(--app-accent);
+  box-shadow: var(--ring);
+}
+
+/* A miniature of the palette: the page ground, with surface, text and the
+ * chosen accent sitting on it in the order they appear on screen. */
+.themePresetSwatch {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  padding: var(--space-2);
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+}
+
+.themePresetSwatch > span {
+  flex: 1;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.accentWarning {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: #7c2d12;
+  background: color-mix(in srgb, #f59e0b 14%, var(--app-surface));
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-normal);
+}
+
+.accentWarning > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Filled with the accent it would apply, so the offer shows its own result.
+ * Both the fill and its label colour are set inline for that reason. */
+.accentWarning button {
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
 .colorControlGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

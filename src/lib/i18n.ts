@@ -252,6 +252,19 @@ export const messages = {
     fetchLinkPreviewsHint:
       "When on, saved link addresses are sent to YouTube, noembed.com, and Google's favicon service to look up titles and thumbnails. Turn it off to keep every link on this machine; titles are then taken from the address itself.",
     identityAndMood: "Identity and mood",
+    themePaper: "Paper",
+    themeLinen: "Linen",
+    themeSepia: "Sepia",
+    themeMist: "Mist",
+    themeNight: "Night",
+    themeInk: "Ink",
+    themePresetHint:
+      "Pick a palette. Background, surface and text are chosen together so they stay readable; the accent below is yours.",
+    themePresetCustom:
+      "Your saved colours are kept as they are. Choosing a palette above replaces them.",
+    accentLabelWarning: "This accent is hard to read behind button labels.",
+    accentTextWarning: "This accent is hard to read as text on the page.",
+    useSuggestedAccent: "Use this palette's accent",
     readingComfort: "Reading feel",
     readerPreview: "Reader sample",
     homeLayout: "Home cards",
@@ -634,6 +647,19 @@ export const messages = {
     fetchLinkPreviewsHint:
       "켜면 저장한 링크 주소가 제목과 썸네일 조회를 위해 YouTube, noembed.com, 구글 파비콘 서비스로 전송돼요. 끄면 링크가 이 컴퓨터 밖으로 나가지 않고, 제목은 주소에서 그대로 가져와요.",
     identityAndMood: "분위기와 색",
+    themePaper: "종이",
+    themeLinen: "리넨",
+    themeSepia: "세피아",
+    themeMist: "안개",
+    themeNight: "밤",
+    themeInk: "잉크",
+    themePresetHint:
+      "색 조합을 고르세요. 배경·표면·글자색은 읽히도록 함께 정해져 있고, 아래 강조색만 자유롭게 바꿀 수 있어요.",
+    themePresetCustom:
+      "직접 고른 색이 그대로 남아 있어요. 위에서 조합을 선택하면 그 색으로 바뀝니다.",
+    accentLabelWarning: "이 강조색은 버튼 글자 뒤에 놓이면 잘 안 읽혀요.",
+    accentTextWarning: "이 강조색은 화면에서 글자로 읽기 어려워요.",
+    useSuggestedAccent: "이 조합에 맞는 강조색 쓰기",
     readingComfort: "읽기 감각",
     readerPreview: "읽기 샘플",
     homeLayout: "홈 카드",
