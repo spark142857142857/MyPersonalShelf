@@ -1203,7 +1203,7 @@ function App() {
       if (broken.size === 0) {
         showNotice(t("brokenPathsNone"));
       } else {
-        showNotice(`${broken.size} ${t("brokenPathsFound")}`, "warning");
+        showNotice(tCount(broken.size, "brokenPathsFound"), "warning");
       }
     } finally {
       setPathScanInFlight(false);
@@ -1262,7 +1262,7 @@ function App() {
     }
 
     if (removedCount > 0) {
-      showNotice(`${removedCount} ${t("duplicatesCleaned")}`);
+      showNotice(tCount(removedCount, "duplicatesCleaned"));
     }
     navigateToView("library", keepId);
   }
@@ -1468,11 +1468,13 @@ function App() {
           result.titleWarnings.length > 0 ? ` ${t("titleSimilarWarning")}` : "";
         successMessage = `${result.added[0].title} ${t("addedToShelf")}${warning}`;
       } else {
+        // The leading space here separates two sentences, not a count from its
+        // unit, so it stays in both languages.
         const skipped =
           result.skippedDuplicates.length > 0
-            ? ` ${result.skippedDuplicates.length} ${t("bookmarksSkipped")}`
+            ? ` ${tCount(result.skippedDuplicates.length, "bookmarksSkipped")}`
             : "";
-        successMessage = `${result.added.length} ${t("bookmarksImported")}${skipped}`;
+        successMessage = `${tCount(result.added.length, "bookmarksImported")}${skipped}`;
       }
     }
 
@@ -1636,7 +1638,7 @@ function App() {
         collection: "Folders",
         tags: ["folder", "local"],
         accent: "#059669",
-        summary: `${selection.entries.length} ${t("localFolderSummary")}`,
+        summary: tCount(selection.entries.length, "localFolderSummary"),
         folderEntries: selection.entries,
       });
 
@@ -1740,7 +1742,7 @@ function App() {
           location,
           folderEntries: selection.entries,
           title: item.title || selection.title,
-          summary: `${selection.entries.length} ${t("localFolderSummary")}`,
+          summary: tCount(selection.entries.length, "localFolderSummary"),
         });
       } else {
         const selection = await selectNativeFile();
@@ -1828,7 +1830,7 @@ function App() {
         : {}),
     }));
     clearItemSelection();
-    setNotice(`${ids.length} ${t("selectedCount")}`);
+    setNotice(tCount(ids.length, "selectedCount"));
   }
 
   async function restoreFromFile(file: File, mode: ShelfRestoreMode) {

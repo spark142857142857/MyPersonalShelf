@@ -31,6 +31,20 @@ describe("formatCount", () => {
     expect(formatCount("en", 2, "hidden")).toBe("2 hidden");
     expect(formatCount("en", 12, "tagCount")).toBe("12 tags");
   });
+
+  it("counts the status-strip notices, which are whole sentences", () => {
+    // These read as one sentence rather than a label, but the number still
+    // meets a counter and the join is the same decision.
+    expect(formatCount("ko", 3, "brokenPathsFound")).toBe("3개의 끊긴 경로를 찾았어요.");
+    expect(formatCount("ko", 2, "duplicatesCleaned")).toBe("2개의 중복 항목을 정리했어요.");
+    expect(formatCount("ko", 20, "bookmarksImported")).toBe("20개 북마크를 가져왔어요.");
+    expect(formatCount("ko", 5, "bookmarksSkipped")).toBe("5개 중복을 건너뛰었어요.");
+    expect(formatCount("ko", 12, "localFolderSummary")).toBe("12개 항목을 이 폴더에서 불러왔어요.");
+
+    expect(formatCount("en", 3, "brokenPathsFound")).toBe("3 broken path(s) found.");
+    expect(formatCount("en", 20, "bookmarksImported")).toBe("20 bookmarks imported.");
+    expect(formatCount("en", 12, "localFolderSummary")).toBe("12 entries loaded from this folder.");
+  });
 });
 
 describe("messages", () => {
