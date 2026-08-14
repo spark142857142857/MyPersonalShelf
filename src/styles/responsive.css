@@ -133,14 +133,25 @@
   }
 
   .topbar,
-  .customizeHeader,
   .readerPageHeader {
     align-items: stretch;
     flex-direction: column;
   }
 
+  /* A page's actions drop under its name here, the way the top bar and the
+   * reader header stack, rather than squeezing the name into what is left of
+   * the row: the guide's two buttons are 278px of a 375px screen. */
+  .pageHeader:has(.pageHeaderActions) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pageHeaderActions {
+    grid-row: auto;
+    grid-column: auto;
+    justify-content: flex-start;
+  }
+
   /* One step down the scale from the wide-viewport --text-xl. */
-  .customizeHeader h1,
   .readerPageHeader h1 {
     font-size: var(--text-lg);
     line-height: var(--leading-lg);

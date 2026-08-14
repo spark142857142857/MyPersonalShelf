@@ -155,7 +155,7 @@
  * first thing a new shelf showed. They take the ordinary fills now. */
 .emptyDashboardActions button,
 .emptyListPanel button,
-.guideHeroActions button {
+.pageHeaderActions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;

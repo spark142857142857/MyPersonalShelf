@@ -105,13 +105,12 @@ export function CustomizePanel({
 
   return (
     <section className="customizeWorkspace">
-      <div className="customizeHeader">
-        <div>
-          <span className="eyebrow">{t("customizeEyebrow")}</span>
-          <h1>{t("customizeTitle")}</h1>
+      <header className="pageHeader">
+        <h1>{t("navCustomize")}</h1>
+        <div className="pageHeaderActions">
+          <button type="button" onClick={onReset}>{t("resetTheme")}</button>
         </div>
-        <button type="button" onClick={onReset}>{t("resetTheme")}</button>
-      </div>
+      </header>
 
       <div className="customizeControls">
           <section className="settingsGroup">

@@ -1,13 +1,5 @@
 /* Customize and settings pages: groups, colour and range controls, segmented toggles. */
 
-.customizeHeader h1 {
-  max-width: 760px;
-  margin: var(--space-2) 0 0;
-  color: var(--app-text);
-  font-size: var(--text-xl);
-  line-height: var(--leading-xl);
-}
-
 .libraryPanel,
 .readerPanel {
   padding: var(--space-5);
@@ -16,28 +8,6 @@
 .customizeWorkspace {
   display: grid;
   gap: var(--space-4);
-}
-
-.customizeHeader {
-  display: flex;
-  gap: var(--space-4);
-  align-items: end;
-  justify-content: space-between;
-  padding: var(--space-5);
-  border-radius: var(--radius-md);
-  color: var(--app-text);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 12%, transparent), transparent 58%),
-    color-mix(in srgb, var(--app-surface) 78%, transparent);
-}
-
-.customizeHeader button {
-  min-height: var(--control-sm);
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-md);
-  color: var(--app-text);
-  background: var(--app-surface);
 }
 
 .customizeControls {

@@ -43,12 +43,9 @@ export function SettingsPanel({
 
   return (
     <section className="settingsWorkspace">
-      <div className="customizeHeader">
-        <div>
-          <span className="eyebrow">{t("settingsEyebrow")}</span>
-          <h1>{t("settingsTitle")}</h1>
-        </div>
-      </div>
+      <header className="pageHeader">
+        <h1>{t("navSettings")}</h1>
+      </header>
 
       <div className="settingsPageGrid">
         <section className="settingsGroup">

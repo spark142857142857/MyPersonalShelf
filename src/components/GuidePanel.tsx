@@ -25,12 +25,9 @@ export function GuidePanel({
 }) {
   return (
     <section className="guideWorkspace">
-      <div className="customizeHeader guideHero">
-        <div>
-          <span className="eyebrow">{t("guideEyebrow")}</span>
-          <h1>{t("guideTitle")}</h1>
-        </div>
-        <div className="guideHeroActions">
+      <header className="pageHeader">
+        <h1>{t("navGuide")}</h1>
+        <div className="pageHeaderActions">
           <button type="button" onClick={onAddContent}>
             <FilePlus2 size={17} />
             {t("addContent")}
@@ -40,7 +37,7 @@ export function GuidePanel({
             {t("navCustomize")}
           </button>
         </div>
-      </div>
+      </header>
 
       <section className="guideIntroPanel">
         <div className="guideIllustration">

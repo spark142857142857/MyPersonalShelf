@@ -169,6 +169,23 @@
   letter-spacing: 0;
 }
 
+/* Three pages carry an action next to their name. The header stacks its rows,
+ * so the actions take the right of the first one and the counts, where a page
+ * has them, stay on the second. */
+.pageHeader:has(.pageHeaderActions) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.pageHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-row: 1;
+  grid-column: 2;
+  gap: var(--space-2);
+  align-self: center;
+  justify-content: flex-end;
+}
+
 .pageHeaderCounts {
   display: flex;
   flex-wrap: wrap;
