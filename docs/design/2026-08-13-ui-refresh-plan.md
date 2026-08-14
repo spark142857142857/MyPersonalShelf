@@ -227,7 +227,37 @@ Two consequences worth remembering:
 - the old sidebar status panel went with it. It showed the same three numbers as the new
   dashboard header under different words, which read as four metrics rather than three.
 
-### Library, detail — not started
+### Library — done
+
+Same disease as the hero band, in a smaller box. Both the library and the collections
+view set a standing sentence as their `h1` at 27px while the page's real name appeared
+only as an `h2` below it — and again in the sidebar, and again in the eyebrow. The
+library printed "12 visible" twice in two stacked bordered boxes.
+
+- the dashboard header became the shared `.pageHeader`, and both views moved onto it:
+  the page's name as the title, its counts as one line. `.pageIntro` is gone.
+- the item list stopped being a stack of cards. Rows sat in sunken pills with 12px of
+  air: 81px each, so a twelve-item shelf was 960px and a 720px screen showed four. They
+  meet on a hairline at 61px now, and the library, collections and the dashboard's
+  activity columns all share it.
+- the status strip can be silent. An effect refilled it with `readyNotice` whenever it
+  emptied, so a 38px bordered bar of standing copy sat under the topbar for the life of
+  the session — and re-announced itself through `aria-live` every time.
+
+First library row at 484px → **371px**; five rows visible instead of four.
+
+Still open on this screen:
+
+- the type filter row is 693px of chips in a 533px column, so it wraps to two lines
+  (82px). Each chip carries a permanently visible pin star, which is most of the width.
+  Now that shortcuts live in the sidebar that star is a rare action holding space on the
+  most-used control, but every fix for it is fiddly: hiding it on hover reflows the row
+  under the cursor, and an absolute badge shrinks the hit target.
+- every row shows the full absolute path as its subtitle. It is the widest and least
+  scannable thing in the list, and the detail panel already shows it. Dropping it is an
+  information change rather than a styling one, so it needs a decision.
+
+### Detail — not started
 
 ## Phase 4 — built to be lived in
 
