@@ -323,12 +323,12 @@
   border: 0;
   border-radius: var(--radius-full);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 72%, #e7ece9);
+  background: var(--fill-subtle);
   font-size: var(--text-xs);
 }
 
 .tagRow button:hover {
-  background: color-mix(in srgb, var(--app-accent) 14%, #eef2f6);
+  background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface));
 }
 
 .lowerGrid {
