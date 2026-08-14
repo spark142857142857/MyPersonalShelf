@@ -30,6 +30,37 @@ button {
   cursor: pointer;
 }
 
+/* One focus ring for the whole app, in the theme's accent.
+ *
+ * Six palettes shared a single ring, and it was not one of ours: everything
+ * outside the cards, the filter chips, the sidebar shortcuts and the search
+ * box fell through to the browser's default, an amber that belongs to none of
+ * the presets and does not change with them. The shape here -- 2px of accent,
+ * offset by 2 -- is the one the card controls already used, so this makes it
+ * the rule rather than an exception in four files.
+ *
+ * Deliberately low specificity. Every component rule that draws its own ring
+ * outranks this one, including the two below and the card's, which suppresses
+ * the ring on its hit area so the card can draw a single ring around all of
+ * itself instead of one inside another.
+ *
+ * A ring has to clear 3:1 against what it sits on, and the accent is the one
+ * colour the reader picks freely. It is already held to 4.5 against the
+ * surface by the warning in the customize panel, so anything that passes there
+ * clears this with room to spare. Every preset's own accent measures 4.49 or
+ * better against both its page and its surface. */
+:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+/* These already show focus by lighting the whole control they sit in, so a
+ * ring on the inner element would be a second mark for the same event. */
+.searchBox input:focus-visible,
+.sidebarShortcutMain:focus-visible {
+  outline: 0;
+}
+
 .loadingShell {
   display: grid;
   min-height: 100vh;
