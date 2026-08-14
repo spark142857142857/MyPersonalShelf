@@ -818,6 +818,59 @@ function App() {
     return operation;
   }, [nativeRuntime]);
 
+  /**
+   * Checks every local path and records the ones that will not open. Says
+   * nothing on its own — the caller decides whether this is worth a notice.
+   */
+  const scanPathHealth = useCallback(async () => {
+    if (!nativeRuntime) return null;
+    const pathItems = latestAppStateRef.current.items.filter((item) => item.source === "path");
+    if (pathItems.length === 0) {
+      setUnavailablePathIds(new Set());
+      return new Set<string>();
+    }
+
+    setPathScanInFlight(true);
+    try {
+      const broken = await collectFailures(
+        pathItems,
+        (item) => item.id,
+        (item) => ensureItemPathRegistered(item),
+      );
+      setUnavailablePathIds(broken);
+      return broken;
+    } finally {
+      setPathScanInFlight(false);
+    }
+  }, [ensureItemPathRegistered, nativeRuntime]);
+
+  /* A shelf points at files it does not own, so between one launch and the
+   * next a file can be renamed, moved or deleted without the app being there
+   * to see it. Waiting to be asked meant the shelf quietly went stale: the
+   * scan only ran when someone clicked a filter chip that read (0) until they
+   * did, and its result lived in component state, so a reload forgot it.
+   *
+   * Runs once the shelf is loaded, and stays quiet unless it finds something.
+   * Not in a reader window, which has one item on screen and no library to
+   * mark up. */
+  useEffect(() => {
+    if (!nativeRuntime || !storageReady || storageLoadFailed || readerItemIdFromUrl) return;
+
+    let cancelled = false;
+    void scanPathHealth()
+      .then((broken) => {
+        if (cancelled || !broken || broken.size === 0) return;
+        showNotice(tCount(broken.size, "brokenPathsFound"), "warning");
+      })
+      .catch(() => {
+        // A scan that cannot run is not worth interrupting the shelf for.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeRuntime, readerItemIdFromUrl, scanPathHealth, showNotice, storageLoadFailed, storageReady, tCount]);
+
   useEffect(() => {
     if (
       !nativeRuntime ||
@@ -1188,23 +1241,13 @@ function App() {
       showNotice(t("nativeUnavailable"), "warning");
       return;
     }
-    setPathScanInFlight(true);
     showNotice(t("brokenPathsScanning"));
-    const pathItems = latestAppStateRef.current.items.filter((item) => item.source === "path");
-    try {
-      const broken = await collectFailures(
-        pathItems,
-        (item) => item.id,
-        (item) => ensureItemPathRegistered(item),
-      );
-      setUnavailablePathIds(broken);
-      if (broken.size === 0) {
-        showNotice(t("brokenPathsNone"));
-      } else {
-        showNotice(tCount(broken.size, "brokenPathsFound"), "warning");
-      }
-    } finally {
-      setPathScanInFlight(false);
+    const broken = await scanPathHealth();
+    if (!broken) return;
+    if (broken.size === 0) {
+      showNotice(t("brokenPathsNone"));
+    } else {
+      showNotice(tCount(broken.size, "brokenPathsFound"), "warning");
     }
   }
 
