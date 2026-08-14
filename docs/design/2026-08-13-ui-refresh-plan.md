@@ -422,6 +422,24 @@ at 4.28, under the floor, which is why the number is not rounder.
 The remaining literal reds in library, add-content, forms and links are the
 same colour by hand and should move onto the token.
 
+**Done, with two corrections.** The reds turned out to be four kinds, not one:
+error reds, amber warnings — which needed `--app-warning`, built the same way —
+YouTube's and YouTube Music's brand colours, which must *not* follow the theme
+and so stay literal, and the cool neutral leftovers in dashboard and shell,
+which are the phase-1 problem rather than this one.
+
+And the percentage was wrong. Text sits on a 10% tint of its own colour in every
+banner and status strip, and on a dark palette that tint lifts the background
+toward the text: at 64% night measured 5.05 against the surface but 4.24 against
+the tint. Measuring only the easy case would have shipped it. 56% clears both,
+worst case night danger-on-tint at 4.82 across all 24 combinations.
+
+Literal colours across the stylesheets: 31 → 17. What is left is meant to be
+there — the two token base hues, the two brand reds, the reader's code-block
+theme, the pre-mount fallback in base.css — except the cool neutrals in
+dashboard.css and the `#f3efe8` tints in reader.css, which are the last of the
+phase-1 leftovers.
+
 ---
 
 ## On references

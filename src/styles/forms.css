@@ -30,7 +30,7 @@
 }
 
 .detailActions .dangerButton {
-  color: #a32626;
+  color: var(--app-danger);
 }
 
 .fieldBlock {

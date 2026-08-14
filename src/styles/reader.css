@@ -219,10 +219,10 @@
   max-width: var(--reader-width);
   margin: 0 auto var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid #dc2626;
+  border: 1px solid color-mix(in srgb, var(--app-danger) 55%, transparent);
   border-radius: var(--radius-sm);
-  background: #fff1f2;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--app-danger) 10%, var(--app-surface));
+  color: var(--app-danger);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   font-weight: var(--weight-bold);
@@ -302,7 +302,7 @@
 .readerEncodingError {
   display: block;
   margin-top: var(--space-2);
-  color: #b91c1c;
+  color: var(--app-danger);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   font-weight: var(--weight-bold);

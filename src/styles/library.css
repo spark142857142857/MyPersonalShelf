@@ -201,18 +201,20 @@
   background: transparent;
 }
 
-/* Warning and danger are semantic colours rather than theme surfaces, so the
- * hues wait for phase 2; only the neutral they mix against becomes a token. */
+/* Each strip used to carry three unrelated hues -- one for the border, a
+ * brighter one for the fill, a near-black one for the text -- all fixed, so on
+ * a dark palette the fill stayed pale and the near-black text sat on it almost
+ * unreadably. All three now come off one token, which follows the theme. */
 .statusStrip--warning {
-  border-color: color-mix(in srgb, #b45309 45%, var(--line-subtle));
-  background: color-mix(in srgb, #f59e0b 14%, var(--app-surface));
-  color: #7c2d12;
+  border-color: color-mix(in srgb, var(--app-warning) 45%, var(--line-subtle));
+  background: color-mix(in srgb, var(--app-warning) 10%, var(--app-surface));
+  color: var(--app-warning);
 }
 
 .statusStrip--danger {
-  border-color: color-mix(in srgb, #dc2626 50%, var(--line-subtle));
-  background: color-mix(in srgb, #ef4444 16%, var(--app-surface));
-  color: #7f1d1d;
+  border-color: color-mix(in srgb, var(--app-danger) 50%, var(--line-subtle));
+  background: color-mix(in srgb, var(--app-danger) 10%, var(--app-surface));
+  color: var(--app-danger);
   font-weight: var(--weight-medium);
 }
 

@@ -15,6 +15,10 @@
   object-fit: cover;
 }
 
+/* The only literal reds left in the app, and deliberately so: these are
+ * YouTube's and YouTube Music's own colours, marking which service a card
+ * points at. Semantic reds became --app-danger, which follows the theme --
+ * that is exactly what a brand mark must not do. */
 .contentCard.youtubeCard,
 .contentCard.ytMusicCard {
   border-color: color-mix(in srgb, #dc2626 28%, var(--line-strong));

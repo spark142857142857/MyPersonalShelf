@@ -169,10 +169,22 @@
    * on light palettes and lifts it on dark ones, so one token stays readable
    * on all six.
    *
-   * 64% is where the worst case clears AA with room to spare. Measured against
-   * each palette's surface: paper 7.45, linen 7.32, mist 7.54, sepia 6.48,
-   * ink 5.99, night 5.05. Night is always the tight one — its surface is the
-   * lightest of the two dark palettes and its text the dimmer. At 76% night
-   * came out at 4.28, under the floor. */
-  --app-danger: color-mix(in srgb, #d33c30 64%, var(--app-text));
+   * The percentage is set by the hardest case, which is not text on the plain
+   * surface. Banners and status strips put this colour on a 10% tint of
+   * itself, and on a dark palette that tint lifts the background toward the
+   * text and closes the gap: at 64% night measured 5.05 on the surface but
+   * 4.24 on the tint, under the floor. 56% clears both. Night is always the
+   * tight one — its surface is the lighter of the two dark palettes and its
+   * text the dimmer.
+   *
+   * Anything filling behind this colour should use 10%, which is what these
+   * were measured at. Danger on surface / on tint: paper 8.30/7.04, linen
+   * 8.15/6.92, mist 8.43/7.15, sepia 7.14/6.10, ink 6.75/5.78, night
+   * 5.65/4.82. Warning runs a little easier everywhere. */
+  --app-danger: color-mix(in srgb, #d33c30 56%, var(--app-text));
+
+  /* Its quieter neighbour: a setting that wants attention, an import that
+   * half worked. Same construction and the same percentage, so the pair reads
+   * as a pair. */
+  --app-warning: color-mix(in srgb, #b06a00 56%, var(--app-text));
 }

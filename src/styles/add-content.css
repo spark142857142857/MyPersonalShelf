@@ -55,10 +55,10 @@
   gap: var(--space-1);
   margin: 0 0 var(--space-3);
   padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, #dc2626 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-danger) 55%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, #ef4444 12%, var(--app-surface));
-  color: #7f1d1d;
+  background: color-mix(in srgb, var(--app-danger) 10%, var(--app-surface));
+  color: var(--app-danger);
   font-size: var(--text-base);
   line-height: var(--leading-base);
 }
@@ -68,5 +68,5 @@
 }
 
 .pathBrokenBanner span {
-  color: color-mix(in srgb, #7f1d1d 80%, var(--app-muted));
+  color: color-mix(in srgb, var(--app-danger) 80%, var(--app-muted));
 }
