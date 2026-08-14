@@ -37,9 +37,15 @@
   line-height: var(--leading-sm);
 }
 
+/* The column count follows the width instead of being declared three times.
+ * It used to be a flat repeat(4), which meant four columns at every width
+ * above the first breakpoint and a minimum of 720px of card before the gaps,
+ * with two more hardcoded counts in responsive.css to walk it back down.
+ * auto-fill covers the whole range in one rule; the min() keeps a track from
+ * outgrowing a container narrower than one card. */
 .dashboardGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   grid-auto-rows: minmax(220px, auto);
   gap: var(--space-4);
 }

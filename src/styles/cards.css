@@ -169,6 +169,14 @@
   -webkit-line-clamp: 1;
 }
 
+/* large is the default and had no rules at all, so its media took the bare
+ * 16/9 from links.css with no ceiling. At one column that lands near 124px,
+ * but a .wide card spans two and 16/9 of ~456px is 256px -- a thumbnail
+ * taller than everything it belongs to. */
+.density-large .cardMedia {
+  max-height: 128px;
+}
+
 .density-normal .cardMedia {
   margin-bottom: var(--space-2);
   max-height: 88px;
