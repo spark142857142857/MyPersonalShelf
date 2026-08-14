@@ -214,13 +214,18 @@ export function DashboardView({
         </section>
       )}
 
-      <div className="dashboardSectionHeading">
-        <h2>
-          {t("dashboardPinnedTitle")}
-          <span>{dashboardCards.length}</span>
-        </h2>
-        <p>{t("dashboardPinnedHint")}</p>
-      </div>
+      {/* On an empty shelf the panel below carries its own heading and its own
+        * invitation, so this one would only announce a section of nothing and
+        * explain how to drag cards that do not exist. */}
+      {dashboardCards.length > 0 && (
+        <div className="dashboardSectionHeading">
+          <h2>
+            {t("dashboardPinnedTitle")}
+            <span>{dashboardCards.length}</span>
+          </h2>
+          <p>{t("dashboardPinnedHint")}</p>
+        </div>
+      )}
 
       <section className="dashboardGrid" aria-label={t("dashboardFavorites")}>
         {dashboardCards.length === 0 ? (
