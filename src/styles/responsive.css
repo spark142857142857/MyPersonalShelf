@@ -55,6 +55,15 @@
     grid-template-columns: 1fr;
   }
 
+  /* Stacked here, so the panel follows the list instead of sitting beside it.
+   * There is nothing for it to stay level with, and its own scrollbar inside
+   * the page's would be two scrollbars for one column. */
+  .lowerGrid > .readerPanel {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
   .settingsPageGrid {
     grid-template-columns: 1fr;
   }

@@ -336,3 +336,22 @@
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
   gap: var(--space-4);
 }
+
+/* A grid item fills its area by default, so the detail panel was as tall as
+ * the list beside it: 18,458px on a 300-item shelf, with its heading, its
+ * actions and its notes all at the top of that. Scrolled to row 200, picking
+ * an item put every one of them 12,254px above the window -- the panel was on
+ * screen, but only the empty part of it.
+ *
+ * align-self has to come first. Sticky on an element already as tall as the
+ * area it sits in has nothing to move within, which is why this reads as two
+ * fixes rather than one. */
+.lowerGrid > .readerPanel {
+  position: sticky;
+  top: var(--space-5);
+  align-self: start;
+  /* A panel taller than the window would otherwise hide its own end, since
+   * the page can no longer scroll it. */
+  max-height: calc(100vh - var(--space-5) * 2);
+  overflow-y: auto;
+}
