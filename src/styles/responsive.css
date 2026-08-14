@@ -14,8 +14,24 @@
     justify-content: center;
   }
 
-  .sidebarPanel {
+  /* The sidebar is icon-only at this width, so the shortcut rows follow the
+   * nav items down to their icon. Unpinning moves to the library and
+   * collections views, which offer the same toggle. */
+  .sidebarShortcuts {
+    align-items: center;
+  }
+
+  .sidebarShortcuts .panelLabel,
+  .sidebarShortcutName,
+  .sidebarShortcutCount,
+  .sidebarShortcutUnpin {
     display: none;
+  }
+
+  .sidebarShortcutMain {
+    grid-template-columns: 20px;
+    justify-content: center;
+    padding: var(--space-1);
   }
 
   .dashboardGrid {
@@ -57,16 +73,33 @@
     display: block;
   }
 
+  /* A top bar rather than a column here, so the viewport-tall height the wide
+   * layout needs for its scrolling shortcut list has to be undone. */
   .sidebar {
     position: sticky;
     top: 0;
     z-index: 10;
     flex-direction: row;
     align-items: center;
+    height: auto;
     padding: var(--space-3);
     overflow-x: auto;
     border-right: 0;
     border-bottom: 1px solid var(--line-strong);
+  }
+
+  /* The shortcuts join the end of the bar and scroll with it, so the divider
+   * and the column layout they carry in the sidebar both come off. */
+  .sidebarShortcuts {
+    flex: 0 0 auto;
+    flex-direction: row;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .sidebarShortcutList {
+    display: flex;
+    overflow: visible;
   }
 
   .brandButton {

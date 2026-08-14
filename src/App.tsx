@@ -2155,10 +2155,6 @@ function App() {
           onUnpinTag={pinTagToDashboard}
         />
 
-        <div className="sidebarPanel">
-          <span className="panelLabel">{t("shelfStatus")}</span>
-          <p>{items.length} {t("items")}, {favoriteItems.length} {t("favorites")}, {Object.keys(groupedCollections).length} {t("collections")}.</p>
-        </div>
       </aside>
 
       <main className="workspace">

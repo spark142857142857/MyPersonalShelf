@@ -113,14 +113,6 @@
   box-shadow: inset 3px 0 0 var(--app-accent);
 }
 
-.sidebarPanel {
-  margin-top: auto;
-  padding: var(--space-4);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--app-accent) 4%, var(--app-surface));
-}
-
 .panelLabel,
 .eyebrow,
 .cardType {
@@ -130,13 +122,6 @@
   font-weight: var(--weight-bold);
   letter-spacing: 0;
   text-transform: uppercase;
-}
-
-.sidebarPanel p {
-  margin: var(--space-2) 0 0;
-  color: var(--app-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
 }
 
 .workspace {
