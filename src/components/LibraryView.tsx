@@ -85,22 +85,15 @@ export function LibraryView({
 
   return (
     <>
-      <section className="pageIntro">
-        <div>
-          <span className="eyebrow">{t("libraryEyebrow")}</span>
-          <h1>{t("libraryTitle")}</h1>
+      <header className="pageHeader">
+        <h1>{t("navLibrary")}</h1>
+        <div className="pageHeaderCounts">
+          <span><strong>{items.length}</strong>{t("visible")}</span>
+          <span><strong>{collectionCount}</strong>{t("groups")}</span>
         </div>
-        <div className="pageIntroStats">
-          <span>{items.length} {t("visible")}</span>
-          <span>{collectionCount} {t("groups")}</span>
-        </div>
-      </section>
+      </header>
       <section className="lowerGrid">
         <div className="libraryPanel">
-          <div className="sectionTitle">
-            <h2>{t("library")}</h2>
-            <span>{items.length} {t("visible")}</span>
-          </div>
           <div className="filterRow">
             <button
               className={activeType === "all" && !pathHealthFilter ? "active" : ""}

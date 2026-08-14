@@ -1,42 +1,11 @@
 /* Customize and settings pages: groups, colour and range controls, segmented toggles. */
 
-.pageIntro {
-  display: flex;
-  gap: var(--space-4);
-  align-items: end;
-  justify-content: space-between;
-  padding: var(--space-5);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-md);
-  background: var(--app-surface);
-  box-shadow: var(--shadow-2);
-}
-
-.pageIntro h1,
 .customizeHeader h1 {
   max-width: 760px;
   margin: var(--space-2) 0 0;
   color: var(--app-text);
   font-size: var(--text-xl);
   line-height: var(--leading-xl);
-}
-
-.pageIntroStats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  justify-content: flex-end;
-}
-
-.pageIntroStats span {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-md);
-  color: var(--app-muted);
-  background: var(--app-surface);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: var(--weight-bold);
 }
 
 .libraryPanel,

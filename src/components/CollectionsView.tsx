@@ -54,21 +54,15 @@ export function CollectionsView({
 
   return (
     <>
-      <section className="pageIntro">
-        <div>
-          <span className="eyebrow">{t("collectionsEyebrow")}</span>
-          <h1>{t("collectionsTitle")}</h1>
+      <header className="pageHeader">
+        <h1>{t("navCollections")}</h1>
+        <div className="pageHeaderCounts">
+          <span><strong>{collectionNames.length}</strong>{t("groups")}</span>
+          <span><strong>{items.length}</strong>{t("items")}</span>
         </div>
-        <div className="pageIntroStats">
-          <span>{collectionNames.length} {t("groups")}</span>
-          <span>{items.length} {t("items")}</span>
-        </div>
-      </section>
+      </header>
       <section className="libraryPanel">
-        <div className="sectionTitle">
-          <h2>{t("navCollections")}</h2>
-          <span>{t("clickCollection")}</span>
-        </div>
+        <p className="groupDescription">{t("clickCollection")}</p>
         <form
           className="createCollectionRow"
           onSubmit={(event) => {

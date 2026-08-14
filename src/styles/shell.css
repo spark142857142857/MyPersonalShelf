@@ -131,3 +131,61 @@
   min-width: 0;
   padding: var(--space-5) var(--space-6) var(--space-6);
 }
+
+/* How every page opens: its name, and one line of counts. No band, no
+ * gradient, no border — the title sits on the workspace background like a
+ * chapter opening. Replaced two different patterns that both spent a screenful
+ * on a standing sentence about what the page was for. */
+.pageHeader {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1) 0;
+}
+
+.pageHeader h1 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  letter-spacing: 0;
+}
+
+.pageHeaderCounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-4);
+}
+
+/* Counts are buttons where they lead somewhere and plain spans where they do
+ * not, so the shared look is set on both and only the button gets the hover. */
+.pageHeaderCounts > * {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+  border: 0;
+  color: var(--app-muted);
+  background: transparent;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* Underlined only on hover: at rest this is a status line, and a row of
+ * permanently underlined links would pull the eye off the content below. */
+.pageHeaderCounts button {
+  text-underline-offset: 3px;
+}
+
+.pageHeaderCounts button:hover {
+  color: var(--app-text);
+  text-decoration: underline;
+}
+
+.pageHeaderCounts strong {
+  color: var(--app-text);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}

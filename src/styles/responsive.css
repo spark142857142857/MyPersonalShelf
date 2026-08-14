@@ -128,7 +128,6 @@
   }
 
   .topbar,
-  .pageIntro,
   .customizeHeader,
   .readerPageHeader {
     align-items: stretch;
@@ -136,11 +135,17 @@
   }
 
   /* One step down the scale from the wide-viewport --text-xl. */
-  .pageIntro h1,
   .customizeHeader h1,
   .readerPageHeader h1 {
     font-size: var(--text-lg);
     line-height: var(--leading-lg);
+  }
+
+  /* The shared page title starts a step higher, at --text-2xl, so it steps
+   * down to where those land at full width. */
+  .pageHeader h1 {
+    font-size: var(--text-xl);
+    line-height: var(--leading-xl);
   }
 
   .readerPageBody {
@@ -149,10 +154,6 @@
 
   .readerShell {
     padding: var(--space-4);
-  }
-
-  .pageIntroStats {
-    justify-content: flex-start;
   }
 
   .actions {

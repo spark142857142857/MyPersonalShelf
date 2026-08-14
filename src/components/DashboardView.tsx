@@ -76,9 +76,9 @@ export function DashboardView({
       {/* The counts are the only part of the old hero band that changed as the
         * shelf changed, so they are all that survives it. They read as a
         * sentence and stay clickable. */}
-      <header className="dashboardHeader">
+      <header className="pageHeader">
         <h1>{t("dashboardTitle")}</h1>
-        <div className="dashboardCounts" aria-label={t("featureSummary")}>
+        <div className="pageHeaderCounts" aria-label={t("featureSummary")}>
           <button type="button" onClick={() => onNavigate("library")}>
             <strong>{items.length}</strong>
             {t("items")}
