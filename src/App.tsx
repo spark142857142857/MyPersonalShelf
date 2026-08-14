@@ -785,6 +785,22 @@ function App() {
   }, [isAddOpen, navigateToView, readerItemIdFromUrl]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0];
+
+  /**
+   * Forgets a recorded broken path, for the two ways one stops being broken:
+   * the file is found again, or the item is gone. The library draws a row's
+   * warning and its relink and drop buttons from this set, and the filter chip
+   * counts it, so anything that resolves a broken path has to say so here.
+   */
+  const clearUnavailablePath = useCallback((itemId: string) => {
+    setUnavailablePathIds((current) => {
+      if (!current.has(itemId)) return current;
+      const next = new Set(current);
+      next.delete(itemId);
+      return next;
+    });
+  }, []);
+
   const ensureItemPathRegistered = useCallback(async (item: ContentItem): Promise<ContentItem> => {
     if (!nativeRuntime || item.source !== "path") {
       return item;
@@ -805,12 +821,7 @@ function App() {
           updateItem(setItems, item.id, { location: normalizedLocation });
         }
         setRegisteredPathIds((current) => new Set(current).add(item.id));
-        setUnavailablePathIds((current) => {
-          if (!current.has(item.id)) return current;
-          const next = new Set(current);
-          next.delete(item.id);
-          return next;
-        });
+        clearUnavailablePath(item.id);
         return normalizedLocation === item.location ? item : { ...item, location: normalizedLocation };
       })
       .catch((error) => {
@@ -828,7 +839,7 @@ function App() {
 
     pathRegistrationInFlightRef.current.set(key, operation);
     return operation;
-  }, [nativeRuntime]);
+  }, [clearUnavailablePath, nativeRuntime]);
 
   /**
    * Checks every local path and records the ones that will not open. Says
@@ -1300,12 +1311,7 @@ function App() {
           next.delete(id);
           return next;
         });
-        setUnavailablePathIds((current) => {
-          if (!current.has(id)) return current;
-          const next = new Set(current);
-          next.delete(id);
-          return next;
-        });
+        clearUnavailablePath(id);
         removedCount += 1;
       } catch {
         showNotice(t("pathPermissionReleaseFailed"), "danger");
@@ -1818,6 +1824,11 @@ function App() {
         });
       }
       setRegisteredPathIds((current) => new Set(current).add(item.id));
+      // The row's warning and its two buttons are drawn from this set, so
+      // leaving the item in it meant a successful relink reported success and
+      // then went on showing the file as missing until the next startup scan.
+      // ensureItemPathRegistered has always cleared it on the same event.
+      clearUnavailablePath(item.id);
       showNotice(t("relinkSuccess"));
     } catch {
       showNotice(t("relinkFailed"), "danger");
@@ -2072,6 +2083,10 @@ function App() {
         next.delete(itemToDelete.id);
         return next;
       });
+      // Dropping a broken item is now one of the two buttons on its own row,
+      // so this is the ordinary way one leaves the shelf. Without it the item
+      // was gone but still counted by the broken-paths chip.
+      clearUnavailablePath(itemToDelete.id);
       setItems((current) => current.filter((item) => item.id !== itemToDelete.id));
       // Only the panel's copy of this used to exist, where the item being
       // deleted was always the selected one. Removing a row from the library
