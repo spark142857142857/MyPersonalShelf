@@ -1,6 +1,6 @@
 import { BookOpen, FilePlus2, FolderOpen, HelpCircle, Link, Play } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
-import { getItemLocation, getItemTitle } from "../lib/shelfDisplay";
+import { getItemFileName, getItemTitle } from "../lib/shelfDisplay";
 import type { ContentItem, DashboardLayoutItem } from "../types";
 import { typeIcons } from "./icons";
 import { ShelfCard } from "./ShelfCard";
@@ -178,7 +178,7 @@ export function DashboardView({
                   </span>
                   <span>
                     <strong>{getItemTitle(item, t)}</strong>
-                    <small>{getItemLocation(item, t)}</small>
+                    <small>{getItemFileName(item, t)}</small>
                   </span>
                 </button>
               ))
@@ -209,7 +209,7 @@ export function DashboardView({
                   </span>
                   <span>
                     <strong>{getItemTitle(item, t)}</strong>
-                    <small>{item.openCount} {t("opens")} / {getItemLocation(item, t)}</small>
+                    <small>{item.openCount} {t("opens")} / {getItemFileName(item, t)}</small>
                   </span>
                 </button>
               ))

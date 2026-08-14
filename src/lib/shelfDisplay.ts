@@ -177,6 +177,33 @@ export function getItemLocation(item: ContentItem, t: (key: MessageKey) => strin
   return translateKnown(item.location, locationLabelKeys, t);
 }
 
+/**
+ * The tail of a location: the file or folder name, without the path leading to
+ * it.
+ *
+ * List rows carried the whole absolute path, which is the widest and least
+ * scannable thing in them, while the detail panel shows the full path anyway.
+ * Anything without a separator — a placeholder, a bare name — comes back
+ * untouched, so a location that is not a path is never chopped.
+ */
+export function getItemFileName(item: ContentItem, t: (key: MessageKey) => string) {
+  if (item.fileName) {
+    return item.fileName;
+  }
+
+  const location = getItemLocation(item, t);
+  // A folder's path may end in a separator, which would otherwise yield "".
+  const withoutTrailingSeparator = location.replace(/[\\/]+$/, "");
+  const lastSeparator = Math.max(
+    withoutTrailingSeparator.lastIndexOf("/"),
+    withoutTrailingSeparator.lastIndexOf("\\"),
+  );
+  if (lastSeparator === -1) {
+    return location;
+  }
+  return withoutTrailingSeparator.slice(lastSeparator + 1) || location;
+}
+
 export function getItemTextContent(item: ContentItem, t: (key: MessageKey) => string) {
   return item.textContent ? translateKnown(item.textContent, seedTextContentLabelKeys, t) : "";
 }

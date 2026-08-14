@@ -4,8 +4,8 @@ import type { MessageKey } from "../lib/i18n";
 import { detectLinkPlatform } from "../lib/linkMeta";
 import {
   getCollectionLabel,
+  getItemFileName,
   getItemImageSrc,
-  getItemLocation,
   getItemTitle,
   getLinkKindLabel,
   getTypeLabel,
@@ -212,7 +212,7 @@ export function LibraryView({
                         <small>
                           {item.type === "link"
                             ? `${getLinkKindLabel(item.location, detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
-                            : `${getCollectionLabel(item.collection, t)} / ${getItemLocation(item, t)}`}
+                            : `${getCollectionLabel(item.collection, t)} / ${getItemFileName(item, t)}`}
                         </small>
                       </span>
                     </button>

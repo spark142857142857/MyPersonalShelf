@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { setRemoteLinkMetadataAllowed } from "./linkMeta";
-import { getItemImageSrc } from "./shelfDisplay";
+import { getItemFileName, getItemImageSrc } from "./shelfDisplay";
 import type { ContentItem } from "../types";
 
 afterEach(() => setRemoteLinkMetadataAllowed(true));
@@ -55,5 +55,39 @@ describe("getItemImageSrc", () => {
 
   it("does not invent a thumbnail for items that are not links", () => {
     expect(getItemImageSrc(item({ type: "document", location: "C:/shelf/notes.txt" }))).toBeNull();
+  });
+});
+
+describe("getItemFileName", () => {
+  const t = (key: string) => (key === "noLocation" ? "저장된 위치 없음" : key);
+
+  it("prefers the name saved with the item", () => {
+    expect(
+      getItemFileName(item({ fileName: "notes.md", location: "C:/shelf/renamed.md" }), t),
+    ).toBe("notes.md");
+  });
+
+  it("takes the tail of a Windows path", () => {
+    expect(getItemFileName(item({ location: "C:\\Users\\me\\shelf\\notes.md" }), t)).toBe("notes.md");
+  });
+
+  it("takes the tail of a forward-slash path", () => {
+    expect(getItemFileName(item({ location: "C:/Users/me/shelf/notes.md" }), t)).toBe("notes.md");
+  });
+
+  it("names the folder when the path ends in a separator", () => {
+    expect(getItemFileName(item({ type: "folder", location: "C:/Users/me/shelf/" }), t)).toBe("shelf");
+  });
+
+  it("leaves a location that is not a path alone", () => {
+    expect(getItemFileName(item({ location: "No location yet" }), t)).toBe("저장된 위치 없음");
+  });
+
+  it("does not chop a bare name that has no separator", () => {
+    expect(getItemFileName(item({ location: "notes.md" }), t)).toBe("notes.md");
+  });
+
+  it("keeps a root path rather than reducing it to nothing", () => {
+    expect(getItemFileName(item({ location: "C:/" }), t)).toBe("C:/");
   });
 });
