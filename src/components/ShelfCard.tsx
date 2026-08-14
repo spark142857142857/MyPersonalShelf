@@ -143,79 +143,83 @@ export function ShelfCard({
           </button>
         ))}
       </div>
-      <button
-        className="favoriteButton"
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleFavorite();
-        }}
-        onDoubleClick={(event) => event.stopPropagation()}
-        aria-label={item.isFavorite ? t("unpin") : t("pin")}
-      >
-        <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
-      </button>
-      {reorderable && (
-        <span
-          className="cardDragHandle"
-          role="button"
-          tabIndex={0}
-          aria-label={t("dragToReorder")}
-          title={t("dragToReorder")}
+      {/* Both controls overlay the card instead of holding space in it, and
+        * stay out of sight until the pointer or the keyboard arrives. */}
+      <div className="cardActions">
+        <button
+          className="favoriteButton"
+          type="button"
           onClick={(event) => {
-            event.preventDefault();
             event.stopPropagation();
+            onToggleFavorite();
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-            }
-          }}
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            event.preventDefault();
-            event.stopPropagation();
-            pointerIdRef.current = event.pointerId;
-            dragOriginRef.current = { x: event.clientX, y: event.clientY };
-            reorderActiveRef.current = false;
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerMove={(event) => {
-            if (pointerIdRef.current !== event.pointerId || !dragOriginRef.current) return;
-            const origin = dragOriginRef.current;
-            const distance = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
-            if (!reorderActiveRef.current) {
-              if (distance < 5) return;
-              reorderActiveRef.current = true;
-              onReorderStart?.(item.id);
-            }
-            const overItemId = findDashboardCardIdAtPoint(event.clientX, event.clientY, item.id);
-            if (overItemId) {
-              onReorderHover?.(overItemId);
-            }
-          }}
-          onPointerUp={(event) => {
-            if (pointerIdRef.current !== event.pointerId) return;
-            try {
-              event.currentTarget.releasePointerCapture(event.pointerId);
-            } catch {
-              // Pointer may already be released.
-            }
-            finishPointerReorder(event.clientX, event.clientY);
-          }}
-          onPointerCancel={(event) => {
-            if (pointerIdRef.current !== event.pointerId) return;
-            if (reorderActiveRef.current) {
-              onReorderEnd?.(item.id, null);
-            }
-            reorderActiveRef.current = false;
-            pointerIdRef.current = null;
-            dragOriginRef.current = null;
-          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+          aria-label={item.isFavorite ? t("unpin") : t("pin")}
         >
-          <GripVertical size={16} />
-        </span>
-      )}
+          <Star size={16} fill={item.isFavorite ? "currentColor" : "none"} />
+        </button>
+        {reorderable && (
+          <span
+            className="cardDragHandle"
+            role="button"
+            tabIndex={0}
+            aria-label={t("dragToReorder")}
+            title={t("dragToReorder")}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+              }
+            }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.preventDefault();
+              event.stopPropagation();
+              pointerIdRef.current = event.pointerId;
+              dragOriginRef.current = { x: event.clientX, y: event.clientY };
+              reorderActiveRef.current = false;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (pointerIdRef.current !== event.pointerId || !dragOriginRef.current) return;
+              const origin = dragOriginRef.current;
+              const distance = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
+              if (!reorderActiveRef.current) {
+                if (distance < 5) return;
+                reorderActiveRef.current = true;
+                onReorderStart?.(item.id);
+              }
+              const overItemId = findDashboardCardIdAtPoint(event.clientX, event.clientY, item.id);
+              if (overItemId) {
+                onReorderHover?.(overItemId);
+              }
+            }}
+            onPointerUp={(event) => {
+              if (pointerIdRef.current !== event.pointerId) return;
+              try {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              } catch {
+                // Pointer may already be released.
+              }
+              finishPointerReorder(event.clientX, event.clientY);
+            }}
+            onPointerCancel={(event) => {
+              if (pointerIdRef.current !== event.pointerId) return;
+              if (reorderActiveRef.current) {
+                onReorderEnd?.(item.id, null);
+              }
+              reorderActiveRef.current = false;
+              pointerIdRef.current = null;
+              dragOriginRef.current = null;
+            }}
+          >
+            <GripVertical size={16} />
+          </span>
+        )}
+      </div>
     </article>
   );
 }
