@@ -1,7 +1,7 @@
 # UI/UX refresh — plan
 
 Date: 2026-08-13
-Status: agreed, phase 1 not started
+Status: phase 1 and 2 shipped; phase 3 in progress (dashboard done)
 
 Direction: **a quiet reading room** — Things 3 / Bear rather than Linear or Plex.
 Generous whitespace, hierarchy carried by size rather than weight, restrained colour.
@@ -186,6 +186,31 @@ in the export so nothing is silently lost.
 
 Now that sizes exist, use them. Dashboard first since it is the first impression, then
 library, then detail. Expect real layout changes here, not just value swaps.
+
+### Dashboard — done
+
+Measured on a six-item shelf in a 720px-tall viewport, the first item on the shelf did
+not appear until **596px down**: the entire first screen was chrome. Three changes:
+
+- the hero band goes. It spent 175px on an eyebrow, a title and a fixed sentence of
+  copy, plus four stat buttons — one of which was a link to Customize that the sidebar
+  and topbar already offer. Only the counts responded to the shelf, so only the counts
+  survive, as one line of text under the title. This also removed the last eight
+  hardcoded hex values on the screen, a categorical palette that ignored phase 2's
+  themes entirely.
+- the section eyebrows go. `dashboardShortcutsTitle` was printed as both the eyebrow
+  and the heading — the same words twice, stacked. The count takes that slot instead.
+- the activity columns lose their boxes. Shortcut cards, shelf cards and two bordered
+  activity panels made three tiers of identical frame; the supporting tier is now
+  whitespace and one rule.
+
+First item at 596px → **477px**; page height 1425px → 1277px.
+
+Still open on this screen: the pinned shortcuts sit between the header and the shelf,
+so navigation still comes before content. Moving them (or into the sidebar) is a
+structural call, not a styling one.
+
+### Library, detail — not started
 
 ## Phase 4 — built to be lived in
 
