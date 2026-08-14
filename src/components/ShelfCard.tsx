@@ -6,11 +6,9 @@ import { detectLinkPlatform } from "../lib/linkMeta";
 import {
   getCollectionLabel,
   getItemImageSrc,
-  getItemLocation,
   getItemSummary,
   getItemTitle,
   getLinkKindLabel,
-  getSourceLabel,
   getTagLabel,
   getTypeLabel,
 } from "../lib/shelfDisplay";
@@ -133,10 +131,6 @@ export function ShelfCard({
         </div>
         <h2>{getItemTitle(item, t)}</h2>
         {summary && <p>{summary}</p>}
-        <div className="itemPreview" style={{ borderColor: item.accent }}>
-          <strong>{getSourceLabel(item.source, t)}</strong>
-          <span>{getItemLocation(item, t)}</span>
-        </div>
       </button>
       <div className="tagRow">
         {item.tags.map((tag) => (
