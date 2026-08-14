@@ -27,13 +27,22 @@
 }
 
 /* The fill covers the divider above it, so a hovered or selected row reads as
- * one block rather than a block with a line stuck to its top edge. */
+ * one block rather than a block with a line stuck to an edge.
+ *
+ * Both forms of the list are spelled out here and below: bare siblings on the
+ * dashboard, and wrapped in a .listItemRow for the library's checkboxes. The
+ * wrapped divider selector above carries three classes, so a two-class
+ * suppression silently loses to it and the line stays. */
 .listItem:hover,
-.listItem.selected {
+.listItem.selected,
+.listItemRow:hover .listItem,
+.listItemRow.selected .listItem {
   background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
   box-shadow: none;
 }
 
+.listItem:hover + .listItem,
+.listItem.selected + .listItem,
 .listItemRow:hover + .listItemRow .listItem,
 .listItemRow.selected + .listItemRow .listItem {
   box-shadow: none;
