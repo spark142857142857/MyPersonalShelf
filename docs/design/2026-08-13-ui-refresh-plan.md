@@ -340,9 +340,52 @@ in Korean; that needs a formatter on the i18n side.
 
 ## Phase 4 — built to be lived in
 
-- virtualise the item list so 5,000 items behave like 50
+- ~~virtualise the item list so 5,000 items behave like 50~~ — done
 - ~~surface dead links and let them be fixed or dropped in one pass~~ — done
 - give the dashboard a reason to be returned to rather than a static grid
+
+### Virtualising the list — done
+
+The estimate at the top of this document was 9,849 nodes and 28–72ms per
+keystroke. Re-measured on a thousand items in a 720px window it was worse:
+10,166 nodes, 10,000 of them the list, and the keystroke cost depends on which
+way the result set moves.
+
+| | before | after |
+|---|---|---|
+| DOM nodes | 10,166 | 296 |
+| rows drawn | 1,000 | 13 |
+| keystroke that narrows | 22ms | 13ms |
+| keystroke that widens | 106ms | 11ms |
+| forced layout after it | 67ms | 0ms |
+| list height | 61,000px | 61,000px |
+
+Widening is the expensive direction and the estimate missed it: backspacing, or
+clearing the field, redraws every row. 106ms is six frames.
+
+Rows are uniform — title and subtitle are both clipped to one line — so the
+slice is arithmetic, and `visibleRange` is a pure function with the interesting
+cases in tests. No dependency was added; windowing fixed-height rows is about
+forty lines and the app has no runtime dependencies beyond React, lucide and
+Tauri.
+
+The window still scrolls rather than the list. Giving the list its own scroll
+box would also stop the detail panel scrolling away with it, which is worth
+doing on its own, but it is a layout change and this was a performance one.
+
+Two things worth not rediscovering:
+
+- the overscan is load-bearing beyond smooth scrolling. Dividers come from
+  `.listItemRow + .listItemRow`, so the first drawn row never has one; drawing
+  rows above the fold is what keeps that off screen.
+- the row height is measured off a real row. Hardcoding it would break the
+  moment the type scale moves.
+
+Not covered by tests: scroll-event delivery. The preview pane does not
+composite frames, so programmatic scrolling moves the offset without emitting
+the event, and jsdom has no layout at all. The arithmetic and the invariant
+that drawn rows plus reserved height equals the whole list are tested; the
+scrolling itself was checked by hand at four positions.
 
 ### Broken paths — done
 
