@@ -246,10 +246,15 @@ export function LibraryView({
                 const missing = brokenItemIds.has(item.id);
                 return (
                   <div className={`listItemRow ${selectedItemId === item.id ? "selected" : ""}`} key={item.id}>
+                    {/* Names what the box does, not just what it is next to.
+                      * It carried the bare title, which is also the label on
+                      * the row button beside it, so the two read as the same
+                      * control announced twice with nothing saying which one
+                      * selects. */}
                     <input
                       type="checkbox"
                       checked={selectedItemIds.has(item.id)}
-                      aria-label={getItemTitle(item, t)}
+                      aria-label={t("selectItemLabel").replace("{title}", getItemTitle(item, t))}
                       onChange={(event) => onToggleItemSelection(item.id, event.target.checked)}
                     />
                     <button
