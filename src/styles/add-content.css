@@ -35,7 +35,7 @@
   min-height: var(--control-md);
   border: 0;
   background: var(--app-accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .addSubmitButton:hover {

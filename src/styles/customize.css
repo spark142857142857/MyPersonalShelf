@@ -260,7 +260,7 @@
 }
 
 .segmentedControl button.active {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--app-accent);
 }
 

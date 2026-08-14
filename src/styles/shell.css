@@ -39,7 +39,7 @@
   height: 42px;
   place-items: center;
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--on-accent);
   background: var(--app-accent);
   font-weight: var(--weight-bold);
   box-shadow: 0 5px 14px color-mix(in srgb, var(--app-accent) 22%, transparent);

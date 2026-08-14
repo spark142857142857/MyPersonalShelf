@@ -29,6 +29,7 @@ import { ReaderView } from "./components/ReaderView";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { reorderDashboardLayouts } from "./lib/dashboardLayouts";
 import { defaultTheme, normalizeThemeSettings } from "./lib/theme";
+import { onAccentColor } from "./lib/themePresets";
 import {
   getCollectionLabel,
   getItemLocation,
@@ -927,6 +928,9 @@ function App() {
     "--app-text": theme.text,
     "--app-muted": theme.muted,
     "--app-accent": theme.accent,
+    // Computed rather than fixed at white: a pale accent needs a dark label on
+    // it. CSS cannot measure luminance, so this is decided here.
+    "--on-accent": onAccentColor(theme.accent),
     "--reader-width": `${theme.readerWidth}px`,
     "--reader-line-height": theme.lineHeight,
     "--reader-font-size": `${theme.readerFontSize}px`,

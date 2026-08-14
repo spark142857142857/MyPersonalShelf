@@ -61,7 +61,7 @@
 .bulkBar .primaryButton {
   border-color: transparent;
   background: var(--app-accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .collectionEditToggle {

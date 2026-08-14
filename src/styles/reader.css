@@ -337,7 +337,7 @@
 }
 
 .resumeActions button:first-child {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--app-accent);
 }
 

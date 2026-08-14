@@ -58,6 +58,6 @@ button {
   padding: var(--space-2) var(--space-3);
   border: 0;
   border-radius: var(--radius-md);
-  color: #fff;
+  color: var(--on-accent);
   background: var(--app-accent);
 }
