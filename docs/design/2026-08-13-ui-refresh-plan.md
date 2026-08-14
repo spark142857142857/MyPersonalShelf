@@ -494,11 +494,37 @@ toward the text: at 64% night measured 5.05 against the surface but 4.24 against
 the tint. Measuring only the easy case would have shipped it. 56% clears both,
 worst case night danger-on-tint at 4.82 across all 24 combinations.
 
-Literal colours across the stylesheets: 31 → 17. What is left is meant to be
-there — the two token base hues, the two brand reds, the reader's code-block
-theme, the pre-mount fallback in base.css — except the cool neutrals in
-dashboard.css and the `#f3efe8` tints in reader.css, which are the last of the
-phase-1 leftovers.
+Literal colours across the stylesheets: 31 → 17, and later to **7**, all of
+which are meant to be there — the two token base hues, the two brand reds, the
+media viewer's letterbox, and the pre-mount fallback in base.css, which runs
+before any palette exists.
+
+The last five went in the review pass, and they were not a tidiness exercise.
+Every one had the same shape: a fixed near-white or near-black mixed into a
+token that already carried the palette, doing nothing on the four light presets
+and inverting the two dark ones.
+
+| | light presets | night | ink |
+|---|---|---|---|
+| app frame background | invisible | +441% | — |
+| reader page | −1% | +92% | +132% |
+| empty-shelf button | −8% | **+718%** | **+1184%** |
+| empty-list panel | −2% | +343% | +535% |
+
+The last two took text below AA — 4.07:1 on the button's label and 3.04 on the
+panel — which is to say the empty states, the first thing a new shelf shows,
+were the thing you could not read on a dark palette.
+
+Two others were not tints but overrides. Reader links blended the accent 82/18
+with a fixed `#2563eb`, pulling every palette 17–39 units toward blue; sepia's
+clean `#8a5a2b` came out as the muddy `#785c4e`. And the code block was its own
+fixed dark theme, which reads as a slab at 17:1 on a light page and is invisible
+at 1.03:1 on ink — a block whose only boundary is its background cannot afford
+that, and a border does not rescue it (1.45 against `#111827`).
+
+The lesson is the measuring, not the colours. A literal blended into a token is
+invisible in exactly the conditions its author was looking at, and is only ever
+found by checking the palette it was not written for.
 
 ---
 
