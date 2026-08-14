@@ -21,7 +21,7 @@ import {
   togglePinnedTag,
   togglePinnedType,
 } from "./lib/appSettings";
-import { getMessage, type Language, type MessageKey } from "./lib/i18n";
+import { formatCount, getMessage, type Language, type MessageKey } from "./lib/i18n";
 import { AddContentModal, type AddMode, type DraftItem } from "./components/AddContentModal";
 import { GuidePanel } from "./components/GuidePanel";
 import { MediaViewerView } from "./components/MediaViewerView";
@@ -349,6 +349,10 @@ function App() {
   setRemoteLinkMetadataAllowed(appSettings.fetchLinkPreviews);
 
   const t = useCallback((key: MessageKey) => getMessage(language, key), [language]);
+  const tCount = useCallback(
+    (count: number, key: MessageKey) => formatCount(language, count, key),
+    [language],
+  );
   const tRef = useRef(t);
   tRef.current = t;
   // Window-level shortcut handlers are attached once, so they read the current
@@ -2228,6 +2232,7 @@ function App() {
         {activeView === "dashboard" && (
           <DashboardView
             t={t}
+            tCount={tCount}
             items={items}
             inboxItems={inboxItems}
             favoriteItems={favoriteItems}

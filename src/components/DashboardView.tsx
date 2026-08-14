@@ -12,6 +12,7 @@ export interface DashboardCardEntry {
 
 export function DashboardView({
   t,
+  tCount,
   items,
   inboxItems,
   favoriteItems,
@@ -34,6 +35,7 @@ export function DashboardView({
   onReorderEnd,
 }: {
   t: (key: MessageKey) => string;
+  tCount: (count: number, key: MessageKey) => string;
   items: ContentItem[];
   inboxItems: ContentItem[];
   favoriteItems: ContentItem[];
@@ -158,7 +160,7 @@ export function DashboardView({
         <div className="activityPanel">
           <div className="sectionTitle">
             <h2>{t("recentlyOpened")}</h2>
-            <span>{recentItems.length} {t("items")}</span>
+            <span>{tCount(recentItems.length, "items")}</span>
           </div>
           <div className="itemList">
             {recentItems.length === 0 ? (
@@ -189,7 +191,7 @@ export function DashboardView({
         <div className="activityPanel">
           <div className="sectionTitle">
             <h2>{t("frequentlyOpened")}</h2>
-            <span>{frequentItems.length} {t("items")}</span>
+            <span>{tCount(frequentItems.length, "items")}</span>
           </div>
           <div className="itemList">
             {frequentItems.length === 0 ? (
@@ -209,7 +211,7 @@ export function DashboardView({
                   </span>
                   <span>
                     <strong>{getItemTitle(item, t)}</strong>
-                    <small>{item.openCount} {t("opens")} / {getItemFileName(item, t)}</small>
+                    <small>{tCount(item.openCount, "opens")} / {getItemFileName(item, t)}</small>
                   </span>
                 </button>
               ))
