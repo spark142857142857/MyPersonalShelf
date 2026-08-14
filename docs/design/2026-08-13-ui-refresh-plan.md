@@ -246,16 +246,16 @@ library printed "12 visible" twice in two stacked bordered boxes.
 
 First library row at 484px → **371px**; five rows visible instead of four.
 
-Still open on this screen:
+- rows show the file name rather than the whole path. Every row used to open with the
+  same absolute prefix. `getItemFileName` takes the tail; the detail panel and the search
+  index both keep the full path, so searching a folder name that now appears nowhere on
+  screen still finds the item.
 
-- the type filter row is 693px of chips in a 533px column, so it wraps to two lines
-  (82px). Each chip carries a permanently visible pin star, which is most of the width.
-  Now that shortcuts live in the sidebar that star is a rare action holding space on the
-  most-used control, but every fix for it is fiddly: hiding it on hover reflows the row
-  under the cursor, and an absolute badge shrinks the hit target.
-- every row shows the full absolute path as its subtitle. It is the widest and least
-  scannable thing in the list, and the detail panel already shows it. Dropping it is an
-  information change rather than a styling one, so it needs a decision.
+Still open on this screen: the type filter row is 693px of chips in a 533px column, so
+it wraps to two lines (82px). Each chip carries a permanently visible pin star, which is
+most of the width. Now that shortcuts live in the sidebar that star is a rare action
+holding space on the most-used control, but every fix is fiddly — hiding it on hover
+reflows the row under the cursor, and an absolute badge shrinks the hit target.
 
 ### Detail — not started
 
