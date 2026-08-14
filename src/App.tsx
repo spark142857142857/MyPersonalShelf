@@ -84,6 +84,7 @@ import { isExternalDocumentItem } from "./lib/documentOpen";
 import { NativeShelfQueue } from "./lib/nativeShelfQueue";
 import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
+import { collectFailures } from "./lib/pathScan";
 import { browserItemStorageKey, prepareItemsForPersistence } from "./lib/persistence";
 import { buildShelfItem, createShelfItemId, findDuplicate, findDuplicateGroups, mergeShelfItems } from "./lib/duplicates";
 import { parseBookmarkFile } from "./lib/bookmarkImport";
@@ -1190,15 +1191,12 @@ function App() {
     setPathScanInFlight(true);
     showNotice(t("brokenPathsScanning"));
     const pathItems = latestAppStateRef.current.items.filter((item) => item.source === "path");
-    const broken = new Set<string>();
     try {
-      for (const item of pathItems) {
-        try {
-          await ensureItemPathRegistered(item);
-        } catch {
-          broken.add(item.id);
-        }
-      }
+      const broken = await collectFailures(
+        pathItems,
+        (item) => item.id,
+        (item) => ensureItemPathRegistered(item),
+      );
       setUnavailablePathIds(broken);
       if (broken.size === 0) {
         showNotice(t("brokenPathsNone"));
