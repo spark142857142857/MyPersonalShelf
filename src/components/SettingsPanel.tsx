@@ -13,6 +13,7 @@ export function SettingsPanel({
   collectionCount,
   duplicateGroups,
   t,
+  tCount,
   onAppSettingsChange,
   onThemeChange,
   onLanguageChange,
@@ -28,6 +29,7 @@ export function SettingsPanel({
   collectionCount: number;
   duplicateGroups: Array<{ key: string; items: ContentItem[] }>;
   t: (key: MessageKey) => string;
+  tCount: (count: number, key: MessageKey) => string;
   onAppSettingsChange: (settings: AppSettings) => void;
   onThemeChange: (theme: ThemeSettings) => void;
   onLanguageChange: (language: Language) => void;
@@ -125,7 +127,7 @@ export function SettingsPanel({
         <section className="settingsGroup">
           <div className="groupHeading">
             <h2>{t("settingsData")}</h2>
-            <span>{itemCount} {t("items")} / {collectionCount} {t("groups")}</span>
+            <span>{tCount(itemCount, "items")} / {tCount(collectionCount, "groups")}</span>
           </div>
           <p className="groupDescription">{t("settingsDataHint")}</p>
           <p className="groupDescription">{t("settingsDataMergeHint")}</p>

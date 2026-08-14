@@ -2378,6 +2378,7 @@ function App() {
             collectionCount={collectionNames.length}
             duplicateGroups={duplicateGroups}
             t={t}
+            tCount={tCount}
             onAppSettingsChange={setAppSettings}
             onThemeChange={setTheme}
             onLanguageChange={setLanguage}
