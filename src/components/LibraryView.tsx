@@ -15,6 +15,7 @@ import { typeIcons } from "./icons";
 
 export function LibraryView({
   t,
+  tCount,
   items,
   contentTypes,
   collectionCount,
@@ -46,6 +47,7 @@ export function LibraryView({
   detailPanel,
 }: {
   t: (key: MessageKey) => string;
+  tCount: (count: number, key: MessageKey) => string;
   items: ContentItem[];
   contentTypes: ContentType[];
   collectionCount: number;
@@ -149,7 +151,7 @@ export function LibraryView({
           )}
           {selectedItemIds.size > 0 && (
             <div className="bulkBar">
-              <span className="bulkCount">{selectedItemIds.size} {t("selectedCount")}</span>
+              <span className="bulkCount">{tCount(selectedItemIds.size, "selectedCount")}</span>
               <input
                 list="collection-options"
                 placeholder={t("bulkCollection")}

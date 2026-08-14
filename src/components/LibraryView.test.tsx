@@ -49,6 +49,7 @@ function renderLibrary(props: Partial<Parameters<typeof LibraryView>[0]> = {}) {
   const view = render(
     <LibraryView
       t={(key: MessageKey) => key}
+      tCount={(count: number, key: MessageKey) => `${count} ${key}`}
       items={[item()]}
       contentTypes={contentTypes}
       collectionCount={2}

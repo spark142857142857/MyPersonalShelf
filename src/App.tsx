@@ -2275,6 +2275,7 @@ function App() {
         {activeView === "library" && (
           <LibraryView
             t={t}
+            tCount={tCount}
             items={filteredItems}
             contentTypes={availableContentTypes}
             collectionCount={Object.keys(groupedCollections).length}
