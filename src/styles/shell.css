@@ -1,12 +1,23 @@
 /* App frame: sidebar, brand, navigation, and the workspace column. */
 
+/* The background is the preset's, unmixed. It used to be washed with 18% of a
+ * near-white (#f7f9f8), left over from before the palettes existed. On a light
+ * preset that is invisible; on night it lifted #171a19 to rgb(63,66,65) --
+ * nearly three times the intended luminance -- with two consequences.
+ *
+ * Muted text fell to 3.99:1 against it, under AA, where the unmixed background
+ * gives 6.91. And the surfaces went the wrong way round: a card at #232725 is
+ * lighter than #171a19 but darker than the washed value, so every card and the
+ * sidebar read as a hole punched into the page rather than a sheet resting on
+ * it. The presets are chosen as whole palettes; nothing may sit between them
+ * and the screen. */
 .appShell {
   position: relative;
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
   min-height: 100vh;
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-bg) 82%, #f7f9f8);
+  background: var(--app-bg);
 }
 
 /* Pinned to the viewport rather than scrolling away with the page. The
