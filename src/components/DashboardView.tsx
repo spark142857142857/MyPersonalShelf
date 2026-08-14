@@ -133,10 +133,10 @@ export function DashboardView({
       {hasShortcuts && (
         <section className="dashboardShortcutGrid" aria-label={t("dashboardShortcutsTitle")}>
           <div className="dashboardSectionHeading">
-            <div>
-              <span className="eyebrow">{t("dashboardShortcutsTitle")}</span>
-              <h2>{t("dashboardShortcutsTitle")}</h2>
-            </div>
+            <h2>
+              {t("dashboardShortcutsTitle")}
+              <span>{pinnedTypes.length + pinnedCollections.length + pinnedTags.length}</span>
+            </h2>
             <p>{t("dashboardShortcutsHint")}</p>
           </div>
           <div className="shortcutCardRow">
@@ -215,10 +215,10 @@ export function DashboardView({
       )}
 
       <div className="dashboardSectionHeading">
-        <div>
-          <span className="eyebrow">{t("dashboardFavorites")}</span>
-          <h2>{t("dashboardPinnedTitle")}</h2>
-        </div>
+        <h2>
+          {t("dashboardPinnedTitle")}
+          <span>{dashboardCards.length}</span>
+        </h2>
         <p>{t("dashboardPinnedHint")}</p>
       </div>
 
