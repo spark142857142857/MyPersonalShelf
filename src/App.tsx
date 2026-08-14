@@ -407,13 +407,6 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!notice) {
-      setNotice(t("readyNotice"));
-      setNoticeLevel("info");
-    }
-  }, [notice, t]);
-
   const showNotice = useCallback((message: string, level: NoticeLevel = "info") => {
     setNotice(message);
     setNoticeLevel(level);
@@ -534,9 +527,11 @@ function App() {
     };
   }, [nativeRuntime, readerItemIdFromUrl]);
 
+  // A notice raised before the switch is still in the old language, and there
+  // is no way to re-render it, so it is dropped rather than left stale.
   useEffect(() => {
-    setNotice(t("readyNotice"));
-  }, [language, t]);
+    setNotice("");
+  }, [language]);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -2209,7 +2204,10 @@ function App() {
           </div>
         </header>
 
-        <section className={`statusStrip statusStrip--${noticeLevel}`} aria-live="polite">
+        <section
+          className={`statusStrip statusStrip--${noticeLevel} ${notice ? "" : "statusStrip--silent"}`}
+          aria-live="polite"
+        >
           <span className="statusNotice">{notice}</span>
         </section>
 

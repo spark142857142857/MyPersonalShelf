@@ -190,6 +190,17 @@
   line-height: var(--leading-sm);
 }
 
+/* Stays in the DOM when there is nothing to say, because a live region has to
+ * exist before it can announce into, but collapses to nothing — including the
+ * workspace gap it would otherwise still occupy. */
+.statusStrip--silent {
+  min-height: 0;
+  margin-bottom: calc(var(--space-4) * -1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 /* Warning and danger are semantic colours rather than theme surfaces, so the
  * hues wait for phase 2; only the neutral they mix against becomes a token. */
 .statusStrip--warning {
