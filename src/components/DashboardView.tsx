@@ -27,7 +27,6 @@ export function DashboardView({
   onNavigate,
   onFocusInboxCleanup,
   onFilterTag,
-  onSelectItem,
   onOpenItem,
   onToggleFavorite,
   onAddContent,
@@ -51,7 +50,6 @@ export function DashboardView({
   onNavigate: (view: "library" | "collections" | "customize" | "guide") => void;
   onFocusInboxCleanup: (notice: string) => void;
   onFilterTag: (tag: string) => void;
-  onSelectItem: (item: ContentItem) => void;
   onOpenItem: (item: ContentItem) => void;
   onToggleFavorite: (item: ContentItem) => void;
   onAddContent: () => void;
@@ -59,13 +57,20 @@ export function DashboardView({
   onReorderHover: (overItemId: string) => void;
   onReorderEnd: (activeItemId: string, overItemId: string | null) => void;
 }) {
-  function handleActivityKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, item: ContentItem) {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-      event.preventDefault();
-      onOpenItem(item);
-    }
-  }
-
+  /* Everything on this page opens on a single click.
+   *
+   * The cards and the two activity lists used to select on a click and open on
+   * a double, borrowed from the library, where it works because the library
+   * has a detail panel for the selection to appear in. Here it could not:
+   * selecting navigates to the library, so the row or card was unmounted
+   * before the second click could reach it. Measured -- after the first click
+   * of a double, document.body.contains(row) is false. Every double click and
+   * every Ctrl+Enter on this page was unreachable.
+   *
+   * So the dashboard is a launcher and the library is where things are
+   * inspected. That also makes the section this refresh added -- pick up where
+   * you left off, which already opened on one click -- the rule rather than
+   * the exception. */
   return (
     <>
       {inboxItems.length > 0 && (
@@ -192,7 +197,7 @@ export function DashboardView({
               reorderable
               dragging={draggingItemId === item.id}
               dropTarget={dropTargetId === item.id && draggingItemId !== item.id}
-              onSelect={() => onSelectItem(item)}
+              onActivate={() => onOpenItem(item)}
               onFilterTag={onFilterTag}
               onToggleFavorite={() => onToggleFavorite(item)}
               onReorderStart={onReorderStart}
@@ -218,9 +223,7 @@ export function DashboardView({
                   className="listItem"
                   type="button"
                   key={item.id}
-                  onClick={() => onSelectItem(item)}
-                  onDoubleClick={() => onOpenItem(item)}
-                  onKeyDown={(event) => handleActivityKeyDown(event, item)}
+                  onClick={() => onOpenItem(item)}
                 >
                   <span className="listIcon" style={{ color: item.accent }}>
                     {typeIcons[item.type]}
@@ -249,9 +252,7 @@ export function DashboardView({
                   className="listItem"
                   type="button"
                   key={item.id}
-                  onClick={() => onSelectItem(item)}
-                  onDoubleClick={() => onOpenItem(item)}
-                  onKeyDown={(event) => handleActivityKeyDown(event, item)}
+                  onClick={() => onOpenItem(item)}
                 >
                   <span className="listIcon" style={{ color: item.accent }}>
                     {typeIcons[item.type]}

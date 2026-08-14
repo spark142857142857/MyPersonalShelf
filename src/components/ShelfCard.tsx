@@ -44,8 +44,7 @@ export function ShelfCard({
   reorderable = false,
   dragging = false,
   dropTarget = false,
-  onSelect,
-  onOpen,
+  onActivate,
   onFilterTag,
   onToggleFavorite,
   onReorderStart,
@@ -59,8 +58,8 @@ export function ShelfCard({
   reorderable?: boolean;
   dragging?: boolean;
   dropTarget?: boolean;
-  onSelect: () => void;
-  onOpen?: () => void;
+  /** What a click on the card body does. See the hit area below. */
+  onActivate: () => void;
   onFilterTag: (tag: string) => void;
   onToggleFavorite: () => void;
   onReorderStart?: (itemId: string) => void;
@@ -70,19 +69,6 @@ export function ShelfCard({
   const pointerIdRef = useRef<number | null>(null);
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
   const reorderActiveRef = useRef(false);
-
-  function handleCardKeyDown(event: React.KeyboardEvent<HTMLElement>) {
-    if (onOpen && (event.ctrlKey || event.metaKey) && event.key === "Enter") {
-      event.preventDefault();
-      onOpen();
-      return;
-    }
-
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onSelect();
-    }
-  }
 
   function finishPointerReorder(clientX: number, clientY: number) {
     if (!reorderActiveRef.current) {
@@ -108,14 +94,15 @@ export function ShelfCard({
       className={`contentCard ${variant} ${selected ? "selected" : ""} ${dragging ? "dragging" : ""} ${dropTarget ? "dropTarget" : ""} ${platformClass}`.trim()}
       data-dashboard-card-id={reorderable ? item.id : undefined}
     >
-      <button
-        className="cardHitArea"
-        type="button"
-        aria-pressed={selected}
-        onClick={onSelect}
-        onDoubleClick={onOpen ? () => onOpen() : undefined}
-        onKeyDown={handleCardKeyDown}
-      >
+      {/* One click, one thing. It used to select on a click and open on a
+        * double, which could not work anywhere the card is actually used: its
+        * only surface is the dashboard, and selecting there navigates to the
+        * library, so the card was unmounted before the second click landed.
+        * The open handler was never passed either, so both halves were dead.
+        *
+        * A plain button also means Enter and Space activate it for free,
+        * instead of the keydown handler that used to reimplement them. */}
+      <button className="cardHitArea" type="button" onClick={onActivate}>
         {previewSrc && (
           <div className="cardMedia" aria-hidden="true">
             <img src={previewSrc} alt="" />

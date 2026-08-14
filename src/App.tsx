@@ -2329,7 +2329,6 @@ function App() {
             onNavigate={navigatePrimaryView}
             onFocusInboxCleanup={focusInboxCleanup}
             onFilterTag={filterByTag}
-            onSelectItem={(item) => void selectItem(item)}
             onOpenItem={(item) => void openItem(item)}
             onToggleFavorite={(item) => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}
             onAddContent={() => setIsAddOpen(true)}
