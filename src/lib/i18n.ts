@@ -72,6 +72,7 @@ export const messages = {
     pinned: "pinned",
     groups: "groups",
     visible: "visible",
+    hidden: "hidden",
     all: "All",
     clickCollection: "Click a collection to browse it in the library",
     itemSingular: "item",
@@ -453,6 +454,7 @@ export const messages = {
     pinned: "개 고정",
     groups: "개 그룹",
     visible: "개 표시",
+    hidden: "개 숨김",
     all: "전체",
     clickCollection: "컬렉션을 누르면 라이브러리에서 바로 볼 수 있어요",
     itemSingular: "개 항목",
@@ -774,4 +776,19 @@ export type MessageKey = keyof typeof messages.en;
 
 export function getMessage(language: Language, key: MessageKey) {
   return messages[language][key] ?? messages.en[key];
+}
+
+// English separates a count from its unit -- "10 items" -- while Korean binds
+// the counter to the number: "10개 항목", never "10 개 항목". Callers that used
+// to write {count} {t(unit)} put the English space in the JSX, where no
+// language can take it back out; this is where that decision belongs. The
+// .pageHeaderCounts rule in shell.css does the same job for the markup that
+// already keeps its number in its own element.
+const countSeparators: Record<Language, string> = {
+  en: " ",
+  ko: "",
+};
+
+export function formatCount(language: Language, count: number, key: MessageKey) {
+  return `${count}${countSeparators[language]}${getMessage(language, key)}`;
 }
