@@ -169,8 +169,17 @@ export function getItemTitle(item: ContentItem, t: (key: MessageKey) => string) 
   return translateKnown(item.title, seedTitleLabelKeys, t);
 }
 
+/**
+ * An item's note, or an empty string when it has none.
+ *
+ * This used to hand back a standing sentence inviting the reader to write one,
+ * which the card printed as though it were content: on a shelf where most items
+ * carry no note, the same sentence filled every card. It also reached the search
+ * index, so a query for a word inside it matched every item that had no note.
+ * Callers that want their own fallback already spell one out.
+ */
 export function getItemSummary(item: ContentItem, t: (key: MessageKey) => string) {
-  return item.summary ? translateKnown(item.summary, seedSummaryLabelKeys, t) : t("noSummary");
+  return item.summary ? translateKnown(item.summary, seedSummaryLabelKeys, t) : "";
 }
 
 export function getItemLocation(item: ContentItem, t: (key: MessageKey) => string) {

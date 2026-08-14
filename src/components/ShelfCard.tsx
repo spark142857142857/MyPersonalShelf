@@ -102,6 +102,7 @@ export function ShelfCard({
 
   const platform = item.type === "link" ? detectLinkPlatform(item.location) : null;
   const previewSrc = getItemImageSrc(item);
+  const summary = getItemSummary(item, t);
   const platformClass =
     platform === "youtube-music" ? "ytMusicCard" : platform === "youtube" ? "youtubeCard" : "";
 
@@ -131,7 +132,7 @@ export function ShelfCard({
           <span className="cardType">{getTypeLabel(item.type, t)}</span>
         </div>
         <h2>{getItemTitle(item, t)}</h2>
-        <p>{getItemSummary(item, t)}</p>
+        {summary && <p>{summary}</p>}
         <div className="itemPreview" style={{ borderColor: item.accent }}>
           <strong>{getSourceLabel(item.source, t)}</strong>
           <span>{getItemLocation(item, t)}</span>
