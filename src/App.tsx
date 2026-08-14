@@ -1545,12 +1545,13 @@ function App() {
     if (candidates.length === 0) return;
     commitShelfItems(candidates, {
       closeModal: true,
-      // addedToShelf follows a title, so its Korean starts at the verb; a
-      // count needs its own counter in front and cannot share the message.
+      // Both branches say the same thing now; they differ only in what stands
+      // in front of the verb. importedPreview follows a title, so its Korean
+      // starts at the verb and has no counter for a number to bind to.
       successNotice:
         candidates.length === 1
           ? `${candidates[0].title} ${t("importedPreview")}`
-          : tCount(candidates.length, "addedToShelfCount"),
+          : tCount(candidates.length, "importedPreviewCount"),
       focusInbox: true,
     });
   }

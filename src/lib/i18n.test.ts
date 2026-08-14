@@ -46,12 +46,17 @@ describe("formatCount", () => {
     expect(formatCount("en", 12, "localFolderSummary")).toBe("12 entries loaded from this folder.");
   });
 
-  it("keeps the counted add notice apart from the one that follows a title", () => {
-    // addedToShelf is appended to an item's title, so its Korean opens at the
-    // verb and has nowhere to put a counter. The counted form is its own key.
-    expect(formatCount("ko", 3, "addedToShelfCount")).toBe("3개를 선반에 넣었어요.");
-    expect(formatCount("en", 3, "addedToShelfCount")).toBe("3 added to your shelf.");
-    expect(messages.ko.addedToShelf).toBe("선반에 넣었어요.");
+  it("keeps the counted import notice apart from the one that follows a title", () => {
+    // importedPreview is appended to an item's title, so its Korean opens at
+    // the verb and has nowhere to put a counter. The counted form is its own
+    // key, and the two have to keep saying the same thing.
+    expect(formatCount("ko", 3, "importedPreviewCount")).toBe(
+      "3개를 미리보기로 가져왔어요. 미디어 미리보기는 새로고침 후 초기화돼요.",
+    );
+    expect(formatCount("en", 3, "importedPreviewCount")).toBe(
+      "3 imported for preview. Media previews reset after a reload.",
+    );
+    expect(messages.ko.importedPreview.startsWith("미리보기로")).toBe(true);
   });
 });
 
