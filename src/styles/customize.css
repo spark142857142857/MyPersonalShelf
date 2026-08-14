@@ -44,29 +44,6 @@
   padding: var(--space-5);
 }
 
-.activityPanel {
-  min-height: 190px;
-}
-
-.activityPanel .sectionTitle h2 {
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
-}
-
-.activityPanel .itemList {
-  gap: var(--space-1);
-  margin-top: var(--space-3);
-}
-
-.activityPanel .listItem {
-  padding: var(--space-2);
-  background: transparent;
-}
-
-.activityPanel .listItem:hover {
-  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
-}
-
 .customizeWorkspace {
   display: grid;
   gap: var(--space-4);

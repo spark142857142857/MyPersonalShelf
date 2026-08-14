@@ -97,10 +97,55 @@
   gap: var(--space-4);
 }
 
+/* Two lists of things you already opened. They used to be bordered, shadowed,
+ * 24px-padded cards — a third frame under the shortcut cards and the shelf
+ * cards, on a page whose whole problem was that everything was a box. The
+ * whitespace stays and the box goes; one hairline marks where the shelf ends. */
 .dashboardActivityGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-4) var(--space-6);
+  margin-top: var(--space-4);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.activityPanel {
+  min-width: 0;
+}
+
+.activityPanel .sectionTitle h2 {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+.activityPanel .itemList {
+  gap: 0;
+  margin-top: var(--space-2);
+}
+
+/* Rows sit directly on the page now, so the sunken fill that separated them
+ * from the panel would only add a second background. A hairline between rows
+ * does the same job with less ink. */
+.activityPanel .listItem {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+.activityPanel .listItem + .listItem {
+  box-shadow: inset 0 1px 0 var(--line-subtle);
+}
+
+/* The fill covers the divider above it, so a hovered row reads as one block
+ * rather than a block with a line stuck to its top edge. */
+.activityPanel .listItem:hover {
+  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
+  box-shadow: none;
+}
+
+.activityPanel .listItem:hover + .listItem {
+  box-shadow: none;
 }
 
 .emptyDashboardPanel {

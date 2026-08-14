@@ -270,7 +270,7 @@ export function DashboardView({
       </section>
 
       <section className="dashboardActivityGrid" aria-label={t("recentlyOpened")}>
-        <div className="libraryPanel activityPanel">
+        <div className="activityPanel">
           <div className="sectionTitle">
             <h2>{t("recentlyOpened")}</h2>
             <span>{recentItems.length} {t("items")}</span>
@@ -301,7 +301,7 @@ export function DashboardView({
           </div>
         </div>
 
-        <div className="libraryPanel activityPanel">
+        <div className="activityPanel">
           <div className="sectionTitle">
             <h2>{t("frequentlyOpened")}</h2>
             <span>{frequentItems.length} {t("items")}</span>
