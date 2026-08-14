@@ -11,6 +11,47 @@
   width: 100%;
 }
 
+/* Only rows that carry actions get the third track. Declaring it on every row
+ * would leave an empty column and its gap in each one. */
+.listItemRow:has(.listItemActions) {
+  grid-template-columns: auto 1fr auto;
+}
+
+.listItemActions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+  padding-right: var(--space-2);
+}
+
+.listItemActions button {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.listItemActions button:hover {
+  background: var(--fill-subtle);
+}
+
+.listItemActions .listItemDrop {
+  color: var(--app-danger);
+  border-color: color-mix(in srgb, var(--app-danger) 32%, transparent);
+}
+
+.listItemActions .listItemDrop:hover {
+  background: color-mix(in srgb, var(--app-danger) 10%, var(--app-surface));
+}
+
 .listItemRow.selected .listItem,
 .listItem.selected {
   background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));

@@ -2023,8 +2023,11 @@ function App() {
 
   async function deleteSelectedItem() {
     if (!selectedItem) return;
+    await deleteItem(selectedItem);
+  }
+
+  async function deleteItem(itemToDelete: ContentItem) {
     if (!window.confirm(t("deleteConfirm"))) return;
-    const itemToDelete = selectedItem;
     const operations = itemOperationsRef.current;
     if (!operations.beginDelete(itemToDelete.id)) {
       setNotice(t("itemDeleteInProgress"));
@@ -2057,7 +2060,12 @@ function App() {
         return next;
       });
       setItems((current) => current.filter((item) => item.id !== itemToDelete.id));
-      navigateToView("library", nextSelectedItem?.id ?? "");
+      // Only the panel's copy of this used to exist, where the item being
+      // deleted was always the selected one. Removing a row from the library
+      // leaves whatever was selected alone.
+      if (selectedItemId === itemToDelete.id) {
+        navigateToView("library", nextSelectedItem?.id ?? "");
+      }
       setNotice(`${itemToDelete.title} ${t("removed")}`);
     } catch {
       setItems((current) => [...current]);
@@ -2354,6 +2362,8 @@ function App() {
             onSelectItem={(item) => void selectItem(item)}
             onOpenItem={(item) => void openItem(item)}
             onAddContent={() => setIsAddOpen(true)}
+            onRelinkItem={nativeRuntime ? (item) => void relinkSelectedPath(item) : undefined}
+            onRemoveItem={(item) => void deleteItem(item)}
             detailPanel={
               selectedItem && (
                 <DetailPanel

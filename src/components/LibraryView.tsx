@@ -1,5 +1,5 @@
 import type React from "react";
-import { AlertTriangle, FilePlus2, Star } from "lucide-react";
+import { AlertTriangle, FilePlus2, FolderOpen, Star } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { detectLinkPlatform } from "../lib/linkMeta";
 import {
@@ -45,6 +45,8 @@ export function LibraryView({
   onSelectItem,
   onOpenItem,
   onAddContent,
+  onRelinkItem,
+  onRemoveItem,
   detailPanel,
 }: {
   t: (key: MessageKey) => string;
@@ -78,6 +80,8 @@ export function LibraryView({
   onSelectItem: (item: ContentItem) => void;
   onOpenItem: (item: ContentItem) => void;
   onAddContent: () => void;
+  onRelinkItem?: (item: ContentItem) => void;
+  onRemoveItem?: (item: ContentItem) => void;
   detailPanel?: React.ReactNode;
 }) {
   function handleItemKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, item: ContentItem) {
@@ -232,6 +236,28 @@ export function LibraryView({
                         </small>
                       </span>
                     </button>
+                    {/* A broken row is the one row you cannot do anything with
+                      * by clicking it, so its two ways out sit on the row
+                      * itself rather than behind a selection. */}
+                    {missing && (onRelinkItem || onRemoveItem) && (
+                      <div className="listItemActions">
+                        {onRelinkItem && (
+                          <button type="button" onClick={() => onRelinkItem(item)}>
+                            <FolderOpen size={14} />
+                            {t("relinkPath")}
+                          </button>
+                        )}
+                        {onRemoveItem && (
+                          <button
+                            className="listItemDrop"
+                            type="button"
+                            onClick={() => onRemoveItem(item)}
+                          >
+                            {t("delete")}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })

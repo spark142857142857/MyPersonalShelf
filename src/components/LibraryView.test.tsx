@@ -138,6 +138,28 @@ describe("LibraryView", () => {
     expect(screen.getByText("pathMissing")).toBeTruthy();
   });
 
+  it("offers a way out only on the rows that need one", async () => {
+    const onRelinkItem = vi.fn();
+    const onRemoveItem = vi.fn();
+    renderLibrary({ onRelinkItem, onRemoveItem });
+    expect(screen.queryByRole("button", { name: "relinkPath" })).toBeNull();
+
+    cleanup();
+    renderLibrary({ brokenItemIds: new Set(["item-1"]), onRelinkItem, onRemoveItem });
+    await userEvent.click(screen.getByRole("button", { name: "relinkPath" }));
+    expect(onRelinkItem).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByRole("button", { name: "delete" }));
+    expect(onRemoveItem).toHaveBeenCalledOnce();
+  });
+
+  it("drops the relink action when there is no desktop runtime to relink with", () => {
+    renderLibrary({ brokenItemIds: new Set(["item-1"]), onRemoveItem: vi.fn() });
+
+    expect(screen.queryByRole("button", { name: "relinkPath" })).toBeNull();
+    expect(screen.getByRole("button", { name: "delete" })).toBeTruthy();
+  });
+
   it("swaps the idle bar for bulk controls once items are selected", async () => {
     const handlers = renderLibrary({ selectedItemIds: new Set(["item-1"]) });
 
