@@ -8,6 +8,7 @@ import { loadNativeMediaProgress, nativeAssetUrl, saveNativeMediaProgress } from
 import { saveBrowserItemProgress } from "../lib/persistence";
 import {
   canPreviewMediaItem,
+  getCollectionLabel,
   getEntryTypeLabel,
   getItemImageSrc,
   getItemLocation,
@@ -92,9 +93,16 @@ export function DetailPanel({
 
   return (
     <div className="readerPanel">
-      <div className="sectionTitle">
-        <h2>{t("preview")}</h2>
-        <span>{getTypeLabel(item.type, t)}</span>
+      {/* The panel used to be headed "Preview", with the item's name buried
+        * below as a <strong> inside the preview block — a generic label on top
+        * of the one thing the panel is actually about, and no heading for the
+        * item at all. */}
+      <div className="detailHeader">
+        <h2>{getItemTitle(item, t)}</h2>
+        <p>
+          {getTypeLabel(item.type, t)}
+          <span>{getCollectionLabel(item.collection, t)}</span>
+        </p>
       </div>
       <div className="detailActions">
         <button type="button" onClick={() => onPatch({ isFavorite: !item.isFavorite })}>
@@ -166,9 +174,10 @@ export function DetailPanel({
           lineHeight: theme.lineHeight,
         }}
       >
-        <strong>{getItemTitle(item, t)}</strong>
-        <small className="previewLocation">{getItemLocation(item, t)}</small>
         <PreviewBody item={item} t={t} onPatch={onPatch} pathReady={pathReady} />
+        {/* The full path belongs here rather than in the list rows, but under
+          * the preview: it is reference detail, not the item's identity. */}
+        <small className="previewLocation">{getItemLocation(item, t)}</small>
       </div>
 
       <label className="fieldBlock">

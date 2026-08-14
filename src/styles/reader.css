@@ -29,9 +29,31 @@
   object-fit: contain;
 }
 
-.readerPreview > strong {
-  display: block;
-  margin-bottom: var(--space-3);
+/* The item's name is the panel's heading now, so it is a real h2 rather than a
+ * <strong> inside the preview, and the word "Preview" that used to sit above
+ * it is gone. */
+.detailHeader h2 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.detailHeader p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  margin: var(--space-1) 0 0;
+  color: var(--app-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* A middle dot between the type and the collection, drawn rather than typed so
+ * it never lands on its own at the start of a wrapped line. */
+.detailHeader p span::before {
+  content: "·";
+  margin-right: var(--space-2);
 }
 
 .readerPreview p {
