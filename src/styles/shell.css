@@ -164,6 +164,14 @@
 
 /* Underlined only on hover: at rest this is a status line, and a row of
  * permanently underlined links would pull the eye off the content below. */
+/* Korean binds its counter to the number -- "10개 항목", not "10 개 항목" --
+ * so the gap that correctly separates "10" from "items" is wrong there. The
+ * root's lang is kept in step with the language setting in App.tsx, and lang
+ * inherits, so the child matches. */
+.pageHeaderCounts > *:lang(ko) {
+  gap: 0;
+}
+
 .pageHeaderCounts button {
   text-underline-offset: 3px;
 }
