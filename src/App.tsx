@@ -86,6 +86,7 @@ import { getSafeExternalUrl } from "./lib/urlSafety";
 import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
 import { findUnfinishedItems } from "./lib/continueReading";
 import { collectFailures } from "./lib/pathScan";
+import { nextSelectionAfterRemoval } from "./lib/listSelection";
 import { browserItemStorageKey, prepareItemsForPersistence } from "./lib/persistence";
 import { buildShelfItem, createShelfItemId, findDuplicate, findDuplicateGroups, mergeShelfItems } from "./lib/duplicates";
 import { parseBookmarkFile } from "./lib/bookmarkImport";
@@ -2070,9 +2071,9 @@ function App() {
       }
       const latest = latestAppStateRef.current;
       const nextItems = latest.items.filter((item) => item.id !== itemToDelete.id);
-      const nextSelectedItem = nextItems.find(
-        (item) => item.id !== itemToDelete.id,
-      );
+      // Read off the library's own list, as it was when delete was pressed, so
+      // the selection lands on the neighbouring row rather than the top.
+      const nextSelectedItemId = nextSelectionAfterRemoval(filteredItems, itemToDelete.id);
       latestAppStateRef.current = {
         ...latest,
         items: nextItems,
@@ -2092,7 +2093,7 @@ function App() {
       // deleted was always the selected one. Removing a row from the library
       // leaves whatever was selected alone.
       if (selectedItemId === itemToDelete.id) {
-        navigateToView("library", nextSelectedItem?.id ?? "");
+        navigateToView("library", nextSelectedItemId);
       }
       showNotice(`${itemToDelete.title} ${t("removed")}`);
     } catch {
