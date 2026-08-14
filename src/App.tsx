@@ -413,6 +413,17 @@ function App() {
     };
   }, []);
 
+  /**
+   * The only way to put something in the status strip.
+   *
+   * Half the app used to call setNotice directly, which set the words and left
+   * the colour where the last caller put it. Since the strip is one element
+   * that every view writes to, a warning raised anywhere stayed amber under
+   * every plain message that followed it, and a failed path followed by a
+   * successful relink reported the success in red. The level is part of the
+   * notice, so it is set with it, and it falls back to neutral rather than
+   * being inherited.
+   */
   const showNotice = useCallback((message: string, level: NoticeLevel = "info") => {
     setNotice(message);
     setNoticeLevel(level);
@@ -536,8 +547,8 @@ function App() {
   // A notice raised before the switch is still in the old language, and there
   // is no way to re-render it, so it is dropped rather than left stale.
   useEffect(() => {
-    setNotice("");
-  }, [language]);
+    showNotice("");
+  }, [language, showNotice]);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -613,13 +624,13 @@ function App() {
           window.localStorage.setItem(dashboardStorageKey, JSON.stringify(normalizedLayouts));
           window.localStorage.setItem(collectionSettingsStorageKey, JSON.stringify(collectionSettings));
         } catch {
-          setNotice(t("browserStorageFailed"));
+          showNotice(t("browserStorageFailed"), "danger");
         }
         return;
       }
 
       void nativeShelfQueueRef.current.enqueueStateSave(() => saveNativeAppState(state)).catch(() => {
-        setNotice(t("nativeStorageFailed"));
+        showNotice(t("nativeStorageFailed"), "danger");
       });
     }
 
@@ -647,7 +658,7 @@ function App() {
       window.clearTimeout(timer);
       pendingShelfSaveRef.current = null;
     };
-  }, [appSettings, collectionSettings, dashboardLayouts, items, language, nativeRuntime, readerItemIdFromUrl, storageLoadFailed, storageReady, t, theme]);
+  }, [appSettings, collectionSettings, dashboardLayouts, items, language, nativeRuntime, readerItemIdFromUrl, showNotice, storageLoadFailed, storageReady, t, theme]);
 
   useEffect(() => {
     if (nativeRuntime) return;
@@ -710,7 +721,7 @@ function App() {
         closing = false;
         setCloseError(tRef.current("nativeStorageFailed"));
         if (!readerItemIdFromUrl) {
-          setNotice(tRef.current("nativeStorageFailed"));
+          showNotice(tRef.current("nativeStorageFailed"), "danger");
         }
       }
     })
@@ -724,7 +735,7 @@ function App() {
       .catch(() => {
         if (!disposed) {
           setCloseError(tRef.current("nativeStorageFailed"));
-          setNotice(tRef.current("nativeStorageFailed"));
+          showNotice(tRef.current("nativeStorageFailed"), "danger");
         }
       });
 
@@ -732,7 +743,7 @@ function App() {
       disposed = true;
       unlisten?.();
     };
-  }, [nativeRuntime, readerItemIdFromUrl, storageLoadFailed, storageReady]);
+  }, [nativeRuntime, readerItemIdFromUrl, showNotice, storageLoadFailed, storageReady]);
 
   useEffect(() => {
     const activeUrls = new Set(items.map((item) => item.objectUrl).filter((url): url is string => Boolean(url)));
@@ -1013,12 +1024,12 @@ function App() {
 
     readNativeTextFile(selectedItem.location, selectedItem.id, selectedItem.textEncoding ?? "auto")
       .then((textContent) => updateItem(setItems, selectedItem.id, { textContent }))
-      .catch((error) => setNotice(`${t("documentReadFailed")} ${String(error)}`));
-  }, [activeView, selectedItem, t]);
+      .catch((error) => showNotice(`${t("documentReadFailed")} ${String(error)}`, "danger"));
+  }, [activeView, selectedItem, showNotice, t]);
 
   async function selectItem(item: ContentItem, nextView?: View) {
     navigateToView(nextView ?? "library", item.id);
-    setNotice(`${getItemTitle(item, t)} ${t("selected")}`);
+    showNotice(`${getItemTitle(item, t)} ${t("selected")}`);
   }
 
   function markItemOpened(item: ContentItem) {
@@ -1066,7 +1077,7 @@ function App() {
   async function openItem(item: ContentItem) {
     const operations = itemOperationsRef.current;
     if (!operations.beginOpen(item.id)) {
-      setNotice(t("itemDeleteInProgress"));
+      showNotice(t("itemDeleteInProgress"), "warning");
       return;
     }
     try {
@@ -1111,10 +1122,10 @@ function App() {
       try {
         await openNativeFolder(targetItem.location, targetItem.id);
       } catch {
-        setNotice(t("nativeUnavailable"));
+        showNotice(t("nativeUnavailable"), "warning");
         return;
       }
-      setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
+      showNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
       return;
     }
 
@@ -1124,10 +1135,10 @@ function App() {
       try {
         await openNativePath(targetItem.location, targetItem.id);
       } catch {
-        setNotice(t("nativeUnavailable"));
+        showNotice(t("nativeUnavailable"), "warning");
         return;
       }
-      setNotice(`${getItemTitle(targetItem, t)} ${t("openedExternally")}`);
+      showNotice(`${getItemTitle(targetItem, t)} ${t("openedExternally")}`);
       return;
     }
 
@@ -1144,22 +1155,22 @@ function App() {
         await persistItemBeforeOpeningWindow(targetItem);
         if (itemOperationsRef.current.isDeleting(targetItem.id)) return;
         await openNativeReaderWindow(targetItem.id, getItemTitle(targetItem, t));
-        setNotice(`${getItemTitle(targetItem, t)} ${t("readerWindowOpened")}`);
+        showNotice(`${getItemTitle(targetItem, t)} ${t("readerWindowOpened")}`);
         return;
       } catch (error) {
-        setNotice(`${t("readerWindowFailed")} ${String(error)}`);
+        showNotice(`${t("readerWindowFailed")} ${String(error)}`, "danger");
       }
     }
 
     navigateToView("reader", targetItem.id);
-    setNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
+    showNotice(`${getItemTitle(targetItem, t)} ${t("selected")}`);
 
     if (targetItem.type === "document" && targetItem.source === "path" && !targetItem.textContent) {
       try {
         const textContent = await readNativeTextFile(targetItem.location, targetItem.id, targetItem.textEncoding ?? "auto");
         updateItem(setItems, targetItem.id, { textContent });
       } catch (error) {
-        setNotice(`${t("documentReadFailed")} ${String(error)}`);
+        showNotice(`${t("documentReadFailed")} ${String(error)}`, "danger");
       }
     }
   }
@@ -1409,15 +1420,15 @@ function App() {
   async function addManualItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.title.trim()) {
-      setNotice(t("titleRequired"));
+      showNotice(t("titleRequired"), "warning");
       return;
     }
     if (draft.source !== "note" && !draft.location.trim()) {
-      setNotice(t("locationRequired"));
+      showNotice(t("locationRequired"), "warning");
       return;
     }
     if (new Blob([draft.textContent]).size > maxManualTextBytes) {
-      setNotice(t("manualTextTooLarge"));
+      showNotice(t("manualTextTooLarge"), "warning");
       return;
     }
     if (addInFlightRef.current) return;
@@ -1555,7 +1566,7 @@ function App() {
     const candidates: ContentItem[] = [];
     for (const file of files) {
       if (getTypeFromFile(file) === "document" && file.size > maxUploadDocumentBytes) {
-        setNotice(t("uploadDocumentTooLarge"));
+        showNotice(t("uploadDocumentTooLarge"), "warning");
         continue;
       }
 
@@ -1616,7 +1627,7 @@ function App() {
       });
       if (duplicate) {
         navigateToView("library", duplicate.id);
-        setNotice(`${getItemTitle(duplicate, t)} ${t("alreadyOnShelf")}`);
+        showNotice(`${getItemTitle(duplicate, t)} ${t("alreadyOnShelf")}`, "warning");
         setIsAddOpen(false);
         return;
       }
@@ -1644,7 +1655,7 @@ function App() {
         successNotice: `${nextItem.title} ${t("nativeFileAdded")}`,
       });
     } catch {
-      setNotice(t("nativeUnavailable"));
+      showNotice(t("nativeUnavailable"), "warning");
     } finally {
       addInFlightRef.current = false;
       setIsAdding(false);
@@ -1668,7 +1679,7 @@ function App() {
       });
       if (duplicate) {
         navigateToView("library", duplicate.id);
-        setNotice(`${getItemTitle(duplicate, t)} ${t("alreadyOnShelf")}`);
+        showNotice(`${getItemTitle(duplicate, t)} ${t("alreadyOnShelf")}`, "warning");
         setIsAddOpen(false);
         return;
       }
@@ -1693,7 +1704,7 @@ function App() {
         successNotice: `${nextItem.title} ${t("nativeFolderAdded")}`,
       });
     } catch {
-      setNotice(t("nativeUnavailable"));
+      showNotice(t("nativeUnavailable"), "warning");
     } finally {
       addInFlightRef.current = false;
       setIsAdding(false);
@@ -1775,7 +1786,7 @@ function App() {
 
   async function relinkSelectedPath(item: ContentItem) {
     if (!nativeRuntime || item.source !== "path") {
-      setNotice(t("nativeUnavailable"));
+      showNotice(t("nativeUnavailable"), "warning");
       return;
     }
 
@@ -1794,7 +1805,7 @@ function App() {
         const selection = await selectNativeFile();
         if (!selection) return;
         if (selection.contentType !== item.type) {
-          setNotice(t("relinkFailed"));
+          showNotice(t("relinkFailed"), "danger");
           return;
         }
         const location = await registerNativeContentPath(selection.path, item.type, item.id);
@@ -1807,9 +1818,9 @@ function App() {
         });
       }
       setRegisteredPathIds((current) => new Set(current).add(item.id));
-      setNotice(t("relinkSuccess"));
+      showNotice(t("relinkSuccess"));
     } catch {
-      setNotice(t("relinkFailed"));
+      showNotice(t("relinkFailed"), "danger");
     }
   }
 
@@ -1876,7 +1887,7 @@ function App() {
         : {}),
     }));
     clearItemSelection();
-    setNotice(tCount(ids.length, "selectedCount"));
+    showNotice(tCount(ids.length, "selectedCount"));
   }
 
   async function restoreFromFile(file: File, mode: ShelfRestoreMode) {
@@ -1966,13 +1977,13 @@ function App() {
       }
 
       setSelectedItemId(nextItems[0]?.id ?? "");
-      setNotice(
+      showNotice(
         mode === "merge"
           ? `${t("restoreSuccess")} (+${restored.addedCount}, skip ${restored.skippedCount})`
           : t("restoreSuccess"),
       );
     } catch {
-      setNotice(t("restoreFailed"));
+      showNotice(t("restoreFailed"), "danger");
     }
   }
 
@@ -2032,7 +2043,7 @@ function App() {
     if (!window.confirm(t("deleteConfirm"))) return;
     const operations = itemOperationsRef.current;
     if (!operations.beginDelete(itemToDelete.id)) {
-      setNotice(t("itemDeleteInProgress"));
+      showNotice(t("itemDeleteInProgress"), "warning");
       return;
     }
     const deletionOperation = nativeShelfQueueRef.current.runNativeDelete(itemToDelete.id, {
@@ -2043,7 +2054,7 @@ function App() {
     try {
       if (!await deletionOperation) {
         setItems((current) => [...current]);
-        setNotice(t("closeViewerBeforeDelete"));
+        showNotice(t("closeViewerBeforeDelete"), "warning");
         return;
       }
       const latest = latestAppStateRef.current;
@@ -2068,10 +2079,10 @@ function App() {
       if (selectedItemId === itemToDelete.id) {
         navigateToView("library", nextSelectedItem?.id ?? "");
       }
-      setNotice(`${itemToDelete.title} ${t("removed")}`);
+      showNotice(`${itemToDelete.title} ${t("removed")}`);
     } catch {
       setItems((current) => [...current]);
-      setNotice(t("pathPermissionReleaseFailed"));
+      showNotice(t("pathPermissionReleaseFailed"), "danger");
     } finally {
       nativeShelfQueueRef.current.clearActiveDeletion();
       operations.endDelete(itemToDelete.id);
@@ -2426,7 +2437,7 @@ function App() {
             onToggleDashboardCardHidden={toggleDashboardCardHidden}
             onReset={() => {
               setTheme(defaultTheme);
-              setNotice(t("themeReset"));
+              showNotice(t("themeReset"));
             }}
           />
         )}
