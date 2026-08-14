@@ -1,4 +1,4 @@
-import { BookOpen, FilePlus2, FolderOpen, HelpCircle, Library, Link, Paintbrush, Play, Star, Tags } from "lucide-react";
+import { BookOpen, FilePlus2, FolderOpen, HelpCircle, Link, Play, Star, Tags } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { getCollectionSettings } from "../lib/collections";
 import {
@@ -109,31 +109,26 @@ export function DashboardView({
         </section>
       )}
 
-      <section className="heroBand">
-        <div className="heroCopy">
-          <span className="eyebrow">{t("heroEyebrow")}</span>
-          <h1>{t("dashboardTitle")}</h1>
-          <p>{t("heroTitle")}</p>
-        </div>
-        <div className="heroStats" aria-label={t("featureSummary")}>
+      {/* The counts are the only part of the old hero band that changed as the
+        * shelf changed, so they are all that survives it. They read as a
+        * sentence and stay clickable. */}
+      <header className="dashboardHeader">
+        <h1>{t("dashboardTitle")}</h1>
+        <div className="dashboardCounts" aria-label={t("featureSummary")}>
           <button type="button" onClick={() => onNavigate("library")}>
-            <span className="heroStatIcon"><Library size={18} /></span>
-            <span><strong>{items.length}</strong>{t("items")}</span>
+            <strong>{items.length}</strong>
+            {t("items")}
           </button>
           <button type="button" onClick={() => onNavigate("library")}>
-            <span className="heroStatIcon"><Star size={18} /></span>
-            <span><strong>{favoriteItems.length}</strong>{t("pinned")}</span>
+            <strong>{favoriteItems.length}</strong>
+            {t("pinned")}
           </button>
           <button type="button" onClick={() => onNavigate("collections")}>
-            <span className="heroStatIcon"><Tags size={18} /></span>
-            <span><strong>{collectionCount}</strong>{t("groups")}</span>
-          </button>
-          <button type="button" onClick={() => onNavigate("customize")}>
-            <span className="heroStatIcon"><Paintbrush size={18} /></span>
-            <span><strong>{t("dashboardStyle")}</strong>{t("custom")}</span>
+            <strong>{collectionCount}</strong>
+            {t("groups")}
           </button>
         </div>
-      </section>
+      </header>
 
       {hasShortcuts && (
         <section className="dashboardShortcutGrid" aria-label={t("dashboardShortcutsTitle")}>

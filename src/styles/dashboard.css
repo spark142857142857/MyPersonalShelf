@@ -1,109 +1,56 @@
 /* Dashboard: hero band, stat buttons, section headings, grids, and empty states. */
 
-.heroBand {
+/* No band, no gradient, no border. The page title sits on the workspace
+ * background like a chapter opening, and the counts read as one line under it.
+ * What was here before spent 175px of a 720px screen on three lines of copy
+ * that never changed. */
+.dashboardHeader {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(440px, 1.1fr);
-  gap: var(--space-6);
-  align-items: center;
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-md);
-  color: var(--app-text);
-  background:
-    linear-gradient(100deg, color-mix(in srgb, var(--app-accent) 7%, var(--app-surface)), var(--app-surface) 52%);
-  box-shadow: var(--shadow-2);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1) 0;
 }
 
-/* The largest text in the app, so it takes the top of the scale outright
- * rather than the nearest step down. */
-.heroBand h1 {
-  margin: var(--space-2) 0 0;
+.dashboardHeader h1 {
+  margin: 0;
+  color: var(--app-text);
   font-size: var(--text-2xl);
   line-height: var(--leading-2xl);
   letter-spacing: 0;
 }
 
-.heroCopy p {
-  max-width: 520px;
-  margin: var(--space-2) 0 0;
+.dashboardCounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-4);
+}
+
+.dashboardCounts button {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+  border: 0;
   color: var(--app-muted);
+  background: transparent;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  /* Underlined only on hover: at rest this is a status line, and a row of
+   * permanently underlined links would pull the eye off the shelf below. */
+  text-underline-offset: 3px;
+}
+
+.dashboardCounts button:hover {
+  color: var(--app-text);
+  text-decoration: underline;
+}
+
+.dashboardCounts strong {
+  color: var(--app-text);
   font-size: var(--text-base);
   line-height: var(--leading-base);
-}
-
-.heroStats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(96px, 1fr));
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.heroStats button {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: var(--space-2);
-  align-items: center;
-  min-height: 66px;
-  padding: var(--space-3);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-md);
-  color: var(--app-text);
-  background: var(--app-surface);
-  text-align: left;
-  transition: transform var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease),
-    box-shadow var(--duration-fast) var(--ease);
-}
-
-.heroStats button:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--app-accent) 24%, transparent);
-  box-shadow: var(--shadow-3);
-}
-
-.heroStats button > span:last-child {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-  color: var(--app-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: var(--weight-bold);
-}
-
-.heroStats strong {
-  overflow: hidden;
-  color: var(--app-text);
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The four stat swatches are a categorical palette rather than theme colours,
- * so they stay literal until phase 2 decides where a palette lives. */
-.heroStatIcon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  color: #2772b8;
-  background: #eaf4fc;
-}
-
-.heroStats button:nth-child(2) .heroStatIcon {
-  color: #a8680c;
-  background: #fff4dc;
-}
-
-.heroStats button:nth-child(3) .heroStatIcon {
-  color: #8d4d75;
-  background: #f8edf4;
-}
-
-.heroStats button:nth-child(4) .heroStatIcon {
-  color: #2c7465;
-  background: #e8f5f0;
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
 }
 
 .dashboardSectionHeading {

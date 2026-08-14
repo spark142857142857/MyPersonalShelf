@@ -22,10 +22,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .heroBand {
-    grid-template-columns: 1fr;
-  }
-
   .dashboardActivityGrid {
     grid-template-columns: 1fr;
   }
@@ -150,15 +146,6 @@
 
   .dashboardGrid {
     grid-template-columns: 1fr;
-  }
-
-  .heroBand {
-    grid-template-columns: 1fr;
-    padding: var(--space-5);
-  }
-
-  .heroStats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dashboardSectionHeading {
