@@ -161,24 +161,17 @@
     padding: var(--space-4);
   }
 
+  /* Three icon buttons and then the primary, which takes what is left of the
+   * row. The first track used to be a 1fr holding the language select, and
+   * that select moved to the settings page -- leaving the leading icon alone
+   * in a 556px column with the other two pushed to the far edge. */
   .actions {
     display: grid;
-    grid-template-columns: 1fr var(--control-md) var(--control-md);
+    grid-template-columns: repeat(3, var(--control-md)) minmax(0, 1fr);
     width: 100%;
-  }
-
-  .topbarSelect {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  .topbarSelect select {
-    flex: 1;
-    min-width: 0;
   }
 
   .primaryButton {
-    grid-column: 1 / -1;
     width: 100%;
     white-space: nowrap;
   }
