@@ -2154,12 +2154,22 @@ function App() {
       ],
       { type: "application/json" },
     );
+    // The anchor goes into the document and the url is released on a later
+    // task. A detached anchor's click and a revoke on the very next line both
+    // happen to work in Chromium, which is what Windows runs, but each is the
+    // engine being lenient rather than the contract: the browser only has to
+    // have read the url by the time it starts the download, and that is not
+    // promised to be before this function returns. The whole shelf is in that
+    // blob, so this is not a good place to rely on leniency.
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = "mypersonalshelf-export.json";
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   function retryClose() {
