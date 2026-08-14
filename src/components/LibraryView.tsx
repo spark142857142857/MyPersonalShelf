@@ -1,5 +1,5 @@
 import type React from "react";
-import { FilePlus2, Star } from "lucide-react";
+import { AlertTriangle, FilePlus2, Star } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { detectLinkPlatform } from "../lib/linkMeta";
 import {
@@ -26,6 +26,7 @@ export function LibraryView({
   pathHealthFilter,
   pathScanInFlight,
   brokenPathCount,
+  brokenItemIds,
   showBrokenPathFilter,
   selectedItemId,
   selectedItemIds,
@@ -58,6 +59,7 @@ export function LibraryView({
   pathHealthFilter: boolean;
   pathScanInFlight: boolean;
   brokenPathCount: number;
+  brokenItemIds: Set<string>;
   showBrokenPathFilter: boolean;
   selectedItemId: string;
   selectedItemIds: Set<string>;
@@ -187,6 +189,7 @@ export function LibraryView({
             ) : (
               items.map((item) => {
                 const listIconSrc = getItemImageSrc(item);
+                const missing = brokenItemIds.has(item.id);
                 return (
                   <div className={`listItemRow ${selectedItemId === item.id ? "selected" : ""}`} key={item.id}>
                     <input
@@ -212,6 +215,17 @@ export function LibraryView({
                       <span>
                         <strong>{getItemTitle(item, t)}</strong>
                         <small>
+                          {/* A missing path is the one thing about a row that
+                            * the row cannot afford to keep to itself. Before
+                            * this it showed only in the detail panel, so
+                            * finding a broken item meant selecting every item
+                            * in turn. */}
+                          {missing && (
+                            <span className="listItemMissing">
+                              <AlertTriangle size={13} aria-hidden="true" />
+                              {t("pathMissing")}
+                            </span>
+                          )}
                           {item.type === "link"
                             ? `${getLinkKindLabel(item.location, detectLinkPlatform(item.location), t)} · ${getCollectionLabel(item.collection, t)}`
                             : `${getCollectionLabel(item.collection, t)} / ${getItemFileName(item, t)}`}

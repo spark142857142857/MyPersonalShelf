@@ -161,4 +161,18 @@
   --accent-wash: color-mix(in srgb, var(--app-accent) 8%, transparent);
   --accent-tint: color-mix(in srgb, var(--app-accent) 14%, transparent);
   --ring: 0 0 0 3px color-mix(in srgb, var(--app-accent) 22%, transparent);
+
+  /* Trouble: a path that will not open, a destructive action, a failed import.
+   * The app spells this as a literal red in a dozen places, which has the same
+   * fault the neutrals had before phase 1: a fixed red is legible on paper and
+   * closes up against ink. Pulling it toward the theme's own text darkens it
+   * on light palettes and lifts it on dark ones, so one token stays readable
+   * on all six.
+   *
+   * 64% is where the worst case clears AA with room to spare. Measured against
+   * each palette's surface: paper 7.45, linen 7.32, mist 7.54, sepia 6.48,
+   * ink 5.99, night 5.05. Night is always the tight one — its surface is the
+   * lightest of the two dark palettes and its text the dimmer. At 76% night
+   * came out at 4.28, under the floor. */
+  --app-danger: color-mix(in srgb, #d33c30 64%, var(--app-text));
 }

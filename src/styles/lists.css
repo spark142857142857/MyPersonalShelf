@@ -62,3 +62,20 @@
   gap: var(--space-1);
   min-width: 0;
 }
+
+/* Sits inline at the head of the row's metadata rather than as a badge on the
+ * side: the line it prefixes is the path, so the warning reads as a statement
+ * about that path. Its own colour, because a row that cannot be opened is not
+ * ordinary metadata. */
+.listItemMissing {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin-right: var(--space-2);
+  color: var(--app-danger);
+  font-weight: var(--weight-medium);
+}
+
+.listItemMissing svg {
+  flex: none;
+}

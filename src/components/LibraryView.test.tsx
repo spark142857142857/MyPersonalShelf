@@ -60,6 +60,7 @@ function renderLibrary(props: Partial<Parameters<typeof LibraryView>[0]> = {}) {
       pathHealthFilter={false}
       pathScanInFlight={false}
       brokenPathCount={0}
+      brokenItemIds={new Set()}
       showBrokenPathFilter={false}
       selectedItemId="item-1"
       selectedItemIds={new Set()}
@@ -126,6 +127,15 @@ describe("LibraryView", () => {
     cleanup();
     renderLibrary({ showBrokenPathFilter: true, brokenPathCount: 3 });
     expect(screen.getByRole("button", { name: /brokenPathsFilter \(3\)/ })).toBeTruthy();
+  });
+
+  it("marks rows whose local path is missing, and leaves the rest alone", () => {
+    renderLibrary();
+    expect(screen.queryByText("pathMissing")).toBeNull();
+
+    cleanup();
+    renderLibrary({ brokenItemIds: new Set(["item-1"]) });
+    expect(screen.getByText("pathMissing")).toBeTruthy();
   });
 
   it("swaps the idle bar for bulk controls once items are selected", async () => {

@@ -2291,6 +2291,7 @@ function App() {
             pathHealthFilter={pathHealthFilter}
             pathScanInFlight={pathScanInFlight}
             brokenPathCount={unavailablePathIds.size}
+            brokenItemIds={unavailablePathIds}
             showBrokenPathFilter={nativeRuntime}
             selectedItemId={selectedItemId}
             selectedItemIds={selectedItemIds}
