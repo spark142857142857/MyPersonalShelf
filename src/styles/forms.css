@@ -43,6 +43,18 @@
   font-weight: var(--weight-bold);
 }
 
+/* A label and the value under it are two different things, and the label is
+ * the one set in bold. Now that every control takes the surrounding type, they
+ * would take that weight with it and a typed collection name would be set in
+ * the same bold as the word "Collection" above it. */
+.fieldBlock input,
+.fieldBlock textarea,
+.formGrid input,
+.formGrid select,
+.formGrid textarea {
+  font-weight: var(--weight-normal);
+}
+
 .fieldBlock textarea,
 .formGrid textarea,
 .formGrid input,

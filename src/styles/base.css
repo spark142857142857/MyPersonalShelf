@@ -21,13 +21,37 @@ body {
   margin: 0;
 }
 
+/* Form controls do not inherit type on their own, and only two of the four
+ * were being told to. So the add-content modal set one form in three
+ * typefaces: its inputs in Segoe UI at 13px, its selects in Arial at 13.33,
+ * its textareas in monospace. The font stack in tokens.css is picked script by
+ * script -- Latin faces ahead of Hangul ones, and system-ui deliberately not
+ * leading -- and three of the app's controls were opting out of all of it. */
 button,
-input {
+input,
+optgroup,
+select,
+textarea {
   font: inherit;
 }
 
 button {
   cursor: pointer;
+}
+
+/* Placeholders were the last text in the app that belonged to the browser
+ * rather than the theme: Chrome supplies rgb(117, 117, 117), a cool grey that
+ * sat next to the search icon's warm rgb(95, 88, 77) at a different
+ * temperature and did not change with the palette. A step below muted, so it
+ * still reads as a prompt rather than as something already typed. Firefox
+ * dims placeholders by default, which the opacity undoes.
+ *
+ * 90% is the lowest step that stays readable on every preset. Measured across
+ * all six: 4.65 at worst, on sepia, against muted's own 5.82 there. 80% looked
+ * right on paper and fell to 3.72 on sepia -- below where Chrome's grey was. */
+::placeholder {
+  color: color-mix(in srgb, var(--app-muted) 90%, transparent);
+  opacity: 1;
 }
 
 /* One focus ring for the whole app, in the theme's accent.
