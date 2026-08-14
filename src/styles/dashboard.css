@@ -144,6 +144,15 @@
   margin-top: var(--space-4);
 }
 
+/* The last two phase-1 literals, and the pair that actually broke something.
+ * Both mixed a cool near-white into a token that already held the palette's
+ * colour -- 38% of #dce8ef here, 22% of #eef2f6 below. On a light preset that
+ * is a few per cent of luminance either way. On a dark one it inverts the
+ * control: night lifted this button by 718% and ink by 1184%, taking the label
+ * on it to 4.07:1 and the panel's text below to 3.04, both under AA.
+ *
+ * These are the empty states, so on a dark palette that was the unreadable
+ * first thing a new shelf showed. They take the ordinary fills now. */
 .emptyDashboardActions button,
 .emptyListPanel button,
 .guideHeroActions button {
@@ -156,7 +165,7 @@
   border: 0;
   border-radius: var(--radius-md);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 62%, #dce8ef);
+  background: var(--fill-strong);
   font-weight: var(--weight-bold);
 }
 
@@ -166,7 +175,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-md);
   color: var(--app-muted);
-  background: color-mix(in srgb, var(--app-surface) 78%, #eef2f6);
+  background: var(--fill-subtle);
 }
 
 .emptyListPanel strong {
