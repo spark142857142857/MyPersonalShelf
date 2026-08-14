@@ -3,15 +3,39 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MessageKey } from "../lib/i18n";
+import { formatCount, getMessage, type Language, type MessageKey } from "../lib/i18n";
 import { defaultTheme } from "../lib/theme";
 import { applyPreset, themePresets } from "../lib/themePresets";
-import type { ThemeSettings } from "../types";
+import type { ContentItem, DashboardLayoutItem, ThemeSettings } from "../types";
 import { CustomizePanel } from "./CustomizePanel";
 
 afterEach(cleanup);
 
-function renderPanel(theme: Partial<ThemeSettings> = {}) {
+function layoutItem(id: string, hidden: boolean, order: number): DashboardLayoutItem {
+  return { itemId: id, order, size: "standard", hidden };
+}
+
+function layoutCard(id: string): ContentItem {
+  return {
+    id,
+    title: id,
+    type: "document",
+    source: "path",
+    location: `C:/shelf/${id}.txt`,
+    collection: "Reading",
+    tags: [],
+    accent: "#2563eb",
+    isFavorite: false,
+    openCount: 0,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}
+
+function renderPanel(
+  theme: Partial<ThemeSettings> = {},
+  props: Partial<Parameters<typeof CustomizePanel>[0]> = {},
+) {
   const onChange = vi.fn();
   render(
     <CustomizePanel
@@ -25,6 +49,7 @@ function renderPanel(theme: Partial<ThemeSettings> = {}) {
       onCycleDashboardCardSize={vi.fn()}
       onToggleDashboardCardHidden={vi.fn()}
       onReset={vi.fn()}
+      {...props}
     />,
   );
   return onChange;
@@ -59,6 +84,42 @@ describe("CustomizePanel palettes", () => {
   it("leaves custom colours alone until a palette is chosen", () => {
     renderPanel({ themePreset: "custom" });
     expect(screen.getByText("themePresetCustom")).toBeTruthy();
+  });
+});
+
+describe("CustomizePanel layout summary", () => {
+  function renderSummary(language: Language) {
+    renderPanel(
+      {},
+      {
+        items: [layoutCard("kept"), layoutCard("tucked")],
+        dashboardLayouts: [layoutItem("kept", false, 0), layoutItem("tucked", true, 1)],
+        t: (key: MessageKey) => getMessage(language, key),
+        tCount: (count: number, key: MessageKey) => formatCount(language, count, key),
+      },
+    );
+  }
+
+  it("joins the counts the way each language does", () => {
+    renderSummary("en");
+    expect(screen.getByText("1 visible / 1 hidden")).toBeTruthy();
+
+    cleanup();
+    renderSummary("ko");
+    // The counter belongs to the number in Korean: "1개 표시", not "1 개 표시".
+    expect(screen.getByText("1개 표시 / 1개 숨김")).toBeTruthy();
+  });
+
+  it("leaves the per-card badges without a counter", () => {
+    renderSummary("ko");
+    // layoutVisible/layoutHidden label one card, so they stay bare even though
+    // the summary above them counts with visible/hidden. Adding a counter to
+    // them to fix the summary would break these.
+    const badges = Array.from(document.querySelectorAll(".layoutBadges b")).map(
+      (badge) => badge.textContent,
+    );
+    expect(badges).toContain("표시");
+    expect(badges).toContain("숨김");
   });
 });
 

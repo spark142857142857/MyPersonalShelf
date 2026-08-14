@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MessageKey } from "../lib/i18n";
+import { formatCount, type Language, type MessageKey } from "../lib/i18n";
 import type { ContentItem, ContentType } from "../types";
 import { LibraryView } from "./LibraryView";
 
@@ -102,6 +102,21 @@ describe("LibraryView", () => {
     expect(screen.getByText("noSearchResults")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "addContent" })).toBeNull();
     expect(handlers.onAddContent).not.toHaveBeenCalled();
+  });
+
+  it("writes the selection count the way each language joins it", () => {
+    const withLanguage = (language: Language) =>
+      renderLibrary({
+        tCount: (count: number, key: MessageKey) => formatCount(language, count, key),
+        selectedItemIds: new Set(["item-1", "item-2"]),
+      });
+
+    withLanguage("en");
+    expect(screen.getByText("2 selected")).toBeTruthy();
+
+    cleanup();
+    withLanguage("ko");
+    expect(screen.getByText("2개 선택")).toBeTruthy();
   });
 
   it("hides the broken-path filter outside the desktop app", () => {
