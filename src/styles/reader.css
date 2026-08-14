@@ -147,20 +147,40 @@
   font-size: 0.92em;
 }
 
-/* A code block is its own dark theme, independent of the app's. */
+/* The same ground as the inline code above it, one step further out.
+ *
+ * This block used to be its own fixed dark theme, #111827, on the reasoning
+ * that a code block is independent of the app's palette. That works while the
+ * page is light: 17:1 against paper, and it reads as a slab of code. It stops
+ * working the moment the page is dark, which is where the block is nearest the
+ * page it sits on -- 1.17:1 on night, 1.03:1 on ink, which is to say invisible.
+ * A block whose only boundary is its background cannot afford that, and a
+ * border does not rescue it either: the strongest hairline token measures 1.45
+ * against #111827.
+ *
+ * There is no syntax highlighting to protect -- the only colours were the text
+ * and the language label -- so the block follows the palette like everything
+ * else, and now matches the inline code it is the long form of.
+ *
+ * The fill stays at the inline-code step and the edge comes from a hairline,
+ * the way every other block in the app is bounded. Driving the fill harder
+ * instead separates the block better and costs the language label its
+ * contrast: at 18% it reads 3.56 on night, under AA, against 4.53 here. */
 .markdownCodeBlock {
   display: grid;
   gap: 0.5em;
   margin: 0.2em 0;
   padding: 1em;
   overflow-x: auto;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
-  color: #e5e7eb;
-  background: #111827;
+  color: var(--app-text);
+  background: var(--fill-strong);
 }
 
+/* The language label names the block; it is not part of the code. */
 .markdownCodeBlock span {
-  color: #93c5fd;
+  color: var(--app-muted);
   font-size: 0.78em;
   font-weight: var(--weight-bold);
   text-transform: uppercase;
@@ -173,9 +193,15 @@
   white-space: pre;
 }
 
+/* The accent, not a blend of it with a fixed blue. That blend pulled every
+ * palette's accent 17 to 39 units toward #2563eb -- sepia's clean warm brown
+ * #8a5a2b came out as the muddy #785c4e, and night's green lost a point of
+ * contrast on its way to teal. Links do not need to be blue to read as links;
+ * they are bold here and underline on hover, and the accent is the one colour
+ * the reader chose. */
 .markdownDocument a,
 .markdownWikiLink {
-  color: color-mix(in srgb, var(--app-accent) 82%, #2563eb);
+  color: var(--app-accent);
   font-weight: var(--weight-bold);
   text-decoration: none;
 }
@@ -329,7 +355,8 @@
   border-left: 4px solid var(--app-accent);
   border-radius: var(--radius-md);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 94%, #f3efe8);
+  /* Same leftover cream as the page below it, at 6% instead of 8%. */
+  background: var(--app-surface);
   box-shadow: var(--shadow-3);
 }
 
@@ -375,10 +402,22 @@
   border-left: 4px solid var(--app-accent);
   border-radius: var(--radius-md);
   color: var(--app-text);
-  background: color-mix(in srgb, var(--app-surface) 92%, #f3efe8);
+  /* The page the text sits on is the palette's surface, unmixed. It used to be
+   * washed with 8% of a warm cream, which does nothing on the four light
+   * presets -- one per cent of luminance, invisible -- and on the two dark ones
+   * lifted the reading surface by 92% and 132%, from rgb(35,39,37) to
+   * rgb(52,55,53) on night. That is the whole page a reader looks at while
+   * reading, turned grey, and it took muted text on it from 5.96 to 4.75. Same
+   * leftover as the app frame's, one view further in. */
+  background: var(--app-surface);
   box-shadow: var(--shadow-3);
 }
 
+/* This literal stays, and for a different reason than the code block's. It is
+ * a letterbox: the ground a video or an image is matted against, not a surface
+ * in the app's own chrome. Nothing of the app's is drawn on it, so there is no
+ * contrast pair to hold, and a neutral dark is what keeps the picture's own
+ * colours honest -- a themed ground would tint everything shown on it. */
 .mediaViewerBody {
   display: grid;
   place-items: center;
