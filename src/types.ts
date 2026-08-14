@@ -43,14 +43,6 @@ export interface FolderEntry {
   sizeBytes?: number;
 }
 
-export interface DashboardCard {
-  id: string;
-  title: string;
-  description: string;
-  variant: DashboardCardSize;
-  itemId: string;
-}
-
 export interface DashboardLayoutItem {
   itemId: string;
   order: number;
