@@ -124,8 +124,25 @@
   box-shadow: inset 3px 0 0 var(--app-accent);
 }
 
+/* Small caps naming the block under them: the sidebar's shortcut list, and the
+ * line above a page or a document's title.
+ *
+ * This rule shared its block with .cardType until that class was removed, and
+ * the removal took the declarations with it — leaving these two selectors
+ * welded onto .workspace below, which is a page column. They inherited its box:
+ * 16px text in the body colour, no caps, and `display: flex` with 24px/32px of
+ * padding, so a one-line label stood 77px tall and sat 32px right of the
+ * heading it named. Seven places, every one of them a <span>. */
 .panelLabel,
-.eyebrow,
+.eyebrow {
+  color: var(--app-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .workspace {
   display: flex;
   flex-direction: column;
