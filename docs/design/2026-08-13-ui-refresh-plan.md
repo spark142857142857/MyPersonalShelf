@@ -206,9 +206,26 @@ not appear until **596px down**: the entire first screen was chrome. Three chang
 
 First item at 596px → **477px**; page height 1425px → 1277px.
 
-Still open on this screen: the pinned shortcuts sit between the header and the shelf,
-so navigation still comes before content. Moving them (or into the sidebar) is a
-structural call, not a styling one.
+### Shortcuts moved to the sidebar
+
+They were never dashboard content. `filterByTypePin`, `filterByCollection` and
+`filterByTag` all end in `navigateToView("library")`, so a shortcut is the library with
+a filter — it belongs next to the link to the library. Living on the dashboard also
+meant they could only be reached from the dashboard, which is the opposite of what a
+shortcut is for.
+
+They are rows now, not cards: a 252px column cannot hold a 160px-minimum grid. Icon,
+name, count, at nav-item height; long names ellipsize; the unpin star appears on hover
+or focus rather than holding a permanent 36px column.
+
+Two consequences worth remembering:
+
+- the sidebar is sticky and viewport-tall, because the shortcut list is unbounded while
+  the nav above it is six fixed items, and only a bounded column lets the list scroll
+  instead of growing. Below 720px the sidebar is a horizontal bar, where that height has
+  to be undone.
+- the old sidebar status panel went with it. It showed the same three numbers as the new
+  dashboard header under different words, which read as four metrics rather than three.
 
 ### Library, detail — not started
 
