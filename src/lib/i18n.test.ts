@@ -20,13 +20,16 @@ describe("formatCount", () => {
     expect(formatCount("ko", 1024, "visible")).toBe("1024개 표시");
   });
 
-  it("uses the counter forms, not the standalone layout badges", () => {
-    // layoutVisible/layoutHidden label a single card and carry no counter, so
-    // counting with them would read "5표시". visible/hidden are the counted pair.
+  it("uses the counter forms, not the labels they read like", () => {
+    // layoutVisible/layoutHidden label a single card and tags labels a field;
+    // none of the three carries a counter, so counting with them would read
+    // "5표시" or "12태그". These are the counted forms of the same words.
     expect(formatCount("ko", 5, "visible")).toBe("5개 표시");
     expect(formatCount("ko", 2, "hidden")).toBe("2개 숨김");
+    expect(formatCount("ko", 12, "tagCount")).toBe("12개 태그");
     expect(formatCount("en", 5, "visible")).toBe("5 visible");
     expect(formatCount("en", 2, "hidden")).toBe("2 hidden");
+    expect(formatCount("en", 12, "tagCount")).toBe("12 tags");
   });
 });
 

@@ -7,6 +7,7 @@ import { collectionIconOptions, collectionIcons } from "./icons";
 
 export function CollectionsView({
   t,
+  tCount,
   items,
   collectionNames,
   groupedCollections,
@@ -28,6 +29,7 @@ export function CollectionsView({
   onUpdateCollectionSettings,
 }: {
   t: (key: MessageKey) => string;
+  tCount: (count: number, key: MessageKey) => string;
   items: ContentItem[];
   collectionNames: string[];
   groupedCollections: Record<string, ContentItem[]>;
@@ -48,8 +50,10 @@ export function CollectionsView({
   onRenameCollection: (previousName: string, nextName: string) => boolean;
   onUpdateCollectionSettings: (collection: string, patch: Partial<CollectionSettings>) => void;
 }) {
+  // English still needs the singular, Korean has one form for both; the join
+  // between the number and whichever form wins is the formatter's call.
   function countLabel(count: number) {
-    return `${count} ${count === 1 ? t("itemSingular") : t("itemPlural")}`;
+    return tCount(count, count === 1 ? "itemSingular" : "itemPlural");
   }
 
   return (
@@ -181,7 +185,9 @@ export function CollectionsView({
       <section className="libraryPanel">
         <div className="sectionTitle">
           <h2>{t("tagOverview")}</h2>
-          <span>{Object.keys(groupedTags).length} {t("tags")}</span>
+          {/* tagCount, not the tags field label: only this one carries the
+            * Korean counter, and "태그" labels the input in the detail panel. */}
+          <span>{tCount(Object.keys(groupedTags).length, "tagCount")}</span>
         </div>
         <div className="tagCloud">
           {Object.entries(groupedTags)

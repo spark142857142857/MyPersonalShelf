@@ -2330,6 +2330,7 @@ function App() {
         {activeView === "collections" && (
           <CollectionsView
             t={t}
+            tCount={tCount}
             items={items}
             collectionNames={collectionNames}
             groupedCollections={groupedCollections}

@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MessageKey } from "../lib/i18n";
+import { formatCount, type Language, type MessageKey } from "../lib/i18n";
 import type { ContentItem } from "../types";
 import { CollectionsView } from "./CollectionsView";
 
@@ -44,6 +44,7 @@ function renderCollections(props: Partial<Parameters<typeof CollectionsView>[0]>
   render(
     <CollectionsView
       t={(key: MessageKey) => key}
+      tCount={(count: number, key: MessageKey) => `${count} ${key}`}
       items={[reading]}
       collectionNames={["Reading", "Empty"]}
       groupedCollections={{ Reading: [reading] }}
@@ -112,6 +113,32 @@ describe("CollectionsView", () => {
     await userEvent.tab();
 
     expect(handlers.onEditingCollectionChange).toHaveBeenCalledWith("Media");
+  });
+
+  it("joins the item and tag counts the way each language does", () => {
+    const first = item("Reading");
+    const second = { ...item("Reading"), id: "id-second", tags: ["focus"] };
+
+    function renderCounts(language: Language) {
+      renderCollections({
+        tCount: (count: number, key: MessageKey) => formatCount(language, count, key),
+        items: [first, second],
+        groupedCollections: { Reading: [first, second] },
+        groupedTags: { later: [first], focus: [second] },
+      });
+    }
+
+    renderCounts("en");
+    expect(screen.getByText("2 items")).toBeTruthy();
+    // One item per tag, so English still gets its singular here.
+    expect(screen.getAllByText("1 item")).toHaveLength(2);
+    expect(screen.getByText("2 tags")).toBeTruthy();
+
+    cleanup();
+    renderCounts("ko");
+    expect(screen.getByText("2개 항목")).toBeTruthy();
+    expect(screen.getAllByText("1개 항목")).toHaveLength(2);
+    expect(screen.getByText("2개 태그")).toBeTruthy();
   });
 
   it("shows an empty-state message when no tags exist", () => {
