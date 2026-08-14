@@ -190,16 +190,9 @@
   margin-top: var(--space-4);
 }
 
-/* Seam between the two halves of a joined control — see tagCloudItem. */
 .filterChipGroup {
+  position: relative;
   display: inline-flex;
-  align-items: stretch;
-  gap: 2px;
-}
-
-.filterChipGroup > button:first-child {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
 }
 
 .pinChipButton {
@@ -215,15 +208,56 @@
   background: var(--fill-subtle);
 }
 
-.filterChipGroup .pinChipButton {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
 .pinChipButton.pinned,
 .pinChipButton:hover {
   color: var(--app-accent);
   background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
+}
+
+/* The type filters are the most-used control on this screen, and each chip was
+ * carrying a 39px pin star it almost never needs: 234px across six chips, which
+ * is what pushed the row onto a second line. The star leaves the flow rather
+ * than shrinking, because reserving its space — hiding it with visibility, or
+ * padding the chip — costs exactly the same width.
+ *
+ * These rules come after the shared .pinChipButton ones above so they win on
+ * source order; they carry the same specificity. */
+.filterChipGroup > button:first-child {
+  border-radius: var(--radius-md);
+}
+
+/* Pinned-ness is marked on the chip itself. A star that took width would make
+ * pinning something reflow the whole row under the pointer. */
+.filterChipGroup.pinned > button:first-child {
+  box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
+/* Sits in the 8px gap between chips, so it never overlaps its neighbour and
+ * never covers its own label. 24px square to stay a usable target. */
+.filterChipGroup .pinChipButton {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  color: var(--on-accent);
+  background: var(--app-accent);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+  pointer-events: none;
+}
+
+/* opacity rather than visibility or display, so the button stays reachable by
+ * keyboard and reveals itself when it takes focus. */
+.filterChipGroup:hover .pinChipButton,
+.filterChipGroup .pinChipButton:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .collectionCardActions {

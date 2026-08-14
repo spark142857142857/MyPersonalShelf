@@ -105,7 +105,7 @@ export function LibraryView({
             {contentTypes.map((type) => {
               const pinned = pinnedTypes.includes(type);
               return (
-                <div className="filterChipGroup" key={type}>
+                <div className={`filterChipGroup ${pinned ? "pinned" : ""}`} key={type}>
                   <button
                     className={activeType === type && !pathHealthFilter ? "active" : ""}
                     type="button"
