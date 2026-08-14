@@ -1,7 +1,7 @@
 # UI/UX refresh — plan
 
 Date: 2026-08-13
-Status: phase 1 and 2 shipped; phase 3 in progress (dashboard done)
+Status: phase 1, 2 and 3 shipped; phase 4 not started
 
 Direction: **a quiet reading room** — Things 3 / Bear rather than Linear or Plex.
 Generous whitespace, hierarchy carried by size rather than weight, restrained colour.
@@ -281,6 +281,63 @@ number of actions varies by type (up to five for a broken-path link), and forcin
 line would mean icon-only buttons. Delete sits in that row at the same weight as the
 rest, which is acceptable because it is guarded by a confirm.
 
+### The card — done
+
+The screens above were the page's frame. The dashboard is mostly card, and the
+card had not been touched since phase 1 swapped its values, so the screen still
+did not look good once the frame was fixed.
+
+**Reference: Raindrop.io.** Picked over Are.na and Notion because it does nearly
+the same job — links and uploaded files, in collections, with tags, a built-in
+reader, and content-type filters. Its app is open source (`raindropio/app`), so
+the notes below come from its source rather than from screenshots.
+
+Two of our assumptions were wrong:
+
+- **its default view is a list, not a grid.** Grid is a per-collection opt-in,
+  and its own docs point it at "design inspiration or mood boards", with
+  Headlines — text only, no thumbnail — for scanning a lot of text. By that
+  rule our shelf of lecture notes, novels and mp3s belongs in a list. We kept
+  the grid, because a dashboard that looks like the library has no reason to
+  exist, but the grid now has to earn it.
+- **its grid works because a cover always exists.** `item/cover/view.js` has no
+  no-cover branch: og:image, and failing that a server-rendered screenshot of
+  the page. That is a cloud guarantee, and our items are local files with no
+  page to screenshot. Four of seven cards on a typical shelf have no image, and
+  they are the files — the app's actual subject. So the imageless card is our
+  canonical case and the cover is the enhancement, which is the inverse of
+  theirs.
+
+What its source gave us that transferred directly:
+
+| taken | from |
+|---|---|
+| `.description:empty { display: none }`, and every branch of the info line ending in `null` — no placeholder anywhere | `item/view.module.styl`, `item/info/index.js` |
+| type icon rendered only when it adds something (`type != 'link'`) | `item/info/index.js` |
+| the info line carries the domain, never the URL | `item/info/index.js` |
+| actions `display: none` until `:hover` | `item/view.module.styl` |
+| `height: 100%` against `grid-template-rows: 1fr` for equal heights | `items/view/grid.module.styl` |
+| `auto-fill` columns rather than a fixed count | `items/view/grid.module.styl` |
+| cover ratios per view: grid 16:9, list 56×48, headlines 20×20, moodboard free | `item/cover/size.js` |
+
+Our list rows already matched their default view — `grid-template-columns: auto 1fr`
+with an inset hairline — which is why the list looked settled and the grid did not.
+
+Changes, in order: the placeholder note goes (it was also being indexed, so a
+query for a word in it matched every item without a note); the address block
+goes; the two type labels collapse to one metadata line at the foot; the star
+and handle become one hover-revealed cluster; the grid follows the width and
+caps the thumbnail; the last two literal colours join the palette.
+
+Page height 1277px → **1165px**. Rows now hold one height apiece and the info
+lines sit level across each row, which is the one internal line that can align
+whether or not a thumbnail sits above it.
+
+Left deliberately: the imageless card starts at its title rather than reserving
+an empty media box, which is the no-placeholder rule applied to layout. Six
+places still write `{count} {t(unit)}` with a literal space, which reads wrong
+in Korean; that needs a formatter on the i18n side.
+
 ## Phase 4 — built to be lived in
 
 - virtualise the item list so 5,000 items behave like 50
@@ -289,12 +346,15 @@ rest, which is acceptable because it is guarded by a confirm.
 
 ---
 
-## On Figma
+## On references
 
-Worth collecting references; not worth redrawing the app. The problem is not "we do
-not know what it should look like" — it is that there is no rule holding it together,
+Worth collecting; not worth redrawing the app in Figma. The problem was never "we do
+not know what it should look like" — it is that there was no rule holding it together,
 and that is fixed with tokens in code. A Figma file that is not backed by tokens ends
 up as 28 font sizes again.
 
-One screen — the dashboard — is worth mocking up before phase 3, to settle the
-direction cheaply. Everything else follows from the tokens.
+What did work, once the frame was fixed and the card still looked wrong, was reading a
+comparable app's source. Things 3 and Bear carried the direction for lists and gave the
+list rows their shape, but neither has a card grid, so the card had no target to hit —
+which is exactly where the screen stayed ugly. Raindrop supplied that target, and more
+usefully supplied the two places its answer does not transfer.
