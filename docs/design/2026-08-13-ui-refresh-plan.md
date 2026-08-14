@@ -341,8 +341,43 @@ in Korean; that needs a formatter on the i18n side.
 ## Phase 4 — built to be lived in
 
 - virtualise the item list so 5,000 items behave like 50
-- surface dead links and let them be fixed or dropped in one pass
+- ~~surface dead links and let them be fixed or dropped in one pass~~ — done
 - give the dashboard a reason to be returned to rather than a static grid
+
+### Broken paths — done
+
+Reading Raindrop's source settled which of these is actually ours. Everything
+it has that we do not — server-rendered covers, full-text search, web archive,
+sharing, sync — needs a server. The one thing we have that it structurally
+cannot is that our items are files we do not own: Raindrop copies uploads into
+its own storage, so nothing it holds can be moved out from under it. A shelf
+of paths goes stale on its own, and only a local app has that problem to solve.
+
+The pieces already existed and did not add up to anything:
+
+- the detail panel showed a broken banner and offered a relink, so a fix was
+  one item deep and invisible from outside
+- the scan ran only when someone clicked a filter chip that read `(0)` until
+  they clicked it
+- its result lived in component state, so a reload forgot it
+- it checked one path per IPC round trip, sequentially
+
+Four changes, in that order reversed: the scan got a worker pool
+(`collectFailures`, eight at a time); it now runs itself once the shelf loads
+and stays silent unless it finds something; the rows carry the warning
+inline; and a broken row carries its own relink and drop.
+
+Deliberately not persisted. Re-deriving costs one parallel pass and cannot
+disagree with the disk, while a stored set can.
+
+`--app-danger` arrives with this: the app spelled trouble as a literal red in
+about a dozen places, which is the pre-phase-1 fault — legible on paper,
+closing up against ink. Mixed toward the theme's text at 64% it clears AA on
+all six palettes, worst case night at 5.05. The first guess of 76% put night
+at 4.28, under the floor, which is why the number is not rounder.
+
+The remaining literal reds in library, add-content, forms and links are the
+same colour by hand and should move onto the token.
 
 ---
 
