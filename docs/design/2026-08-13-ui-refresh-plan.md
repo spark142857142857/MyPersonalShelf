@@ -251,11 +251,17 @@ First library row at 484px → **371px**; five rows visible instead of four.
   index both keep the full path, so searching a folder name that now appears nowhere on
   screen still finds the item.
 
-Still open on this screen: the type filter row is 693px of chips in a 533px column, so
-it wraps to two lines (82px). Each chip carries a permanently visible pin star, which is
-most of the width. Now that shortcuts live in the sidebar that star is a rare action
-holding space on the most-used control, but every fix is fiddly — hiding it on hover
-reflows the row under the cursor, and an absolute badge shrinks the hit target.
+- the type filter row fits on one line. It needed 742px in a 533px column. Two causes,
+  both fixed:
+  - each chip carried a 39px pin star as the second half of a joined control, 234px
+    across six. Shrinking it could not close a 209px gap, and hiding it in place
+    reserves the same width, so it left the flow: a 24px badge in the gap at the chip's
+    corner, revealed on hover or focus, with pinned-ness marked by an accent inset
+    border on the chip so that pinning something never reflows the row.
+  - `contentTypes` was a fixed list of all six, so a documents-and-links shelf still
+    offered video, audio, image and folder — filters that could only come back empty.
+
+  82px → 37px. A documents-and-links shelf now uses 208px of the 533px available.
 
 ### Detail — done
 
