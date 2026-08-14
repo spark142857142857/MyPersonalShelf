@@ -19,6 +19,7 @@ function renderPanel(theme: Partial<ThemeSettings> = {}) {
       items={[]}
       dashboardLayouts={[]}
       t={(key: MessageKey) => key}
+      tCount={(count: number, key: MessageKey) => `${count} ${key}`}
       onChange={onChange}
       onMoveDashboardCard={vi.fn()}
       onCycleDashboardCardSize={vi.fn()}

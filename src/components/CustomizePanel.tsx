@@ -82,6 +82,7 @@ export function CustomizePanel({
   items,
   dashboardLayouts,
   t,
+  tCount,
   onChange,
   onMoveDashboardCard,
   onCycleDashboardCardSize,
@@ -92,6 +93,7 @@ export function CustomizePanel({
   items: ContentItem[];
   dashboardLayouts: DashboardLayoutItem[];
   t: (key: MessageKey) => string;
+  tCount: (count: number, key: MessageKey) => string;
   onChange: (theme: ThemeSettings) => void;
   onMoveDashboardCard: (itemId: string, direction: -1 | 1) => void;
   onCycleDashboardCardSize: (itemId: string) => void;
@@ -203,7 +205,10 @@ export function CustomizePanel({
           <section className="settingsGroup">
             <div className="groupHeading">
               <h2>{t("homeLayout")}</h2>
-              <span>{visibleLayoutCount} {t("layoutVisible")} / {hiddenLayoutCount} {t("layoutHidden")}</span>
+              {/* visible/hidden, not the layoutVisible/layoutHidden badges
+                * below: only these two carry the Korean counter a number
+                * needs, and the badges label one card rather than count. */}
+              <span>{tCount(visibleLayoutCount, "visible")} / {tCount(hiddenLayoutCount, "hidden")}</span>
             </div>
             <p className="groupDescription">{t("homeLayoutHint")}</p>
             <div className="controlRow">

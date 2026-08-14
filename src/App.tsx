@@ -2358,6 +2358,7 @@ function App() {
             items={items}
             dashboardLayouts={normalizedDashboardLayouts}
             t={t}
+            tCount={tCount}
             onChange={setTheme}
             onMoveDashboardCard={moveDashboardCard}
             onCycleDashboardCardSize={cycleDashboardCardSize}
