@@ -45,6 +45,14 @@ describe("formatCount", () => {
     expect(formatCount("en", 20, "bookmarksImported")).toBe("20 bookmarks imported.");
     expect(formatCount("en", 12, "localFolderSummary")).toBe("12 entries loaded from this folder.");
   });
+
+  it("keeps the counted add notice apart from the one that follows a title", () => {
+    // addedToShelf is appended to an item's title, so its Korean opens at the
+    // verb and has nowhere to put a counter. The counted form is its own key.
+    expect(formatCount("ko", 3, "addedToShelfCount")).toBe("3개를 선반에 넣었어요.");
+    expect(formatCount("en", 3, "addedToShelfCount")).toBe("3 added to your shelf.");
+    expect(messages.ko.addedToShelf).toBe("선반에 넣었어요.");
+  });
 });
 
 describe("messages", () => {
