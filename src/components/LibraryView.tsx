@@ -1,5 +1,7 @@
 import type React from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AlertTriangle, FilePlus2, FolderOpen, Star } from "lucide-react";
+import { visibleRange } from "../lib/virtualList";
 import type { MessageKey } from "../lib/i18n";
 import { detectLinkPlatform } from "../lib/linkMeta";
 import {
@@ -12,6 +14,9 @@ import {
 } from "../lib/shelfDisplay";
 import type { ContentItem, ContentType } from "../types";
 import { typeIcons } from "./icons";
+
+/** Replaced by a real measurement on the first render that has rows. */
+const assumedRowHeight = 61;
 
 export function LibraryView({
   t,
@@ -84,6 +89,61 @@ export function LibraryView({
   onRemoveItem?: (item: ContentItem) => void;
   detailPanel?: React.ReactNode;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [rowHeight, setRowHeight] = useState(assumedRowHeight);
+  const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
+
+  /* The list keeps its place in the page rather than becoming its own scroll
+   * box, so the window is what scrolls and the list's own offset is what
+   * decides which rows are on screen. A negative top means the list starts
+   * above the fold; visibleRange clamps it. */
+  useEffect(() => {
+    function measure() {
+      const element = listRef.current;
+      if (!element) return;
+      const nextTop = -element.getBoundingClientRect().top;
+      const nextHeight = window.innerHeight;
+      setViewport((current) =>
+        current.scrollTop === nextTop && current.height === nextHeight
+          ? current
+          : { scrollTop: nextTop, height: nextHeight },
+      );
+    }
+
+    measure();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  /* Rows are uniform because their title and subtitle are both clipped to one
+   * line, but the exact height follows the type scale, so it is read off a
+   * real row rather than hardcoded here. Guarded by the comparison, so this
+   * settles after one pass instead of looping. */
+  useLayoutEffect(() => {
+    const row = listRef.current?.querySelector(".listItemRow");
+    if (!row) return;
+    const measured = Math.round(row.getBoundingClientRect().height);
+    if (measured > 0 && measured !== rowHeight) {
+      setRowHeight(measured);
+    }
+    // items.length is here so an empty list that gains rows gets measured;
+    // without it this would only ever run on mount, when there is nothing to
+    // measure. The comparison above is what stops it looping.
+  }, [rowHeight, items.length]);
+
+  const { start, end } = visibleRange({
+    scrollTop: viewport.scrollTop,
+    viewportHeight: viewport.height,
+    rowHeight,
+    count: items.length,
+  });
+  const leadingSpace = start * rowHeight;
+  const trailingSpace = Math.max(0, items.length - end) * rowHeight;
+
   function handleItemKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, item: ContentItem) {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
       event.preventDefault();
@@ -178,7 +238,7 @@ export function LibraryView({
               <button type="button" onClick={onSelectAllVisible}>{t("selectAllVisible")}</button>
             </div>
           )}
-          <div className="itemList">
+          <div className="itemList" ref={listRef}>
             {items.length === 0 ? (
               <div className="emptyListPanel">
                 <strong>{query ? t("noSearchResults") : t("emptyLibraryTitle")}</strong>
@@ -191,7 +251,9 @@ export function LibraryView({
                 )}
               </div>
             ) : (
-              items.map((item) => {
+              <>
+              {leadingSpace > 0 && <div style={{ height: leadingSpace }} aria-hidden="true" />}
+              {items.slice(start, end).map((item) => {
                 const listIconSrc = getItemImageSrc(item);
                 const missing = brokenItemIds.has(item.id);
                 return (
@@ -260,7 +322,9 @@ export function LibraryView({
                     )}
                   </div>
                 );
-              })
+              })}
+              {trailingSpace > 0 && <div style={{ height: trailingSpace }} aria-hidden="true" />}
+              </>
             )}
           </div>
         </div>

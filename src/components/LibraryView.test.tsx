@@ -160,6 +160,26 @@ describe("LibraryView", () => {
     expect(screen.getByRole("button", { name: "delete" })).toBeTruthy();
   });
 
+  it("draws a window of rows and reserves the height of the ones it skipped", () => {
+    const many = Array.from({ length: 60 }, (_, index) =>
+      item({ id: `item-${index}`, title: `Item ${index}` }),
+    );
+    const { container } = renderLibrary({ items: many });
+
+    const rows = screen.getAllByRole("button", { name: /Item \d+/ });
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(many.length);
+
+    const list = container.querySelector(".itemList");
+    const reserved = [...(list?.children ?? [])]
+      .filter((child) => !child.classList.contains("listItemRow"))
+      .reduce((total, child) => total + Number.parseInt((child as HTMLElement).style.height, 10), 0);
+
+    // What keeps the scrollbar honest: every row left undrawn still holds its
+    // place, so the list is the same height whatever part of it is on screen.
+    expect(reserved).toBe((many.length - rows.length) * 61);
+  });
+
   it("swaps the idle bar for bulk controls once items are selected", async () => {
     const handlers = renderLibrary({ selectedItemIds: new Set(["item-1"]) });
 
