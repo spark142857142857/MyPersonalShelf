@@ -12,6 +12,18 @@ import { saveBrowserItemProgress } from "../lib/persistence";
 import { getItemSummary, getItemTextContent, getItemTitle, getCollectionLabel, textEncodingOptions } from "../lib/shelfDisplay";
 import type { ContentItem, TextEncoding, ThemeSettings } from "../types";
 
+/**
+ * Whether to animate a scroll this reader asked not to see animated.
+ *
+ * The stylesheet cannot decide this one. scrollTo's own behavior option wins
+ * over scroll-behavior in CSS, so a page that honours the setting everywhere
+ * else still slides when script does the scrolling. matchMedia is optional
+ * chained because jsdom does not supply it.
+ */
+function preferredScrollBehavior(): ScrollBehavior {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 export function ReaderView({
   item,
   theme,
@@ -245,7 +257,7 @@ export function ReaderView({
     const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
     window.scrollTo({
       top: Math.min(Math.max(0, nextScrollTop), Math.max(0, scrollableHeight)),
-      behavior: "smooth",
+      behavior: preferredScrollBehavior(),
     });
   }
 
@@ -271,7 +283,7 @@ export function ReaderView({
     saveNativeReaderProgress(item.id, 0, 0, updatedAt).catch(() => {
       // Browser preview cannot call Tauri commands; item state still keeps the value for this session.
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: preferredScrollBehavior() });
   }
 
   async function changeTextEncoding(nextEncoding: TextEncoding) {

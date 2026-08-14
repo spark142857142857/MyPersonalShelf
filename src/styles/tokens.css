@@ -125,6 +125,22 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Everything that moves in this app moves for --duration-fast: the cards, the
+ * top bar buttons, the nav items, the search box, and the controls that fade in
+ * over a card or a shortcut row. There are no keyframes and no other duration
+ * anywhere, so zeroing the two values here settles all of it at once rather
+ * than repeating a blanket !important override per property.
+ *
+ * The reader's own scrolling is not covered by this. scrollTo's behavior
+ * option beats scroll-behavior in CSS, so ReaderView reads the same setting
+ * itself. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}
+
 /* Tokens derived from the theme the user picked.
  *
  * These cannot live in :root. A custom property holding `var(--app-text)` is
