@@ -257,7 +257,23 @@ most of the width. Now that shortcuts live in the sidebar that star is a rare ac
 holding space on the most-used control, but every fix is fiddly — hiding it on hover
 reflows the row under the cursor, and an absolute badge shrinks the hit target.
 
-### Detail — not started
+### Detail — done
+
+- the panel was headed "Preview", with the item's own name below it as a `<strong>`
+  inside the preview block. The name is the `h2` now, with type and collection under it;
+  the panel previously offered no heading for its own subject. The full path moves below
+  the preview body — it belongs here, but as reference detail rather than as the line
+  under the item's identity.
+- the preview block was still on literal paper colours (`#f3efe8` ground, `#28313e`
+  text) under a phase-1 note that phase 2 would decide whether a theme may repaint it.
+  It never was revisited: on ink the panel is `rgb(24, 27, 31)` and this sat inside it
+  as a cream rectangle. On `--surface-sunken` the warm palettes keep a warm block —
+  sepia gives `rgb(243, 236, 221)` — and ink reads 18.41:1.
+
+Checked and deliberately left: the action row wraps to two lines at 350px, but the
+number of actions varies by type (up to five for a broken-path link), and forcing one
+line would mean icon-only buttons. Delete sits in that row at the same weight as the
+rest, which is acceptable because it is guarded by a confirm.
 
 ## Phase 4 — built to be lived in
 
