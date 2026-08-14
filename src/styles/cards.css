@@ -205,7 +205,6 @@
   grid-row: span 2;
 }
 
-.cardHeader,
 .sectionTitle {
   display: flex;
   gap: var(--space-3);
@@ -213,13 +212,34 @@
   justify-content: space-between;
 }
 
-.typeBadge {
-  display: inline-flex;
+/* Metadata, so it reads at metadata weight. This line used to be the card's
+ * loudest text -- bold, 13px, accent-coloured, at the top above the title --
+ * while saying the least. */
+.cardInfo {
+  display: flex;
   gap: var(--space-2);
   align-items: center;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: var(--weight-bold);
+  min-width: 0;
+  margin-top: auto;
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The type icons are shared with the list rows at 18px, which is a heading's
+ * size next to 11px text. Scaled here rather than forked. */
+.cardInfoIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.cardInfoIcon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .contentCard h2,

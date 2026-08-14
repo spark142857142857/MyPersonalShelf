@@ -115,15 +115,6 @@
 
 .panelLabel,
 .eyebrow,
-.cardType {
-  color: var(--app-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
 .workspace {
   display: flex;
   flex-direction: column;

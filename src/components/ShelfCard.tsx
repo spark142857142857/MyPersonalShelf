@@ -10,7 +10,6 @@ import {
   getItemTitle,
   getLinkKindLabel,
   getTagLabel,
-  getTypeLabel,
 } from "../lib/shelfDisplay";
 import type { ContentItem } from "../types";
 import { typeIcons } from "./icons";
@@ -122,15 +121,20 @@ export function ShelfCard({
             <img src={previewSrc} alt="" />
           </div>
         )}
-        <div className="cardHeader">
-          <div className="typeBadge" style={{ color: item.accent }}>
-            {platform === "youtube-music" ? <Music2 size={16} /> : typeIcons[item.type]}
-            {platform ? getLinkKindLabel(item.location, platform, t) : getCollectionLabel(item.collection, t)}
-          </div>
-          <span className="cardType">{getTypeLabel(item.type, t)}</span>
-        </div>
         <h2>{getItemTitle(item, t)}</h2>
         {summary && <p>{summary}</p>}
+        {/* One line of metadata at the foot, the way a list row reads: the icon
+          * carries the type, so the text never repeats it. Links name what they
+          * point at, which is more use than the word "link"; everything else
+          * names its collection, which the icon cannot say. */}
+        <div className="cardInfo">
+          <span className="cardInfoIcon" style={{ color: item.accent }}>
+            {platform === "youtube-music" ? <Music2 size={18} /> : typeIcons[item.type]}
+          </span>
+          {platform
+            ? `${getLinkKindLabel(item.location, platform, t)} · ${getCollectionLabel(item.collection, t)}`
+            : getCollectionLabel(item.collection, t)}
+        </div>
       </button>
       <div className="tagRow">
         {item.tags.map((tag) => (
