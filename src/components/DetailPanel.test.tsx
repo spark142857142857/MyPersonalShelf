@@ -104,6 +104,27 @@ describe("DetailPanel notes field", () => {
   });
 });
 
+describe("DetailPanel media position", () => {
+  // Closing the panel flushes the last of a video's playback position. It used
+  // to do so for whatever was selected, so walking down the library wrote a
+  // media position onto every item walked past and stamped updatedAt with it.
+  it("writes nothing back when a document panel closes", () => {
+    const { onPatch, rendered } = renderPanel();
+
+    rendered.unmount();
+
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing back when a media panel closes without playback", () => {
+    const { onPatch, rendered } = renderPanel({ type: "video", mediaPosition: 42 });
+
+    rendered.unmount();
+
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+});
+
 describe("DetailPanel organize fields", () => {
   it("commits collection and tag drafts on blur", async () => {
     const { onPatch } = renderPanel();

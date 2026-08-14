@@ -267,9 +267,26 @@ export function PreviewBody({
     }
   }, [item.id, nativeMediaPosition]);
 
+  /* Catches the last bit of playback that moved too little to have been saved
+   * already, when the panel is closed or switched away from.
+   *
+   * Both guards below are the point of it. It used to run for whatever was
+   * selected, so choosing a different item in the library wrote a media
+   * position onto the one being left -- a document or a link included, neither
+   * of which has such a thing -- and stamped updatedAt in passing. Merely
+   * looking down a list rewrote every item looked at, which made updatedAt mean
+   * "opened the panel on this" rather than "changed this", and made a full
+   * shelf save follow every click. */
   useEffect(() => {
+    if (item.type !== "video" && item.type !== "audio") return;
+
     function flushPreviewMediaPosition() {
       const { position: nextPosition, updatedAt } = latestPreviewMediaPositionRef.current;
+      // nativeMediaPositionRef holds what was last written out. Equal means
+      // playback never moved off it, so there is nothing to save and no reason
+      // to touch the item.
+      if (nextPosition === nativeMediaPositionRef.current) return;
+      nativeMediaPositionRef.current = nextPosition;
       previewOnPatchRef.current({ mediaPosition: nextPosition });
       saveBrowserItemProgress(item.id, { mediaPosition: nextPosition });
       saveNativeMediaProgress(item.id, nextPosition, updatedAt).catch(() => undefined);
@@ -280,7 +297,7 @@ export function PreviewBody({
       flushPreviewMediaPosition();
       window.removeEventListener("pagehide", flushPreviewMediaPosition);
     };
-  }, [item.id]);
+  }, [item.id, item.type]);
 
   useEffect(() => {
     const fallbackPosition = item.mediaPosition ?? 0;
