@@ -3,6 +3,7 @@ import { parseShelfExport, restoreShelfState } from "./shelfImport";
 import type { AppSettings, ContentItem, ThemeSettings } from "../types";
 
 const theme: ThemeSettings = {
+  themePreset: "custom",
   background: "#fff",
   surface: "#fff",
   text: "#000",

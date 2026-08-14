@@ -6,6 +6,7 @@ export type CollectionIcon = "book" | "play" | "music" | "link" | "folder" | "ta
 export type SearchEnterBehavior = "select" | "open";
 export type TextEncoding = "auto" | "utf-8" | "cp949" | "utf-16le" | "utf-16be";
 export type DashboardCardDensity = "large" | "normal" | "small";
+export type ThemePresetName = "paper" | "linen" | "sepia" | "mist" | "night" | "ink" | "custom";
 
 export interface ContentItem {
   id: string;
@@ -77,6 +78,16 @@ export interface AppSettings {
 }
 
 export interface ThemeSettings {
+  /**
+   * Which curated palette the four colours below came from, or "custom" for a
+   * set saved before presets existed.
+   *
+   * The colours are deliberately still stored alongside it rather than being
+   * looked up from the preset at read time. That keeps the saved theme readable
+   * by any version of the app — and by an export taken from one — instead of
+   * turning into a name that older code would not recognise.
+   */
+  themePreset: ThemePresetName;
   background: string;
   surface: string;
   text: string;
