@@ -9,10 +9,16 @@
   background: color-mix(in srgb, var(--app-bg) 82%, #f7f9f8);
 }
 
+/* Pinned to the viewport rather than scrolling away with the page. The
+ * shortcut list inside it is unbounded, and it can only scroll on its own if
+ * something above it decides how tall the column is allowed to get. */
 .sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  height: 100vh;
   padding: var(--space-5) var(--space-4);
   border-right: 1px solid var(--line-subtle);
   background: var(--app-surface);

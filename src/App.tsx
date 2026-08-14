@@ -27,6 +27,7 @@ import { GuidePanel } from "./components/GuidePanel";
 import { MediaViewerView } from "./components/MediaViewerView";
 import { ReaderView } from "./components/ReaderView";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { SidebarShortcuts } from "./components/SidebarShortcuts";
 import { reorderDashboardLayouts } from "./lib/dashboardLayouts";
 import { defaultTheme, normalizeThemeSettings } from "./lib/theme";
 import { onAccentColor } from "./lib/themePresets";
@@ -2139,6 +2140,21 @@ function App() {
           ))}
         </nav>
 
+        <SidebarShortcuts
+          t={t}
+          items={items}
+          collectionSettings={collectionSettings}
+          pinnedTypes={pinnedTypeShortcuts}
+          pinnedCollections={pinnedCollectionShortcuts}
+          pinnedTags={pinnedTagShortcuts}
+          onFilterType={filterByTypePin}
+          onFilterCollection={filterByCollection}
+          onFilterTag={filterByTag}
+          onUnpinType={pinTypeToDashboard}
+          onUnpinCollection={pinCollectionToDashboard}
+          onUnpinTag={pinTagToDashboard}
+        />
+
         <div className="sidebarPanel">
           <span className="panelLabel">{t("shelfStatus")}</span>
           <p>{items.length} {t("items")}, {favoriteItems.length} {t("favorites")}, {Object.keys(groupedCollections).length} {t("collections")}.</p>
@@ -2210,22 +2226,13 @@ function App() {
             recentItems={recentItems}
             frequentItems={frequentItems}
             collectionCount={Object.keys(groupedCollections).length}
-            collectionSettings={collectionSettings}
-            pinnedTypes={pinnedTypeShortcuts}
-            pinnedCollections={pinnedCollectionShortcuts}
-            pinnedTags={pinnedTagShortcuts}
             dashboardCards={visibleDashboardCards}
             selectedItemId={selectedItemId}
             draggingItemId={draggingDashboardItemId}
             dropTargetId={dashboardDropTargetId}
             onNavigate={navigatePrimaryView}
             onFocusInboxCleanup={focusInboxCleanup}
-            onFilterType={filterByTypePin}
-            onFilterCollection={filterByCollection}
             onFilterTag={filterByTag}
-            onUnpinType={pinTypeToDashboard}
-            onUnpinCollection={pinCollectionToDashboard}
-            onUnpinTag={pinTagToDashboard}
             onSelectItem={(item) => void selectItem(item)}
             onOpenItem={(item) => void openItem(item)}
             onToggleFavorite={(item) => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}

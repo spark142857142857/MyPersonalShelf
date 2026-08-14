@@ -1,20 +1,8 @@
-import { BookOpen, FilePlus2, FolderOpen, HelpCircle, Link, Play, Star, Tags } from "lucide-react";
+import { BookOpen, FilePlus2, FolderOpen, HelpCircle, Link, Play } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
-import { getCollectionSettings } from "../lib/collections";
-import {
-  getCollectionLabel,
-  getItemLocation,
-  getItemTitle,
-  getTagLabel,
-  getTypeLabel,
-} from "../lib/shelfDisplay";
-import type {
-  CollectionSettings,
-  ContentItem,
-  ContentType,
-  DashboardLayoutItem,
-} from "../types";
-import { collectionIcons, typeIcons } from "./icons";
+import { getItemLocation, getItemTitle } from "../lib/shelfDisplay";
+import type { ContentItem, DashboardLayoutItem } from "../types";
+import { typeIcons } from "./icons";
 import { ShelfCard } from "./ShelfCard";
 
 export interface DashboardCardEntry {
@@ -30,22 +18,13 @@ export function DashboardView({
   recentItems,
   frequentItems,
   collectionCount,
-  collectionSettings,
-  pinnedTypes,
-  pinnedCollections,
-  pinnedTags,
   dashboardCards,
   selectedItemId,
   draggingItemId,
   dropTargetId,
   onNavigate,
   onFocusInboxCleanup,
-  onFilterType,
-  onFilterCollection,
   onFilterTag,
-  onUnpinType,
-  onUnpinCollection,
-  onUnpinTag,
   onSelectItem,
   onOpenItem,
   onToggleFavorite,
@@ -61,22 +40,13 @@ export function DashboardView({
   recentItems: ContentItem[];
   frequentItems: ContentItem[];
   collectionCount: number;
-  collectionSettings: Record<string, CollectionSettings>;
-  pinnedTypes: ContentType[];
-  pinnedCollections: string[];
-  pinnedTags: string[];
   dashboardCards: DashboardCardEntry[];
   selectedItemId: string;
   draggingItemId: string | null;
   dropTargetId: string | null;
   onNavigate: (view: "library" | "collections" | "customize" | "guide") => void;
   onFocusInboxCleanup: (notice: string) => void;
-  onFilterType: (type: ContentType) => void;
-  onFilterCollection: (collection: string) => void;
   onFilterTag: (tag: string) => void;
-  onUnpinType: (type: ContentType) => void;
-  onUnpinCollection: (collection: string) => void;
-  onUnpinTag: (tag: string) => void;
   onSelectItem: (item: ContentItem) => void;
   onOpenItem: (item: ContentItem) => void;
   onToggleFavorite: (item: ContentItem) => void;
@@ -85,12 +55,6 @@ export function DashboardView({
   onReorderHover: (overItemId: string) => void;
   onReorderEnd: (activeItemId: string, overItemId: string | null) => void;
 }) {
-  const hasShortcuts = pinnedTypes.length > 0 || pinnedCollections.length > 0 || pinnedTags.length > 0;
-
-  function countLabel(count: number) {
-    return `${count} ${count === 1 ? t("itemSingular") : t("itemPlural")}`;
-  }
-
   function handleActivityKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, item: ContentItem) {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
       event.preventDefault();
@@ -129,90 +93,6 @@ export function DashboardView({
           </button>
         </div>
       </header>
-
-      {hasShortcuts && (
-        <section className="dashboardShortcutGrid" aria-label={t("dashboardShortcutsTitle")}>
-          <div className="dashboardSectionHeading">
-            <h2>
-              {t("dashboardShortcutsTitle")}
-              <span>{pinnedTypes.length + pinnedCollections.length + pinnedTags.length}</span>
-            </h2>
-            <p>{t("dashboardShortcutsHint")}</p>
-          </div>
-          <div className="shortcutCardRow">
-            {pinnedTypes.map((type) => {
-              const count = items.filter((item) => item.type === type).length;
-              return (
-                <div className="shortcutCard" key={`type:${type}`}>
-                  <button type="button" className="shortcutCardMain" onClick={() => onFilterType(type)}>
-                    <span className="shortcutCardIcon" style={{ color: "var(--app-accent)" }}>
-                      {typeIcons[type]}
-                    </span>
-                    <strong>{getTypeLabel(type, t)}</strong>
-                    <span>{countLabel(count)}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="shortcutCardUnpin"
-                    aria-label={t("unpinType")}
-                    title={t("unpinType")}
-                    onClick={() => onUnpinType(type)}
-                  >
-                    <Star size={14} fill="currentColor" />
-                  </button>
-                </div>
-              );
-            })}
-            {pinnedCollections.map((collection) => {
-              const settings = getCollectionSettings(collection, collectionSettings, items);
-              const count = items.filter((item) => item.collection === collection).length;
-              return (
-                <div className="shortcutCard" key={`collection:${collection}`} style={{ borderColor: settings.color }}>
-                  <button type="button" className="shortcutCardMain" onClick={() => onFilterCollection(collection)}>
-                    <span className="shortcutCardIcon" style={{ color: settings.color }}>
-                      {collectionIcons[settings.icon]}
-                    </span>
-                    <strong>{getCollectionLabel(collection, t)}</strong>
-                    <span>{countLabel(count)}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="shortcutCardUnpin"
-                    aria-label={t("unpinCollection")}
-                    title={t("unpinCollection")}
-                    onClick={() => onUnpinCollection(collection)}
-                  >
-                    <Star size={14} fill="currentColor" />
-                  </button>
-                </div>
-              );
-            })}
-            {pinnedTags.map((tag) => {
-              const count = items.filter((item) => item.tags.includes(tag)).length;
-              return (
-                <div className="shortcutCard" key={`tag:${tag}`}>
-                  <button type="button" className="shortcutCardMain" onClick={() => onFilterTag(tag)}>
-                    <span className="shortcutCardIcon" style={{ color: "var(--app-accent)" }}>
-                      <Tags size={16} />
-                    </span>
-                    <strong>#{getTagLabel(tag, t)}</strong>
-                    <span>{countLabel(count)}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="shortcutCardUnpin"
-                    aria-label={t("unpinTag")}
-                    title={t("unpinTag")}
-                    onClick={() => onUnpinTag(tag)}
-                  >
-                    <Star size={14} fill="currentColor" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {/* On an empty shelf the panel below carries its own heading and its own
         * invitation, so this one would only announce a section of nothing and

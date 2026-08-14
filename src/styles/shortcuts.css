@@ -1,67 +1,109 @@
-/* Pinned type and collection shortcut cards on the dashboard. */
+/* Pinned type, collection and tag shortcuts in the sidebar.
+ *
+ * These were cards on the dashboard, laid out on a 160px-minimum grid. A 252px
+ * sidebar has no room for that, so they are rows: icon, name, count, one line
+ * each, at the same height as a nav item so the two lists read as one column. */
 
-.dashboardShortcutGrid {
+.sidebarShortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* The list is user-controlled and unbounded while the navigation above it is
+   * six fixed items. Letting only this region shrink and scroll keeps the brand
+   * and the nav in place no matter how much gets pinned. */
+  min-height: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.sidebarShortcutList {
   display: grid;
+  gap: 1px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sidebarShortcut {
+  position: relative;
+  display: grid;
+}
+
+.sidebarShortcutMain {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   gap: var(--space-3);
-  margin-bottom: var(--space-2);
-}
-
-.shortcutCardRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: var(--space-3);
-}
-
-.shortcutCard {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: stretch;
-  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, var(--line-strong));
-  border-radius: var(--radius-md);
-  background: var(--app-surface);
-  overflow: hidden;
-}
-
-.shortcutCardMain {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
+  align-items: center;
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-3);
   border: 0;
-  background: transparent;
-  color: var(--app-text);
-  text-align: left;
-}
-
-.shortcutCardMain:hover {
-  background: var(--accent-wash);
-}
-
-.shortcutCardIcon {
-  display: inline-flex;
-}
-
-.shortcutCardMain strong {
-  font-size: var(--text-base);
-  line-height: var(--leading-base);
-}
-
-.shortcutCardMain span {
+  border-radius: var(--radius-md);
   color: var(--app-muted);
+  background: transparent;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
+  text-align: left;
+  transition: color var(--duration-fast) var(--ease), background-color var(--duration-fast) var(--ease);
 }
 
-.shortcutCardUnpin {
+.sidebarShortcut:hover .sidebarShortcutMain,
+.sidebarShortcut:focus-within .sidebarShortcutMain {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-surface));
+}
+
+.sidebarShortcutIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--control-sm);
-  border: 0;
-  border-left: 1px solid var(--line-strong);
-  background: transparent;
-  color: var(--app-accent);
 }
 
-.shortcutCardUnpin:hover {
-  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+.sidebarShortcutName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarShortcutCount {
+  color: var(--app-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebarShortcutUnpin {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--app-accent);
+  background: transparent;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--duration-fast) var(--ease);
+  pointer-events: none;
+}
+
+.sidebarShortcut:hover .sidebarShortcutUnpin,
+.sidebarShortcutUnpin:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebarShortcutUnpin:hover {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+/* The count would otherwise show through from under the unpin control. */
+.sidebarShortcut:hover .sidebarShortcutCount,
+.sidebarShortcut:focus-within .sidebarShortcutCount {
+  opacity: 0;
 }
