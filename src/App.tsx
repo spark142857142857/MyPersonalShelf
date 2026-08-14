@@ -916,6 +916,20 @@ function App() {
     ]);
     return [...names].sort((left, right) => left.localeCompare(right));
   }, [collectionSettings, groupedCollections]);
+  /**
+   * The types the shelf actually holds. A filter that can only ever come back
+   * empty is not worth a chip, and the library's filter row is tight enough
+   * that six fixed chips are most of what wrapped it onto a second line.
+   *
+   * Read from the whole shelf rather than the filtered view — narrowing to one
+   * type would otherwise remove every other chip and strand the filter. The
+   * active type is kept even once its last item is gone, so a chip never
+   * disappears from under the selection.
+   */
+  const availableContentTypes = useMemo(() => {
+    const present = new Set(items.map((item) => item.type));
+    return contentTypes.filter((type) => present.has(type) || activeType === type);
+  }, [items, activeType]);
   const [newCollectionName, setNewCollectionName] = useState("");
 
   const shellStyle = {
@@ -2257,7 +2271,7 @@ function App() {
           <LibraryView
             t={t}
             items={filteredItems}
-            contentTypes={contentTypes}
+            contentTypes={availableContentTypes}
             collectionCount={Object.keys(groupedCollections).length}
             inboxItems={inboxItems}
             query={query}
