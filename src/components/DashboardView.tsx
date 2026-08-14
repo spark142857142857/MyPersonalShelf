@@ -1,6 +1,7 @@
 import { BookOpen, FilePlus2, FolderOpen, HelpCircle, Link, Play } from "lucide-react";
 import type { MessageKey } from "../lib/i18n";
 import { getItemFileName, getItemTitle } from "../lib/shelfDisplay";
+import type { ShelfHealthEntry, ShelfHealthKind } from "../lib/shelfHealth";
 import type { ContentItem, DashboardLayoutItem } from "../types";
 import { typeIcons } from "./icons";
 import { ShelfCard } from "./ShelfCard";
@@ -10,11 +11,25 @@ export interface DashboardCardEntry {
   item: ContentItem;
 }
 
+/* The unit follows the number, so these are counter words rather than
+ * sentences: "3 broken", "3개 끊김". formatCount decides the space between. */
+const healthUnits: Record<ShelfHealthKind, MessageKey> = {
+  brokenPaths: "shelfHealthBroken",
+  duplicates: "shelfHealthDuplicates",
+  inbox: "shelfHealthInbox",
+};
+
+const healthHints: Record<ShelfHealthKind, MessageKey> = {
+  brokenPaths: "shelfHealthBrokenHint",
+  duplicates: "shelfHealthDuplicatesHint",
+  inbox: "shelfHealthInboxHint",
+};
+
 export function DashboardView({
   t,
   tCount,
   items,
-  inboxItems,
+  healthEntries,
   favoriteItems,
   recentItems,
   frequentItems,
@@ -25,7 +40,7 @@ export function DashboardView({
   draggingItemId,
   dropTargetId,
   onNavigate,
-  onFocusInboxCleanup,
+  onFixShelfHealth,
   onFilterTag,
   onOpenItem,
   onToggleFavorite,
@@ -37,7 +52,7 @@ export function DashboardView({
   t: (key: MessageKey) => string;
   tCount: (count: number, key: MessageKey) => string;
   items: ContentItem[];
-  inboxItems: ContentItem[];
+  healthEntries: ShelfHealthEntry[];
   favoriteItems: ContentItem[];
   recentItems: ContentItem[];
   frequentItems: ContentItem[];
@@ -48,7 +63,7 @@ export function DashboardView({
   draggingItemId: string | null;
   dropTargetId: string | null;
   onNavigate: (view: "library" | "collections" | "customize" | "guide") => void;
-  onFocusInboxCleanup: (notice: string) => void;
+  onFixShelfHealth: (kind: ShelfHealthKind) => void;
   onFilterTag: (tag: string) => void;
   onOpenItem: (item: ContentItem) => void;
   onToggleFavorite: (item: ContentItem) => void;
@@ -73,15 +88,6 @@ export function DashboardView({
    * the exception. */
   return (
     <>
-      {inboxItems.length > 0 && (
-        <section className="cleanupBanner" aria-label={t("inboxCleanupAction")}>
-          <p>{t("inboxPendingBanner").replace("{count}", String(inboxItems.length))}</p>
-          <button type="button" onClick={() => onFocusInboxCleanup(t("inboxCleanupAction"))}>
-            {t("inboxCleanupAction")}
-          </button>
-        </section>
-      )}
-
       {/* The counts are the only part of the old hero band that changed as the
         * shelf changed, so they are all that survives it. They read as a
         * sentence and stay clickable. */}
@@ -101,6 +107,29 @@ export function DashboardView({
             {t("groups")}
           </button>
         </div>
+
+        {/* The same shape as the counts above, because it is the same kind of
+          * thing -- what the shelf currently holds -- and it sits with them
+          * rather than in a tinted banner over the top of the page. Inbox used
+          * to have one of those to itself, which made the most routine of the
+          * three the loudest, while duplicates had nothing pointing at them at
+          * all. Absent when there is nothing to do. */}
+        {healthEntries.length > 0 && (
+          <div className="shelfHealth" aria-label={t("shelfHealthLabel")}>
+            <span className="shelfHealthLabel">{t("shelfHealthLabel")}</span>
+            {healthEntries.map((entry) => (
+              <button
+                type="button"
+                key={entry.kind}
+                title={t(healthHints[entry.kind])}
+                onClick={() => onFixShelfHealth(entry.kind)}
+              >
+                <strong>{entry.count}</strong>
+                {t(healthUnits[entry.kind])}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* The one section here that is not a mirror of what its reader already

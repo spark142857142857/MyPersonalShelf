@@ -85,30 +85,6 @@
   border-style: dashed;
 }
 
-.cleanupBanner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--app-accent) 28%, var(--line-strong));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--app-accent) 8%, var(--app-surface));
-}
-
-.cleanupBanner p {
-  margin: 0;
-  color: var(--app-text);
-  font-size: var(--text-base);
-  line-height: var(--leading-base);
-}
-
-.compactCleanupBanner {
-  margin-top: var(--space-3);
-}
-
 /* The 2px here is a seam between two halves of one control, not spacing, so it
  * stays off the scale — 4px would read as two separate buttons. */
 .tagCloudItem {

@@ -34,7 +34,6 @@ function renderLibrary(props: Partial<Parameters<typeof LibraryView>[0]> = {}) {
     onSelectType: vi.fn(),
     onPinType: vi.fn(),
     onScanBrokenPaths: vi.fn(),
-    onFocusInboxCleanup: vi.fn(),
     onBulkCollectionChange: vi.fn(),
     onBulkTagsChange: vi.fn(),
     onApplyBulkEdits: vi.fn(),
@@ -53,7 +52,6 @@ function renderLibrary(props: Partial<Parameters<typeof LibraryView>[0]> = {}) {
       items={[item()]}
       contentTypes={contentTypes}
       collectionCount={2}
-      inboxItems={[]}
       query=""
       activeType="all"
       pinnedTypes={[]}

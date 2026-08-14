@@ -24,7 +24,6 @@ export function LibraryView({
   items,
   contentTypes,
   collectionCount,
-  inboxItems,
   query,
   activeType,
   pinnedTypes,
@@ -40,7 +39,6 @@ export function LibraryView({
   onSelectType,
   onPinType,
   onScanBrokenPaths,
-  onFocusInboxCleanup,
   onBulkCollectionChange,
   onBulkTagsChange,
   onApplyBulkEdits,
@@ -59,7 +57,6 @@ export function LibraryView({
   items: ContentItem[];
   contentTypes: ContentType[];
   collectionCount: number;
-  inboxItems: ContentItem[];
   query: string;
   activeType: ContentType | "all";
   pinnedTypes: ContentType[];
@@ -75,7 +72,6 @@ export function LibraryView({
   onSelectType: (type: ContentType | "all") => void;
   onPinType: (type: ContentType) => void;
   onScanBrokenPaths: () => void;
-  onFocusInboxCleanup: (notice: string) => void;
   onBulkCollectionChange: (value: string) => void;
   onBulkTagsChange: (value: string) => void;
   onApplyBulkEdits: () => void;
@@ -207,14 +203,6 @@ export function LibraryView({
               </button>
             )}
           </div>
-          {inboxItems.length > 0 && !pathHealthFilter && query !== "collection:Inbox" && (
-            <div className="cleanupBanner compactCleanupBanner">
-              <p>{t("inboxPendingBanner").replace("{count}", String(inboxItems.length))}</p>
-              <button type="button" onClick={() => onFocusInboxCleanup(t("inboxCleanupAction"))}>
-                {t("inboxCleanupAction")}
-              </button>
-            </div>
-          )}
           {selectedItemIds.size > 0 && (
             <div className="bulkBar">
               <span className="bulkCount">{tCount(selectedItemIds.size, "selectedCount")}</span>

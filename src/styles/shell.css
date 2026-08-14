@@ -199,3 +199,58 @@
   font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
 }
+
+/* The shelf's chores, on the line under its counts and built the same way,
+ * because they are the same kind of statement about the same shelf.
+ *
+ * Deliberately not a banner. Inbox had one to itself across the top of two
+ * views -- an accent-filled box for the most routine of the three -- while
+ * duplicates sat in a settings section nothing pointed at. A count that is
+ * usually zero and never urgent should not outweigh the content under it. */
+.shelfHealth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  align-items: baseline;
+}
+
+.shelfHealth > * {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+  border: 0;
+  color: var(--app-muted);
+  background: transparent;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.shelfHealth > *:lang(ko) {
+  gap: 0;
+}
+
+/* Names the row without competing with it. */
+.shelfHealthLabel {
+  gap: 0;
+  color: color-mix(in srgb, var(--app-muted) 72%, transparent);
+}
+
+.shelfHealth button {
+  text-underline-offset: 3px;
+}
+
+.shelfHealth button:hover {
+  color: var(--app-text);
+  text-decoration: underline;
+}
+
+/* The number carries the warning, not the whole line: these are chores, and a
+ * row of amber text above the shelf would read as an alarm. */
+.shelfHealth strong {
+  color: var(--app-warning);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}

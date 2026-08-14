@@ -87,6 +87,7 @@ import { isSearchFocusShortcut, parseSearchQuery } from "./lib/search";
 import { findUnfinishedItems } from "./lib/continueReading";
 import { collectFailures } from "./lib/pathScan";
 import { nextSelectionAfterRemoval } from "./lib/listSelection";
+import { collectShelfHealth, type ShelfHealthKind } from "./lib/shelfHealth";
 import { browserItemStorageKey, prepareItemsForPersistence } from "./lib/persistence";
 import { buildShelfItem, createShelfItemId, findDuplicate, findDuplicateGroups, mergeShelfItems } from "./lib/duplicates";
 import { parseBookmarkFile } from "./lib/bookmarkImport";
@@ -923,6 +924,18 @@ function App() {
   const favoriteItems = items.filter((item) => item.isFavorite);
   const inboxItems = items.filter((item) => item.collection === "Inbox");
   const duplicateGroups = useMemo(() => findDuplicateGroups(items), [items]);
+  /* Broken paths are only known after a scan, which runs on startup and only
+   * under the native runtime, so the count is honestly zero in the preview
+   * rather than unknown. */
+  const healthEntries = useMemo(
+    () =>
+      collectShelfHealth({
+        brokenPathCount: unavailablePathIds.size,
+        duplicateGroupCount: duplicateGroups.length,
+        inboxCount: inboxItems.length,
+      }),
+    [duplicateGroups.length, inboxItems.length, unavailablePathIds.size],
+  );
   const pinnedTypeShortcuts = appSettings.pinnedTypes;
   const pinnedCollectionShortcuts = appSettings.pinnedCollections;
   const pinnedTagShortcuts = appSettings.pinnedTags;
@@ -1255,6 +1268,23 @@ function App() {
     const pinned = next.pinnedTags.includes(tag);
     setAppSettings(next);
     showNotice(`#${getTagLabel(tag, t)} ${pinned ? t("tagPinnedNotice") : t("tagUnpinnedNotice")}`);
+  }
+
+  /**
+   * Sends each count on the shelf-health line to the place that clears it.
+   * The three live in three different views, which is most of why gathering
+   * the counts into one line was worth doing.
+   */
+  function fixShelfHealth(kind: ShelfHealthKind) {
+    if (kind === "brokenPaths") {
+      void filterBrokenPaths();
+      return;
+    }
+    if (kind === "duplicates") {
+      navigatePrimaryView("settings");
+      return;
+    }
+    focusInboxCleanup(t("inboxCleanupAction"));
   }
 
   async function filterBrokenPaths() {
@@ -2317,7 +2347,7 @@ function App() {
             t={t}
             tCount={tCount}
             items={items}
-            inboxItems={inboxItems}
+            healthEntries={healthEntries}
             favoriteItems={favoriteItems}
             recentItems={recentItems}
             frequentItems={frequentItems}
@@ -2328,7 +2358,7 @@ function App() {
             draggingItemId={draggingDashboardItemId}
             dropTargetId={dashboardDropTargetId}
             onNavigate={navigatePrimaryView}
-            onFocusInboxCleanup={focusInboxCleanup}
+            onFixShelfHealth={fixShelfHealth}
             onFilterTag={filterByTag}
             onOpenItem={(item) => void openItem(item)}
             onToggleFavorite={(item) => updateItem(setItems, item.id, { isFavorite: !item.isFavorite })}
@@ -2362,7 +2392,6 @@ function App() {
             items={filteredItems}
             contentTypes={availableContentTypes}
             collectionCount={Object.keys(groupedCollections).length}
-            inboxItems={inboxItems}
             query={query}
             activeType={activeType}
             pinnedTypes={appSettings.pinnedTypes}
@@ -2381,7 +2410,6 @@ function App() {
             }}
             onPinType={pinTypeToDashboard}
             onScanBrokenPaths={() => void filterBrokenPaths()}
-            onFocusInboxCleanup={focusInboxCleanup}
             onBulkCollectionChange={setBulkCollection}
             onBulkTagsChange={setBulkTags}
             onApplyBulkEdits={applyBulkEdits}
